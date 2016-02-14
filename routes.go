@@ -21,4 +21,9 @@ var routes = Routes{
 		"/todos/{todoId}",
 		TodoShow,
 	},
+	Route{
+		"POST",
+		"/services",
+		ServiceCreate,
+	},
 }

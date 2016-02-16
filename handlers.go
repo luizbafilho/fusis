@@ -3,9 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
-	"os/exec"
+	"syscall"
 
+	"github.com/google/seesaw/ipvs"
 	"github.com/gorilla/mux"
 )
 
@@ -27,21 +30,25 @@ func Index(w http.ResponseWriter, r *http.Request) {
 
 //ServiceCreate ...
 func ServiceCreate(w http.ResponseWriter, r *http.Request) {
-	var service Service
-	err := json.NewDecoder(r.Body).Decode(&service)
-
+	var newService Service
+	err := json.NewDecoder(r.Body).Decode(&newService)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
 
-	_, err = exec.Command("sudo", "bash", "-c", "ipvsadm -A -t 172.18.0.200:80").Output()
-
-	if err != nil {
-		println(err.Error())
-		return
+	ipvsService := ipvs.Service{
+		Address:   net.ParseIP(newService.Host),
+		Protocol:  syscall.IPPROTO_TCP,
+		Port:      newService.Port,
+		Scheduler: newService.Scheduler,
 	}
 
+	if err := ipvs.AddService(ipvsService); err != nil {
+		log.Fatalf("ipvs.AddService() failed: %v\n", err)
+	}
+
+	w.WriteHeader(http.StatusCreated)
 }
 
 //TodoShow expoer

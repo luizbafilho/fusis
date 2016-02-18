@@ -74,5 +74,6 @@ Vagrant.configure(2) do |config|
     echo export PATH=$PATH:/usr/local/go/bin >> /home/vagrant/.profile
     mkdir /home/vagrant/gocode
     echo export GOPATH=/home/vagrant/gocode >> /home/vagrant/.profile
+    sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential
   SHELL
 end

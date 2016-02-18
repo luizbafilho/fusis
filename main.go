@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/google/seesaw/ipvs"
+	"github.com/luizbafilho/janus/ipvs"
 )
 
 func main() {

@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 	"syscall"
 	"unsafe"
 
@@ -183,19 +182,6 @@ func (proto IPProto) String() string {
 		return "UDP"
 	}
 	return fmt.Sprintf("IP(%d)", proto)
-}
-
-//UnmarshalJSON ...
-func (proto *IPProto) UnmarshalJSON(text []byte) error {
-	value := strings.ToLower(string(text[1 : len(text)-1])) // Avoid converting the quotes
-
-	if value == "udp" {
-		*proto = syscall.IPPROTO_UDP
-	} else {
-		*proto = syscall.IPPROTO_TCP
-	}
-
-	return nil
 }
 
 // IPVSVersion represents a IPVS version as major, minor and patch values.

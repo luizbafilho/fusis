@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -30,16 +29,17 @@ func Index(w http.ResponseWriter, r *http.Request) {
 func ServiceCreate(w http.ResponseWriter, r *http.Request) {
 	var newService ipvs.Service
 	err := json.NewDecoder(r.Body).Decode(&newService)
+
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
 
-	fmt.Println(newService)
-
 	if err := ipvs.AddService(newService); err != nil {
-		log.Fatalf("ipvs.AddService() failed: %v\n", err)
+		http.Error(w, fmt.Sprintf("ipvs.AddService() failed: %v\n", err), 422)
+		return
 	}
+
 	w.WriteHeader(http.StatusCreated)
 }
 

@@ -13,14 +13,14 @@ type ServiceRequest struct {
 	Port         uint16
 	Protocol     IPProto
 	Scheduler    string
-	Destinations []*DestinationRequest
+	Destinations []DestinationRequest
 }
 
 type DestinationRequest struct {
 	Host   net.IP
 	Port   uint16
 	Weight int32
-	mode   DestinationFlags
+	Mode   DestinationFlags
 }
 
 type IPProto ipvs.IPProto
@@ -60,4 +60,29 @@ func (flags *DestinationFlags) UnmarshalJSON(text []byte) error {
 		*flags = RouteMode
 	}
 	return nil
+}
+
+func (s ServiceRequest) toIpvsService() ipvs.Service {
+	destinations := []*ipvs.Destination{}
+
+	for _, dst := range s.Destinations {
+		destinations = append(destinations, dst.toIpvsDestination())
+	}
+
+	return ipvs.Service{
+		Address:      s.Host,
+		Port:         s.Port,
+		Protocol:     ipvs.IPProto(s.Protocol),
+		Scheduler:    s.Scheduler,
+		Destinations: destinations,
+	}
+}
+
+func (d DestinationRequest) toIpvsDestination() *ipvs.Destination {
+	return &ipvs.Destination{
+		Address: d.Host,
+		Port:    d.Port,
+		Weight:  d.Weight,
+		Flags:   ipvs.DestinationFlags(d.Mode),
+	}
 }

@@ -27,7 +27,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 
 //ServiceCreate ...
 func ServiceCreate(w http.ResponseWriter, r *http.Request) {
-	var newService ipvs.Service
+	var newService ServiceRequest
 	err := json.NewDecoder(r.Body).Decode(&newService)
 
 	if err != nil {
@@ -35,7 +35,9 @@ func ServiceCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ipvs.AddService(newService); err != nil {
+	err = ipvs.AddService(newService.toIpvsService())
+
+	if err != nil {
 		http.Error(w, fmt.Sprintf("ipvs.AddService() failed: %v\n", err), 422)
 		return
 	}

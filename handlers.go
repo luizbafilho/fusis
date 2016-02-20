@@ -105,6 +105,42 @@ func DestinationCreate(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func DestinationUpdate(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	service_id := vars["service_id"]
+	service_attrs := strings.Split(service_id, "-")
+
+	port, err := strconv.ParseUint(service_attrs[1], 10, 16)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Port invalid: %v\n", err), 422)
+		return
+	}
+
+	var proto IPProto
+	proto.UnmarshalJSON([]byte(service_attrs[2]))
+
+	service := ipvs.Service{
+		Address:  net.ParseIP(service_attrs[0]),
+		Port:     uint16(port),
+		Protocol: ipvs.IPProto(proto),
+	}
+
+	var destination DestinationRequest
+	err = json.NewDecoder(r.Body).Decode(&destination)
+
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	err = ipvs.UpdateDestination(service, *destination.toIpvsDestination())
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("ipvs.UpdateDestination() failed: %v\n", err), 422)
+		return
+	}
+}
+
 //TodoShow expoer
 func TodoShow(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

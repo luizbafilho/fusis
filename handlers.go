@@ -98,22 +98,11 @@ func ServiceDelete(w http.ResponseWriter, r *http.Request) {
 
 func DestinationCreate(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	service_id := vars["service_id"]
-	service_attrs := strings.Split(service_id, "-")
+	service, err := getServiceFromId(vars["service_id"])
 
-	port, err := strconv.ParseUint(service_attrs[1], 10, 16)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Port invalid: %v\n", err), 422)
+		http.Error(w, fmt.Sprintf("Error: %v\n", err), 422)
 		return
-	}
-
-	var proto IPProto
-	proto.UnmarshalJSON([]byte(service_attrs[2]))
-
-	service := ipvs.Service{
-		Address:  net.ParseIP(service_attrs[0]),
-		Port:     uint16(port),
-		Protocol: ipvs.IPProto(proto),
 	}
 
 	var destination DestinationRequest
@@ -124,7 +113,7 @@ func DestinationCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ipvs.AddDestination(service, *destination.toIpvsDestination())
+	err = ipvs.AddDestination(*service, *destination.toIpvsDestination())
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("ipvs.AddDestination() failed: %v\n", err), 422)
@@ -136,22 +125,11 @@ func DestinationCreate(w http.ResponseWriter, r *http.Request) {
 
 func DestinationUpdate(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	service_id := vars["service_id"]
-	service_attrs := strings.Split(service_id, "-")
+	service, err := getServiceFromId(vars["service_id"])
 
-	port, err := strconv.ParseUint(service_attrs[1], 10, 16)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Port invalid: %v\n", err), 422)
+		http.Error(w, fmt.Sprintf("Error: %v\n", err), 422)
 		return
-	}
-
-	var proto IPProto
-	proto.UnmarshalJSON([]byte(service_attrs[2]))
-
-	service := ipvs.Service{
-		Address:  net.ParseIP(service_attrs[0]),
-		Port:     uint16(port),
-		Protocol: ipvs.IPProto(proto),
 	}
 
 	var destination DestinationRequest
@@ -162,7 +140,7 @@ func DestinationUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ipvs.UpdateDestination(service, *destination.toIpvsDestination())
+	err = ipvs.UpdateDestination(*service, *destination.toIpvsDestination())
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("ipvs.UpdateDestination() failed: %v\n", err), 422)
@@ -172,22 +150,11 @@ func DestinationUpdate(w http.ResponseWriter, r *http.Request) {
 
 func DestinationDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	service_id := vars["service_id"]
-	service_attrs := strings.Split(service_id, "-")
+	service, err := getServiceFromId(vars["service_id"])
 
-	port, err := strconv.ParseUint(service_attrs[1], 10, 16)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Port invalid: %v\n", err), 422)
+		http.Error(w, fmt.Sprintf("Error: %v\n", err), 422)
 		return
-	}
-
-	var proto IPProto
-	proto.UnmarshalJSON([]byte(service_attrs[2]))
-
-	service := ipvs.Service{
-		Address:  net.ParseIP(service_attrs[0]),
-		Port:     uint16(port),
-		Protocol: ipvs.IPProto(proto),
 	}
 
 	var destination DestinationRequest
@@ -198,10 +165,29 @@ func DestinationDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ipvs.DeleteDestination(service, *destination.toIpvsDestination())
+	err = ipvs.DeleteDestination(*service, *destination.toIpvsDestination())
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("ipvs.DeleteDestination() failed: %v\n", err), 422)
 		return
 	}
+}
+
+func getServiceFromId(serviceId string) (*ipvs.Service, error) {
+	serviceAttrs := strings.Split(serviceId, "-")
+
+	port, err := strconv.ParseUint(serviceAttrs[1], 10, 16)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var proto IPProto
+	proto.UnmarshalJSON([]byte(serviceAttrs[2]))
+
+	return &ipvs.Service{
+		Address:  net.ParseIP(serviceAttrs[0]),
+		Port:     uint16(port),
+		Protocol: ipvs.IPProto(proto),
+	}, nil
 }

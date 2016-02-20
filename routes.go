@@ -13,13 +13,8 @@ type Routes []Route
 var routes = Routes{
 	Route{
 		"GET",
-		"/",
-		Index,
-	},
-	Route{
-		"GET",
-		"/todos/{todoId}",
-		TodoShow,
+		"/services",
+		ServiceIndex,
 	},
 	Route{
 		"POST",

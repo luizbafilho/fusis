@@ -13,19 +13,29 @@ import (
 )
 
 //Index Handles index
-func Index(w http.ResponseWriter, r *http.Request) {
-	// todos := Todos{
-	// 	Todo{Name: "Write presentation"},
-	// 	Todo{Name: "Host meetup"},
-	// }
-	// w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	//
-	// w.WriteHeader(http.StatusOK)
-	// err := json.NewEncoder(w).Encode(todos)
-	//
-	// if err != nil {
-	// 	panic(err)
-	// }
+func ServiceIndex(w http.ResponseWriter, r *http.Request) {
+	ipvsServices, err := ipvs.GetServices()
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("ipvs.GetServices() failed: %v\n", err), 422)
+		return
+	}
+
+	services := []ServiceRequest{}
+
+	for _, s := range ipvsServices {
+		services = append(services, newServiceRequest(s))
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+
+	err = json.NewEncoder(w).Encode(services)
+
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
 }
 
 //ServiceCreate ...

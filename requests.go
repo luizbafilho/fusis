@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net"
 	"strings"
 	"syscall"
@@ -48,7 +49,7 @@ type DestinationFlags uint32
 
 //UnmarshalJSON ...
 func (flags *DestinationFlags) UnmarshalJSON(text []byte) error {
-	value := strings.ToLower(string(text[1 : len(text)-1])) // Avoid converting the quotes
+	value := strings.ToLower(strings.Trim(string(text), "\"")) // Avoid converting the quotes
 
 	switch value {
 	case "nat":
@@ -60,6 +61,24 @@ func (flags *DestinationFlags) UnmarshalJSON(text []byte) error {
 		*flags = RouteMode
 	}
 	return nil
+}
+
+//MarshalJSON ...
+func (flags DestinationFlags) MarshalJSON() ([]byte, error) {
+	var value string
+
+	switch flags {
+	case NatMode:
+		value = "nat"
+		// *flags =
+	case TunnelMode:
+		value = "tunnel"
+	default:
+		// Default is Direct Routing
+		value = "route"
+	}
+
+	return json.Marshal(value)
 }
 
 func (s ServiceRequest) toIpvsService() ipvs.Service {
@@ -84,5 +103,30 @@ func (d DestinationRequest) toIpvsDestination() *ipvs.Destination {
 		Port:    d.Port,
 		Weight:  d.Weight,
 		Flags:   ipvs.DestinationFlags(d.Mode),
+	}
+}
+
+func newServiceRequest(s *ipvs.Service) ServiceRequest {
+	destinations := []DestinationRequest{}
+
+	for _, dst := range s.Destinations {
+		destinations = append(destinations, newDestinationRequest(dst))
+	}
+
+	return ServiceRequest{
+		Host:         s.Address,
+		Port:         s.Port,
+		Protocol:     IPProto(s.Protocol),
+		Scheduler:    s.Scheduler,
+		Destinations: destinations,
+	}
+}
+
+func newDestinationRequest(d *ipvs.Destination) DestinationRequest {
+	return DestinationRequest{
+		Host:   d.Address,
+		Port:   d.Port,
+		Weight: d.Weight,
+		Mode:   DestinationFlags(d.Flags),
 	}
 }

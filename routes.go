@@ -32,6 +32,11 @@ var routes = Routes{
 		ServiceUpdate,
 	},
 	Route{
+		"DELETE",
+		"/services",
+		ServiceDelete,
+	},
+	Route{
 		"POST",
 		"/services/{service_id}/destinations",
 		DestinationCreate,
@@ -40,5 +45,10 @@ var routes = Routes{
 		"PUT",
 		"/services/{service_id}/destinations",
 		DestinationUpdate,
+	},
+	Route{
+		"DELETE",
+		"/services/{service_id}/destinations",
+		DestinationDelete,
 	},
 }

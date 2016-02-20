@@ -26,4 +26,14 @@ var routes = Routes{
 		"/services",
 		ServiceCreate,
 	},
+	Route{
+		"PUT",
+		"/services",
+		ServiceUpdate,
+	},
+	Route{
+		"POST",
+		"/services/{service_id}/destinations",
+		DestinationCreate,
+	},
 }

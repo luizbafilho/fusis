@@ -27,7 +27,7 @@ type IPProto ipvs.IPProto
 
 //UnmarshalJSON ...
 func (proto *IPProto) UnmarshalJSON(text []byte) error {
-	value := strings.ToLower(string(text[1 : len(text)-1])) // Avoid converting the quotes
+	value := strings.ToLower(strings.Trim(string(text), "\"")) // Avoid converting the quotes
 
 	if value == "udp" {
 		*proto = syscall.IPPROTO_UDP

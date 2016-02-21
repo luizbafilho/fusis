@@ -2,8 +2,8 @@ package main
 
 import (
 	"log"
-	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/janus/ipvs"
 )
 
@@ -13,7 +13,21 @@ func main() {
 	}
 	log.Printf("IPVS version %s\n", ipvs.Version())
 
-	router := NewRouter()
+	// Creates a gin router with default middleware:
+	// logger and recovery (crash-free) middleware
+	router := gin.Default()
 
-	log.Fatal(http.ListenAndServe(":8000", router))
+	router.GET("/services", serviceIndex)
+	router.POST("/services", serviceCreate)
+	router.PUT("/services", serviceUpdate)
+	router.DELETE("/services", serviceDelete)
+	//
+	router.POST("/services/:service_id/destinations", destinationCreate)
+	router.PUT("/services/:service_id/destinations", destinationUpdate)
+	router.DELETE("/services/:service_id/destinations", destinationDelete)
+
+	// By default it serves on :8080 unless a
+	// PORT environment variable was defined.
+	router.Run(":8000")
+	// router.Run(":3000") for a hard coded port
 }

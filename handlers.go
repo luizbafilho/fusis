@@ -1,23 +1,22 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/janus/ipvs"
 )
 
 //Index Handles index
-func ServiceIndex(w http.ResponseWriter, r *http.Request) {
+func serviceIndex(c *gin.Context) {
 	ipvsServices, err := ipvs.GetServices()
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("ipvs.GetServices() failed: %v\n", err), 422)
+		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.GetServices() failed: %v", err)})
 		return
 	}
 
@@ -27,149 +26,130 @@ func ServiceIndex(w http.ResponseWriter, r *http.Request) {
 		services = append(services, newServiceRequest(s))
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
-
-	err = json.NewEncoder(w).Encode(services)
-
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
+	c.JSON(http.StatusOK, services)
 }
 
 //ServiceCreate ...
-func ServiceCreate(w http.ResponseWriter, r *http.Request) {
+func serviceCreate(c *gin.Context) {
 	var newService ServiceRequest
-	err := json.NewDecoder(r.Body).Decode(&newService)
 
-	if err != nil {
-		http.Error(w, err.Error(), 400)
+	if c.BindJSON(&newService) != nil {
 		return
 	}
 
-	err = ipvs.AddService(newService.toIpvsService())
+	err := ipvs.AddService(newService.toIpvsService())
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("ipvs.AddService() failed: %v\n", err), 422)
-		return
+		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.AddService() failed: %v", err)})
+	} else {
+		c.JSON(http.StatusCreated, newService)
 	}
-
-	w.WriteHeader(http.StatusCreated)
 }
 
-func ServiceUpdate(w http.ResponseWriter, r *http.Request) {
+func serviceUpdate(c *gin.Context) {
 	var service ServiceRequest
-	err := json.NewDecoder(r.Body).Decode(&service)
 
-	if err != nil {
-		http.Error(w, err.Error(), 400)
+	if c.BindJSON(&service) != nil {
 		return
 	}
 
-	err = ipvs.UpdateService(service.toIpvsService())
+	err := ipvs.UpdateService(service.toIpvsService())
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("ipvs.UpdateService() failed: %v\n", err), 422)
-		return
+		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.UpdateService() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, service)
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
-func ServiceDelete(w http.ResponseWriter, r *http.Request) {
+//
+func serviceDelete(c *gin.Context) {
 	var service ServiceRequest
-	err := json.NewDecoder(r.Body).Decode(&service)
 
-	if err != nil {
-		http.Error(w, err.Error(), 400)
+	if c.BindJSON(&service) != nil {
 		return
 	}
 
-	err = ipvs.DeleteService(service.toIpvsService())
+	err := ipvs.DeleteService(service.toIpvsService())
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("ipvs.DeleteService() failed: %v\n", err), 422)
-		return
+		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.DeleteService() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, service)
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
-func DestinationCreate(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	service, err := getServiceFromId(vars["service_id"])
+func destinationCreate(c *gin.Context) {
+	serviceId := c.Param("service_id")
+	service, err := getServiceFromId(serviceId)
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v\n", err), 422)
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
 	var destination DestinationRequest
-	err = json.NewDecoder(r.Body).Decode(&destination)
 
-	if err != nil {
-		http.Error(w, err.Error(), 400)
+	if c.BindJSON(&destination) != nil {
 		return
 	}
 
 	err = ipvs.AddDestination(*service, *destination.toIpvsDestination())
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("ipvs.AddDestination() failed: %v\n", err), 422)
-		return
+		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.AddDestination() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, destination)
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
-func DestinationUpdate(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	service, err := getServiceFromId(vars["service_id"])
+//
+func destinationUpdate(c *gin.Context) {
+	serviceId := c.Param("service_id")
+	service, err := getServiceFromId(serviceId)
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v\n", err), 422)
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
 	var destination DestinationRequest
-	err = json.NewDecoder(r.Body).Decode(&destination)
 
-	if err != nil {
-		http.Error(w, err.Error(), 400)
+	if c.BindJSON(&destination) != nil {
 		return
 	}
 
 	err = ipvs.UpdateDestination(*service, *destination.toIpvsDestination())
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("ipvs.UpdateDestination() failed: %v\n", err), 422)
-		return
+		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.UpdateDestination() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, destination)
 	}
 }
 
-func DestinationDelete(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	service, err := getServiceFromId(vars["service_id"])
+//
+func destinationDelete(c *gin.Context) {
+	serviceId := c.Param("service_id")
+	service, err := getServiceFromId(serviceId)
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %v\n", err), 422)
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
 	var destination DestinationRequest
-	err = json.NewDecoder(r.Body).Decode(&destination)
 
-	if err != nil {
-		http.Error(w, err.Error(), 400)
+	if c.BindJSON(&destination) != nil {
 		return
 	}
 
 	err = ipvs.DeleteDestination(*service, *destination.toIpvsDestination())
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("ipvs.DeleteDestination() failed: %v\n", err), 422)
-		return
+		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.DeleteDestination() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, destination)
 	}
 }
 

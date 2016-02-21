@@ -45,6 +45,19 @@ const (
 	RouteMode  = DestinationFlags(ipvs.DFForwardRoute)
 )
 
+//MarshalJSON ...
+func (proto IPProto) MarshalJSON() ([]byte, error) {
+	var value string
+
+	if proto == syscall.IPPROTO_UDP {
+		value = "udp"
+	} else {
+		value = "tcp"
+	}
+
+	return json.Marshal(value)
+}
+
 type DestinationFlags uint32
 
 //UnmarshalJSON ...

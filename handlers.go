@@ -53,13 +53,25 @@ func serviceUpdate(c *gin.Context) {
 		return
 	}
 
-	err := ipvs.UpdateService(service.toIpvsService())
+	ipvsService := service.toIpvsService()
+
+	err := ipvs.UpdateService(ipvsService)
 
 	if err != nil {
 		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.UpdateService() failed: %v\n", err)})
 	} else {
+		for _, d := range ipvsService.Destinations {
+			fmt.Println(d.Weight)
+			err = ipvs.UpsertDestination(ipvsService, *d)
+
+			if err != nil {
+				c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.UpdateDestination() failed: %v\n", err)})
+				return
+			}
+		}
 		c.JSON(http.StatusOK, service)
 	}
+
 }
 
 //

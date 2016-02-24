@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -421,6 +422,16 @@ func UpdateDestination(svc Service, dst Destination) error {
 		Destination: newIPVSDestination(&dst),
 	}
 	return netlink.SendMessageMarshalled(C.IPVS_CMD_SET_DEST, family, 0, ic)
+}
+
+func UpsertDestination(svc Service, dst Destination) error {
+	err := UpdateDestination(svc, dst)
+
+	if err != nil && strings.Contains(err.Error(), "object not found") {
+		err = AddDestination(svc, dst)
+	}
+
+	return err
 }
 
 // DeleteDestination deletes the specified destination from the IPVS table.

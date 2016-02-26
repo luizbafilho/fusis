@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"encoding/json"
@@ -56,6 +56,14 @@ func (proto IPProto) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(value)
+}
+
+func (proto IPProto) String() string {
+	if proto == syscall.IPPROTO_UDP {
+		return "udp"
+	} else {
+		return "tcp"
+	}
 }
 
 type DestinationFlags uint32

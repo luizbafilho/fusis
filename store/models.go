@@ -127,7 +127,7 @@ func (d DestinationRequest) ToIpvsDestination() *ipvs.Destination {
 	}
 }
 
-func newServiceRequest(s *ipvs.Service) ServiceRequest {
+func NewServiceRequest(s *ipvs.Service) ServiceRequest {
 	destinations := []DestinationRequest{}
 
 	for _, dst := range s.Destinations {

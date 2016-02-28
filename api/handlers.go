@@ -1,83 +1,63 @@
-package main
+package api
 
 import (
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/luizbafilho/janus/ipvs"
 	"github.com/luizbafilho/janus/store"
-	"github.com/luizbafilho/janus/store/etcd"
 )
 
-// //Index Handles index
-// func serviceIndex(c *gin.Context) {
-// 	ipvsServices, err := ipvs.GetServices()
-//
-// 	if err != nil {
-// 		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.GetServices() failed: %v", err)})
-// 		return
-// 	}
-//
-// 	services := []ServiceRequest{}
-//
-// 	for _, s := range ipvsServices {
-// 		services = append(services, newServiceRequest(s))
-// 	}
-//
-// 	c.JSON(http.StatusOK, services)
-// }
-//
-// //ServiceCreate ...
-func serviceCreate(c *gin.Context) {
+func (as ApiService) serviceList(c *gin.Context) {
+	ipvsServices, err := ipvs.GetServices()
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.GetServices() failed: %v", err)})
+		return
+	}
+
+	services := []store.ServiceRequest{}
+
+	for _, s := range ipvsServices {
+		services = append(services, store.NewServiceRequest(s))
+	}
+
+	c.JSON(http.StatusOK, services)
+}
+
+func (as ApiService) serviceCreate(c *gin.Context) {
 	var newService store.ServiceRequest
 
 	if c.BindJSON(&newService) != nil {
 		return
 	}
 
-	// err := ipvs.AddService(newService.toIpvsService())
-	nodes := []string{"http://127.0.0.1:2379"}
-	s := etcd.New(nodes)
-
-	err := s.AddService(newService)
+	err := as.store.AddService(newService)
 
 	if err != nil {
-		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.AddService() failed: %v", err)})
+		c.JSON(422, gin.H{"error": fmt.Sprintf("AddService() failed: %v", err)})
 	} else {
 		c.JSON(http.StatusCreated, newService)
 	}
 }
 
-//
-// func serviceUpdate(c *gin.Context) {
-// 	var service ServiceRequest
-//
-// 	if c.BindJSON(&service) != nil {
-// 		return
-// 	}
-//
-// 	ipvsService := service.toIpvsService()
-//
-// 	err := ipvs.UpdateService(ipvsService)
-//
-// 	if err != nil {
-// 		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.UpdateService() failed: %v\n", err)})
-// 	} else {
-// 		for _, d := range ipvsService.Destinations {
-// 			fmt.Println(d.Weight)
-// 			err = ipvs.UpsertDestination(ipvsService, *d)
-//
-// 			if err != nil {
-// 				c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.UpdateDestination() failed: %v\n", err)})
-// 				return
-// 			}
-// 		}
-// 		c.JSON(http.StatusOK, service)
-// 	}
-//
-// }
-//
-// //
+func (as ApiService) serviceUpdate(c *gin.Context) {
+	var service store.ServiceRequest
+
+	if c.BindJSON(&service) != nil {
+		return
+	}
+
+	err := as.store.UpdateService(service)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("UpdateService() failed: %v", err)})
+	} else {
+		c.JSON(http.StatusOK, service)
+	}
+}
+
 // func serviceDelete(c *gin.Context) {
 // 	var service ServiceRequest
 //

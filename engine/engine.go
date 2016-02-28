@@ -53,8 +53,10 @@ func (es EngineService) handleChanges() {
 
 func processChange(ch interface{}) error {
 	switch change := ch.(type) {
-	case store.ServiceUpsert:
-		return ipvs.UpsertService(change.Service.ToIpvsService())
+	case store.ServiceCreate:
+		return ipvs.AddService(change.Service.ToIpvsService())
+	case store.ServiceUpdate:
+		return ipvs.UpdateService(change.Service.ToIpvsService())
 	}
 
 	return nil

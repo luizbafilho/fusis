@@ -19,6 +19,7 @@ type Etcd struct {
 
 const (
 	createEvent = "create"
+	updateEvent = "update"
 	setEvent    = "set"
 	deleteEvent = "delete"
 )
@@ -44,12 +45,36 @@ func New(addrs []string) store.Store {
 
 func (s Etcd) AddService(svc store.ServiceRequest) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/conf", svc.Host, svc.Port, svc.Protocol)
+
+	exists, _ := s.keyExists(key)
+	if exists {
+		return fmt.Errorf("Services already exists")
+	}
+
 	value, err := json.Marshal(svc)
 	if err != nil {
 		return err
 	}
 
 	_, err = s.client.Set(context.Background(), key, string(value), nil)
+
+	return err
+}
+
+func (s Etcd) UpdateService(svc store.ServiceRequest) error {
+	key := fmt.Sprintf("/fusis/services/%s-%v-%s/conf", svc.Host, svc.Port, svc.Protocol)
+
+	exists, _ := s.keyExists(key)
+	if !exists {
+		return fmt.Errorf("Services does not exists.")
+	}
+
+	value, err := json.Marshal(svc)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.client.Update(context.Background(), key, string(value))
 
 	return err
 }
@@ -98,7 +123,14 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 	case createEvent, setEvent:
 		getValueFromJson(r.Node.Value, &serviceRequest)
 
-		return store.ServiceUpsert{
+		return store.ServiceCreate{
+			Service: serviceRequest,
+		}, nil
+
+	case updateEvent:
+		getValueFromJson(r.Node.Value, &serviceRequest)
+
+		return store.ServiceUpdate{
 			Service: serviceRequest,
 		}, nil
 
@@ -115,4 +147,30 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 
 func getValueFromJson(value string, v interface{}) error {
 	return json.Unmarshal([]byte(value), v)
+}
+
+func (s Etcd) keyExists(key string) (bool, error) {
+	_, err := s.client.Get(context.Background(), key, nil)
+	if err != nil {
+		if keyNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// keyNotFound checks on the error returned by the KeysAPI
+// to verify if the key exists in the store or not
+func keyNotFound(err error) bool {
+	if err != nil {
+		if etcdError, ok := err.(client.Error); ok {
+			if etcdError.Code == client.ErrorCodeKeyNotFound ||
+				etcdError.Code == client.ErrorCodeNotFile ||
+				etcdError.Code == client.ErrorCodeNotDir {
+				return true
+			}
+		}
+	}
+	return false
 }

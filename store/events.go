@@ -1,6 +1,10 @@
 package store
 
-type ServiceUpsert struct {
+type ServiceCreate struct {
+	Service ServiceRequest
+}
+
+type ServiceUpdate struct {
 	Service ServiceRequest
 }
 

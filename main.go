@@ -3,8 +3,10 @@ package main
 import (
 	"log"
 
-	"github.com/gin-gonic/gin"
+	"github.com/luizbafilho/janus/api"
+	"github.com/luizbafilho/janus/engine"
 	"github.com/luizbafilho/janus/ipvs"
+	"github.com/luizbafilho/janus/store/etcd"
 )
 
 func main() {
@@ -13,16 +15,12 @@ func main() {
 	}
 	log.Printf("IPVS version %s\n", ipvs.Version())
 
-	router := gin.Default()
+	nodes := []string{"http://127.0.0.1:2379"}
+	s := etcd.New(nodes)
 
-	// router.GET("/services", serviceIndex)
-	router.POST("/services", serviceCreate)
-	// router.PUT("/services", serviceUpdate)
-	// router.DELETE("/services", serviceDelete)
-	//
-	// router.POST("/services/:service_id/destinations", destinationCreate)
-	// router.PUT("/services/:service_id/destinations", destinationUpdate)
-	// router.DELETE("/services/:service_id/destinations", destinationDelete)
+	apiService := api.NewAPI(s)
+	engineService := engine.NewEngine(s)
 
-	router.Run(":8000")
+	engineService.Serve()
+	apiService.Serve()
 }

@@ -102,11 +102,11 @@ func (flags DestinationFlags) MarshalJSON() ([]byte, error) {
 	return json.Marshal(value)
 }
 
-func (s ServiceRequest) toIpvsService() ipvs.Service {
+func (s ServiceRequest) ToIpvsService() ipvs.Service {
 	destinations := []*ipvs.Destination{}
 
 	for _, dst := range s.Destinations {
-		destinations = append(destinations, dst.toIpvsDestination())
+		destinations = append(destinations, dst.ToIpvsDestination())
 	}
 
 	return ipvs.Service{
@@ -118,7 +118,7 @@ func (s ServiceRequest) toIpvsService() ipvs.Service {
 	}
 }
 
-func (d DestinationRequest) toIpvsDestination() *ipvs.Destination {
+func (d DestinationRequest) ToIpvsDestination() *ipvs.Destination {
 	return &ipvs.Destination{
 		Address: d.Host,
 		Port:    d.Port,

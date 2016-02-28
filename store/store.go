@@ -10,4 +10,5 @@ type Store interface {
 	// AddDestination(dst DestinationRequest) error
 	// UpdateDestination(dst DestinationRequest) error
 	// DeleteDestination(dst DestinationRequest) error
+	Subscribe(changes chan interface{}) error
 }

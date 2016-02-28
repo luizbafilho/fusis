@@ -406,6 +406,16 @@ func DeleteService(svc Service) error {
 	return netlink.SendMessageMarshalled(C.IPVS_CMD_DEL_SERVICE, family, 0, ic)
 }
 
+func UpsertService(svc Service) error {
+	err := UpdateService(svc)
+
+	if err != nil && strings.Contains(err.Error(), "object not found") {
+		err = AddService(svc)
+	}
+
+	return err
+}
+
 // AddDestination adds the specified destination to the IPVS table.
 func AddDestination(svc Service, dst Destination) error {
 	ic := &ipvsCommand{

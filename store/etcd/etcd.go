@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"regexp"
+	"strconv"
 	"time"
 
 	"golang.org/x/net/context"
@@ -16,13 +18,6 @@ import (
 type Etcd struct {
 	client client.KeysAPI
 }
-
-const (
-	createEvent = "create"
-	updateEvent = "update"
-	setEvent    = "set"
-	deleteEvent = "delete"
-)
 
 func New(addrs []string) store.Store {
 	cfg := client.Config{
@@ -79,6 +74,19 @@ func (s Etcd) UpdateService(svc store.ServiceRequest) error {
 	return err
 }
 
+func (s Etcd) DeleteService(svc store.ServiceRequest) error {
+	key := fmt.Sprintf("/fusis/services/%s-%v-%s", svc.Host, svc.Port, svc.Protocol)
+
+	exists, _ := s.keyExists(key)
+	if !exists {
+		return fmt.Errorf("Services does not exists.")
+	}
+
+	_, err := s.client.Delete(context.Background(), key, &client.DeleteOptions{Recursive: true})
+
+	return err
+}
+
 func (s Etcd) Subscribe(changes chan interface{}) error {
 	w := s.client.Watcher("/fusis/services", &client.WatcherOptions{AfterIndex: 0, Recursive: true})
 
@@ -111,33 +119,37 @@ func processChange(response *client.Response) (interface{}, error) {
 }
 
 func processServiceChange(r *client.Response) (interface{}, error) {
-	out := regexp.MustCompile(`/fusis/services/(.*)-(\d+)-(tcp|udp)/conf`).FindStringSubmatch(r.Node.Key)
+	out := regexp.MustCompile(`/fusis/services/(.*)-(\d+)-(tcp|udp)(/conf)?$`).FindStringSubmatch(r.Node.Key)
 
-	if len(out) != 4 {
+	if len(out) != 5 {
 		return nil, nil
 	}
 
 	var serviceRequest store.ServiceRequest
 
 	switch r.Action {
-	case createEvent, setEvent:
+	case store.CreateEvent, store.SetEvent:
 		getValueFromJson(r.Node.Value, &serviceRequest)
 
-		return store.ServiceCreate{
+		return store.ServiceEvent{
+			Action:  store.CreateEvent,
 			Service: serviceRequest,
 		}, nil
 
-	case updateEvent:
+	case store.UpdateEvent:
 		getValueFromJson(r.Node.Value, &serviceRequest)
 
-		return store.ServiceUpdate{
+		return store.ServiceEvent{
+			Action:  store.UpdateEvent,
 			Service: serviceRequest,
 		}, nil
 
-	case deleteEvent:
-		getValueFromJson(r.PrevNode.Value, &serviceRequest)
+	case store.DeleteEvent:
+		var serviceRequest store.ServiceRequest
+		getServiceFromRegexMatch(&serviceRequest, out)
 
-		return store.ServiceDelete{
+		return store.ServiceEvent{
+			Action:  store.DeleteEvent,
 			Service: serviceRequest,
 		}, nil
 	}
@@ -147,6 +159,15 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 
 func getValueFromJson(value string, v interface{}) error {
 	return json.Unmarshal([]byte(value), v)
+}
+
+func getServiceFromRegexMatch(service *store.ServiceRequest, out []string) {
+	service.Host = net.ParseIP(out[1])
+
+	u, _ := strconv.ParseUint(out[2], 10, 64)
+	service.Port = uint16(u)
+
+	service.Protocol.UnmarshalJSON([]byte(out[3]))
 }
 
 func (s Etcd) keyExists(key string) (bool, error) {

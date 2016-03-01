@@ -40,8 +40,8 @@ func (es EngineService) handleChanges() {
 			change := <-es.changesChannel
 
 			if change == nil {
-				fmt.Println("Stop watching changes")
-				return
+				fmt.Println("Change was nil")
+				continue
 			}
 
 			if err := processChange(change); err != nil {
@@ -53,11 +53,21 @@ func (es EngineService) handleChanges() {
 
 func processChange(ch interface{}) error {
 	switch change := ch.(type) {
-	case store.ServiceCreate:
-		return ipvs.AddService(change.Service.ToIpvsService())
-	case store.ServiceUpdate:
-		return ipvs.UpdateService(change.Service.ToIpvsService())
+	case store.ServiceEvent:
+		processServiceEvent(change)
 	}
 
+	return nil
+}
+
+func processServiceEvent(se store.ServiceEvent) error {
+	switch se.Action {
+	case store.CreateEvent:
+		return ipvs.AddService(se.Service.ToIpvsService())
+	case store.UpdateEvent:
+		return ipvs.UpdateService(se.Service.ToIpvsService())
+	case store.DeleteEvent:
+		return ipvs.DeleteService(se.Service.ToIpvsService())
+	}
 	return nil
 }

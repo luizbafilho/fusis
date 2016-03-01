@@ -58,21 +58,22 @@ func (as ApiService) serviceUpdate(c *gin.Context) {
 	}
 }
 
-// func serviceDelete(c *gin.Context) {
-// 	var service ServiceRequest
-//
-// 	if c.BindJSON(&service) != nil {
-// 		return
-// 	}
-//
-// 	err := ipvs.DeleteService(service.toIpvsService())
-//
-// 	if err != nil {
-// 		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.DeleteService() failed: %v\n", err)})
-// 	} else {
-// 		c.JSON(http.StatusOK, service)
-// 	}
-// }
+func (as ApiService) serviceDelete(c *gin.Context) {
+	var service store.ServiceRequest
+
+	if c.BindJSON(&service) != nil {
+		return
+	}
+
+	err := as.store.DeleteService(service)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteService() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, service)
+	}
+}
+
 //
 // func destinationCreate(c *gin.Context) {
 // 	serviceId := c.Param("service_id")

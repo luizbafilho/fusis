@@ -145,7 +145,6 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 		}, nil
 
 	case store.DeleteEvent:
-		var serviceRequest store.ServiceRequest
 		getServiceFromRegexMatch(&serviceRequest, out)
 
 		return store.ServiceEvent{

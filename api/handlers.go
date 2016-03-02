@@ -2,7 +2,10 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/janus/ipvs"
@@ -74,31 +77,31 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 	}
 }
 
-//
-// func destinationCreate(c *gin.Context) {
-// 	serviceId := c.Param("service_id")
-// 	service, err := getServiceFromId(serviceId)
-//
-// 	if err != nil {
-// 		c.JSON(400, gin.H{"error": err.Error()})
-// 		return
-// 	}
-//
-// 	var destination DestinationRequest
-//
-// 	if c.BindJSON(&destination) != nil {
-// 		return
-// 	}
-//
-// 	err = ipvs.AddDestination(*service, *destination.toIpvsDestination())
-//
-// 	if err != nil {
-// 		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.AddDestination() failed: %v\n", err)})
-// 	} else {
-// 		c.JSON(http.StatusOK, destination)
-// 	}
-// }
-//
+func (as ApiService) destinationCreate(c *gin.Context) {
+	serviceId := c.Param("service_id")
+	service, err := getServiceFromId(serviceId)
+
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	var destination store.DestinationRequest
+
+	if c.BindJSON(&destination) != nil {
+		return
+	}
+
+	// err = ipvs.AddDestination(*service, *destination.toIpvsDestination())
+	err = as.store.AddDestination(*service, destination)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("AddDestination() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, destination)
+	}
+}
+
 // //
 // func destinationUpdate(c *gin.Context) {
 // 	serviceId := c.Param("service_id")
@@ -149,21 +152,21 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 // 	}
 // }
 //
-// func getServiceFromId(serviceId string) (*ipvs.Service, error) {
-// 	serviceAttrs := strings.Split(serviceId, "-")
-//
-// 	port, err := strconv.ParseUint(serviceAttrs[1], 10, 16)
-//
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	var proto IPProto
-// 	proto.UnmarshalJSON([]byte(serviceAttrs[2]))
-//
-// 	return &ipvs.Service{
-// 		Address:  net.ParseIP(serviceAttrs[0]),
-// 		Port:     uint16(port),
-// 		Protocol: ipvs.IPProto(proto),
-// 	}, nil
-// }
+func getServiceFromId(serviceId string) (*store.ServiceRequest, error) {
+	serviceAttrs := strings.Split(serviceId, "-")
+
+	port, err := strconv.ParseUint(serviceAttrs[1], 10, 16)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var proto store.IPProto
+	proto.UnmarshalJSON([]byte(serviceAttrs[2]))
+
+	return &store.ServiceRequest{
+		Host:     net.ParseIP(serviceAttrs[0]),
+		Port:     uint16(port),
+		Protocol: store.IPProto(proto),
+	}, nil
+}

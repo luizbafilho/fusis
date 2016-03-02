@@ -24,7 +24,7 @@ func (as ApiService) Serve() {
 	as.router.PUT("/services", as.serviceUpdate)
 	as.router.DELETE("/services", as.serviceDelete)
 
-	// router.POST("/services/:service_id/destinations", destinationCreate)
+	as.router.POST("/services/:service_id/destinations", as.destinationCreate)
 	// router.PUT("/services/:service_id/destinations", destinationUpdate)
 	// router.DELETE("/services/:service_id/destinations", destinationDelete)
 

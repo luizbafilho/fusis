@@ -56,6 +56,24 @@ func (s Etcd) AddService(svc store.ServiceRequest) error {
 	return err
 }
 
+func (s Etcd) AddDestination(svc store.ServiceRequest, dst store.DestinationRequest) error {
+	key := fmt.Sprintf("/fusis/services/%s-%v-%s/servers/%s-%v", svc.Host, svc.Port, svc.Protocol, dst.Host, dst.Port)
+
+	exists, _ := s.keyExists(key)
+	if exists {
+		return fmt.Errorf("Destination already exists")
+	}
+
+	value, err := json.Marshal(dst)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.client.Set(context.Background(), key, string(value), nil)
+
+	return err
+}
+
 func (s Etcd) UpdateService(svc store.ServiceRequest) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/conf", svc.Host, svc.Port, svc.Protocol)
 

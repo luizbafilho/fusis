@@ -23,8 +23,8 @@ type Store interface {
 	AddService(svc ServiceRequest) error
 	UpdateService(svc ServiceRequest) error
 	DeleteService(svc ServiceRequest) error
-	//
-	// AddDestination(dst DestinationRequest) error
+
+	AddDestination(svc ServiceRequest, dst DestinationRequest) error
 	// UpdateDestination(dst DestinationRequest) error
 	// DeleteDestination(dst DestinationRequest) error
 	Subscribe(changes chan interface{}) error

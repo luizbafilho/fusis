@@ -86,13 +86,12 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	var destination store.DestinationRequest
+	destination := store.DestinationRequest{Weight: 1, Mode: store.RouteMode}
 
 	if c.BindJSON(&destination) != nil {
 		return
 	}
 
-	// err = ipvs.AddDestination(*service, *destination.toIpvsDestination())
 	err = as.store.AddDestination(*service, destination)
 
 	if err != nil {

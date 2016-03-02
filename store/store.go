@@ -14,6 +14,7 @@ type ServiceEvent struct {
 
 type DestinationEvent struct {
 	Action      string
+	Service     ServiceRequest
 	Destination DestinationRequest
 }
 

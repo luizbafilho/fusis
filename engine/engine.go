@@ -55,6 +55,8 @@ func processChange(ch interface{}) error {
 	switch change := ch.(type) {
 	case store.ServiceEvent:
 		processServiceEvent(change)
+	case store.DestinationEvent:
+		processDestinationEvent(change)
 	}
 
 	return nil
@@ -68,6 +70,18 @@ func processServiceEvent(se store.ServiceEvent) error {
 		return ipvs.UpdateService(se.Service.ToIpvsService())
 	case store.DeleteEvent:
 		return ipvs.DeleteService(se.Service.ToIpvsService())
+	}
+	return nil
+}
+
+func processDestinationEvent(de store.DestinationEvent) error {
+	switch de.Action {
+	case store.CreateEvent:
+		return ipvs.AddDestination(de.Service.ToIpvsService(), *de.Destination.ToIpvsDestination())
+	case store.UpdateEvent:
+		return ipvs.UpdateDestination(de.Service.ToIpvsService(), *de.Destination.ToIpvsDestination())
+	case store.DeleteEvent:
+		return ipvs.DeleteDestination(de.Service.ToIpvsService(), *de.Destination.ToIpvsDestination())
 	}
 	return nil
 }

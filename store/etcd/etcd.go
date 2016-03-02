@@ -125,6 +125,7 @@ type MatcherFn func(*client.Response) (interface{}, error)
 func processChange(response *client.Response) (interface{}, error) {
 	matchers := []MatcherFn{
 		processServiceChange,
+		processDestinationChange,
 	}
 
 	for _, matcher := range matchers {
@@ -174,6 +175,50 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 	return nil, fmt.Errorf("unsupported action on the rate: %s", r.Action)
 }
 
+func processDestinationChange(r *client.Response) (interface{}, error) {
+	out := regexp.MustCompile(`/fusis/services/(.*)-(\d+)-(tcp|udp)/servers/(.*)-(\d+)`).FindStringSubmatch(r.Node.Key)
+
+	if len(out) != 6 {
+		return nil, nil
+	}
+
+	var dstRequest store.DestinationRequest
+	var svcRequest store.ServiceRequest
+
+	getServiceFromRegexMatch(&svcRequest, out)
+
+	switch r.Action {
+	case store.CreateEvent, store.SetEvent:
+		getValueFromJson(r.Node.Value, &dstRequest)
+
+		return store.DestinationEvent{
+			Action:      store.CreateEvent,
+			Service:     svcRequest,
+			Destination: dstRequest,
+		}, nil
+
+	case store.UpdateEvent:
+		getValueFromJson(r.Node.Value, &dstRequest)
+
+		return store.DestinationEvent{
+			Action:      store.UpdateEvent,
+			Service:     svcRequest,
+			Destination: dstRequest,
+		}, nil
+
+	case store.DeleteEvent:
+		getDestinationFromRegexMatch(&dstRequest, out)
+
+		return store.DestinationEvent{
+			Action:      store.DeleteEvent,
+			Service:     svcRequest,
+			Destination: dstRequest,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unsupported action on the rate: %s", r.Action)
+}
+
 func getValueFromJson(value string, v interface{}) error {
 	return json.Unmarshal([]byte(value), v)
 }
@@ -185,6 +230,13 @@ func getServiceFromRegexMatch(service *store.ServiceRequest, out []string) {
 	service.Port = uint16(u)
 
 	service.Protocol.UnmarshalJSON([]byte(out[3]))
+}
+
+func getDestinationFromRegexMatch(dst *store.DestinationRequest, out []string) {
+	dst.Host = net.ParseIP(out[4])
+
+	u, _ := strconv.ParseUint(out[5], 10, 64)
+	dst.Port = uint16(u)
 }
 
 func (s Etcd) keyExists(key string) (bool, error) {

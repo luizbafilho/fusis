@@ -101,30 +101,31 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 	}
 }
 
-// //
-// func destinationUpdate(c *gin.Context) {
-// 	serviceId := c.Param("service_id")
-// 	service, err := getServiceFromId(serviceId)
-//
-// 	if err != nil {
-// 		c.JSON(400, gin.H{"error": err.Error()})
-// 		return
-// 	}
-//
-// 	var destination DestinationRequest
-//
-// 	if c.BindJSON(&destination) != nil {
-// 		return
-// 	}
-//
-// 	err = ipvs.UpdateDestination(*service, *destination.toIpvsDestination())
-//
-// 	if err != nil {
-// 		c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.UpdateDestination() failed: %v\n", err)})
-// 	} else {
-// 		c.JSON(http.StatusOK, destination)
-// 	}
-// }
+func (as ApiService) destinationUpdate(c *gin.Context) {
+	serviceId := c.Param("service_id")
+	service, err := getServiceFromId(serviceId)
+
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	var destination store.DestinationRequest
+
+	if c.BindJSON(&destination) != nil {
+		return
+	}
+
+	// err = ipvs.UpdateDestination(*service, *destination.toIpvsDestination())
+	err = as.store.UpdateDestination(*service, destination)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("UpdateDestination() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, destination)
+	}
+}
+
 //
 // //
 // func destinationDelete(c *gin.Context) {

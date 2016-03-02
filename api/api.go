@@ -25,7 +25,7 @@ func (as ApiService) Serve() {
 	as.router.DELETE("/services", as.serviceDelete)
 
 	as.router.POST("/services/:service_id/destinations", as.destinationCreate)
-	// router.PUT("/services/:service_id/destinations", destinationUpdate)
+	as.router.PUT("/services/:service_id/destinations", as.destinationUpdate)
 	// router.DELETE("/services/:service_id/destinations", destinationDelete)
 
 	as.router.Run(":8000")

@@ -383,15 +383,7 @@ func Flush() error {
 // associated with the given service will also be added.
 func AddService(svc Service) error {
 	ic := &ipvsCommand{Service: newIPVSService(&svc)}
-	if err := netlink.SendMessageMarshalled(C.IPVS_CMD_NEW_SERVICE, family, 0, ic); err != nil {
-		return err
-	}
-	for _, dst := range svc.Destinations {
-		if err := AddDestination(svc, *dst); err != nil {
-			return err
-		}
-	}
-	return nil
+	return netlink.SendMessageMarshalled(C.IPVS_CMD_NEW_SERVICE, family, 0, ic)
 }
 
 // UpdateService updates the specified service in the IPVS table.

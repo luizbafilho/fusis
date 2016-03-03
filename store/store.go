@@ -21,12 +21,11 @@ type DestinationEvent struct {
 type Store interface {
 	// GetService(svc ServiceRequest) (ServiceRequest, error)
 	// GetServices([]ServiceRequest) (ServiceRequest, error)
-	AddService(svc ServiceRequest) error
-	UpdateService(svc ServiceRequest) error
+	UpsertService(svc ServiceRequest) error
 	DeleteService(svc ServiceRequest) error
 
-	AddDestination(svc ServiceRequest, dst DestinationRequest) error
-	UpdateDestination(svc ServiceRequest, dst DestinationRequest) error
-	// DeleteDestination(dst DestinationRequest) error
+	UpsertDestination(svc ServiceRequest, dst DestinationRequest) error
+	DeleteDestination(svc ServiceRequest, dst DestinationRequest) error
+
 	Subscribe(changes chan interface{}) error
 }

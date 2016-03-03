@@ -38,13 +38,8 @@ func New(addrs []string) store.Store {
 	return store
 }
 
-func (s Etcd) AddService(svc store.ServiceRequest) error {
+func (s Etcd) UpsertService(svc store.ServiceRequest) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/conf", svc.Host, svc.Port, svc.Protocol)
-
-	exists, _ := s.keyExists(key)
-	if exists {
-		return fmt.Errorf("Services already exists")
-	}
 
 	value, err := json.Marshal(svc)
 	if err != nil {
@@ -52,24 +47,6 @@ func (s Etcd) AddService(svc store.ServiceRequest) error {
 	}
 
 	_, err = s.client.Set(context.Background(), key, string(value), nil)
-
-	return err
-}
-
-func (s Etcd) UpdateService(svc store.ServiceRequest) error {
-	key := fmt.Sprintf("/fusis/services/%s-%v-%s/conf", svc.Host, svc.Port, svc.Protocol)
-
-	exists, _ := s.keyExists(key)
-	if !exists {
-		return fmt.Errorf("Services does not exists.")
-	}
-
-	value, err := json.Marshal(svc)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.client.Update(context.Background(), key, string(value))
 
 	return err
 }
@@ -87,13 +64,8 @@ func (s Etcd) DeleteService(svc store.ServiceRequest) error {
 	return err
 }
 
-func (s Etcd) AddDestination(svc store.ServiceRequest, dst store.DestinationRequest) error {
+func (s Etcd) UpsertDestination(svc store.ServiceRequest, dst store.DestinationRequest) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/servers/%s-%v", svc.Host, svc.Port, svc.Protocol, dst.Host, dst.Port)
-
-	exists, _ := s.keyExists(key)
-	if exists {
-		return fmt.Errorf("Destination already exists")
-	}
 
 	value, err := json.Marshal(dst)
 	if err != nil {
@@ -105,7 +77,7 @@ func (s Etcd) AddDestination(svc store.ServiceRequest, dst store.DestinationRequ
 	return err
 }
 
-func (s Etcd) UpdateDestination(svc store.ServiceRequest, dst store.DestinationRequest) error {
+func (s Etcd) DeleteDestination(svc store.ServiceRequest, dst store.DestinationRequest) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/servers/%s-%v", svc.Host, svc.Port, svc.Protocol, dst.Host, dst.Port)
 
 	exists, _ := s.keyExists(key)
@@ -113,12 +85,7 @@ func (s Etcd) UpdateDestination(svc store.ServiceRequest, dst store.DestinationR
 		return fmt.Errorf("Destination does not exists.")
 	}
 
-	value, err := json.Marshal(dst)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.client.Update(context.Background(), key, string(value))
+	_, err := s.client.Delete(context.Background(), key, &client.DeleteOptions{})
 
 	return err
 }
@@ -169,15 +136,7 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 		getValueFromJson(r.Node.Value, &serviceRequest)
 
 		return store.ServiceEvent{
-			Action:  store.CreateEvent,
-			Service: serviceRequest,
-		}, nil
-
-	case store.UpdateEvent:
-		getValueFromJson(r.Node.Value, &serviceRequest)
-
-		return store.ServiceEvent{
-			Action:  store.UpdateEvent,
+			Action:  store.SetEvent,
 			Service: serviceRequest,
 		}, nil
 
@@ -210,16 +169,7 @@ func processDestinationChange(r *client.Response) (interface{}, error) {
 		getValueFromJson(r.Node.Value, &dstRequest)
 
 		return store.DestinationEvent{
-			Action:      store.CreateEvent,
-			Service:     svcRequest,
-			Destination: dstRequest,
-		}, nil
-
-	case store.UpdateEvent:
-		getValueFromJson(r.Node.Value, &dstRequest)
-
-		return store.DestinationEvent{
-			Action:      store.UpdateEvent,
+			Action:      store.SetEvent,
 			Service:     svcRequest,
 			Destination: dstRequest,
 		}, nil

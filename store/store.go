@@ -20,7 +20,7 @@ type DestinationEvent struct {
 
 type Store interface {
 	// GetService(svc ServiceRequest) (ServiceRequest, error)
-	// GetServices([]ServiceRequest) (ServiceRequest, error)
+	GetServices() (*[]ServiceRequest, error)
 	UpsertService(svc ServiceRequest) error
 	DeleteService(svc ServiceRequest) error
 

@@ -38,6 +38,28 @@ func New(addrs []string) store.Store {
 	return store
 }
 
+func (s Etcd) GetServices() (*[]store.ServiceRequest, error) {
+	key := fmt.Sprintf("/fusis/services")
+
+	r, err := s.client.Get(context.Background(), key, &client.GetOptions{Recursive: true, Sort: true})
+
+	var services []store.ServiceRequest
+
+	for _, n := range r.Node.Nodes {
+		conf := n.Nodes[0]
+		var s store.ServiceRequest
+
+		err := getValueFromJson(conf.Value, &s)
+		if err != nil {
+			return nil, err
+		}
+
+		services = append(services, s)
+	}
+
+	return &services, err
+}
+
 func (s Etcd) UpsertService(svc store.ServiceRequest) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/conf", svc.Host, svc.Port, svc.Protocol)
 

@@ -33,6 +33,10 @@ func (svc Service) GetId() string {
 	return fmt.Sprintf("%v-%v-%v", svc.Host, svc.Port, svc.Protocol)
 }
 
+func (dst Destination) GetId() string {
+	return fmt.Sprintf("%v-%v", dst.Host, dst.Port)
+}
+
 func stringToIPProto(s string) ipvs.IPProto {
 	var value ipvs.IPProto
 	if s == "udp" {

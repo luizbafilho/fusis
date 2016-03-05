@@ -25,6 +25,7 @@ type Store interface {
 	UpsertService(svc Service) error
 	DeleteService(svc Service) error
 
+	GetDestinations(svc Service) (*[]Destination, error)
 	UpsertDestination(svc Service, dst Destination) error
 	DeleteDestination(svc Service, dst Destination) error
 

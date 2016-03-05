@@ -13,8 +13,9 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type EtcdSuite struct {
-	store   Store
-	service Service
+	store       Store
+	service     Service
+	destination Destination
 }
 
 var _ = Suite(&EtcdSuite{})
@@ -28,6 +29,13 @@ func (s *EtcdSuite) SetUpSuite(c *C) {
 		Port:      80,
 		Scheduler: "lc",
 		Protocol:  "tcp",
+	}
+
+	s.destination = Destination{
+		Host:   "192.168.1.1",
+		Port:   80,
+		Mode:   "nat",
+		Weight: 1,
 	}
 }
 
@@ -44,9 +52,14 @@ func (s *EtcdSuite) TearDownTest(c *C) {
 }
 
 func (s *EtcdSuite) TestGetService(c *C) {
-	svc, err := s.store.GetService(s.service.GetId())
-
+	err := s.store.UpsertDestination(s.service, s.destination)
 	c.Assert(err, IsNil)
+
+	svc, err := s.store.GetService(s.service.GetId())
+	c.Assert(err, IsNil)
+
+	s.service.Destinations = []Destination{s.destination}
+
 	c.Assert(*svc, DeepEquals, s.service)
 }
 
@@ -93,4 +106,37 @@ func (s *EtcdSuite) TestDeleteService(c *C) {
 
 	_, err = s.store.GetService(s.service.GetId())
 	c.Assert(err, ErrorMatches, ".*Key not found.*")
+}
+
+func (s *EtcdSuite) TestUpsertDestination(c *C) {
+	//Inserting destination
+	err := s.store.UpsertDestination(s.service, s.destination)
+	c.Assert(err, IsNil)
+
+	storedDsts, err := s.store.GetDestinations(s.service)
+	c.Assert(err, IsNil)
+
+	c.Assert(*storedDsts, DeepEquals, []Destination{s.destination})
+
+	// Updating service
+	s.destination.Weight = 2
+	err = s.store.UpsertDestination(s.service, s.destination)
+	c.Assert(err, IsNil)
+
+	storedDsts, err = s.store.GetDestinations(s.service)
+	c.Assert(err, IsNil)
+
+	c.Assert(*storedDsts, DeepEquals, []Destination{s.destination})
+}
+
+func (s *EtcdSuite) TestDeleteDestination(c *C) {
+	err := s.store.UpsertDestination(s.service, s.destination)
+	c.Assert(err, IsNil)
+
+	err = s.store.DeleteDestination(s.service, s.destination)
+	c.Assert(err, IsNil)
+
+	var expected []Destination
+	destinations, err := s.store.GetDestinations(s.service)
+	c.Assert(*destinations, DeepEquals, expected)
 }

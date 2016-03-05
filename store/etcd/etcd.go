@@ -54,6 +54,13 @@ func (s Etcd) GetService(serviceId string) (*store.Service, error) {
 		return nil, err
 	}
 
+	destinations, err := s.GetDestinations(service)
+	if err != nil {
+		return nil, err
+	}
+
+	service.Destinations = *destinations
+
 	return &service, nil
 }
 
@@ -94,7 +101,6 @@ func (s Etcd) UpsertService(svc store.Service) error {
 }
 
 func (s Etcd) DeleteService(svc store.Service) error {
-	// key := fmt.Sprintf("/fusis/services/%s-%v-%s", svc.Host, svc.Port, svc.Protocol)
 	key := s.path("services", svc.GetId())
 
 	exists, _ := s.keyExists(key)
@@ -107,8 +113,36 @@ func (s Etcd) DeleteService(svc store.Service) error {
 	return err
 }
 
+func (s Etcd) GetDestinations(svc store.Service) (*[]store.Destination, error) {
+	key := s.path("services", svc.GetId(), "destinations")
+
+	var destinations []store.Destination
+
+	r, err := s.client.Get(context.Background(), key, &client.GetOptions{Recursive: true, Sort: true})
+	if err != nil {
+		if err.(client.Error).Code == client.ErrorCodeKeyNotFound {
+			return &destinations, nil
+		}
+
+		return nil, err
+	}
+
+	for _, node := range r.Node.Nodes {
+		var d store.Destination
+
+		err := getValueFromJson(node.Value, &d)
+		if err != nil {
+			return nil, err
+		}
+
+		destinations = append(destinations, d)
+	}
+
+	return &destinations, err
+}
+
 func (s Etcd) UpsertDestination(svc store.Service, dst store.Destination) error {
-	key := fmt.Sprintf("/fusis/services/%s-%v-%s/servers/%s-%v", svc.Host, svc.Port, svc.Protocol, dst.Host, dst.Port)
+	key := s.path("services", svc.GetId(), "/destinations", dst.GetId())
 
 	value, err := json.Marshal(dst)
 	if err != nil {
@@ -121,7 +155,7 @@ func (s Etcd) UpsertDestination(svc store.Service, dst store.Destination) error 
 }
 
 func (s Etcd) DeleteDestination(svc store.Service, dst store.Destination) error {
-	key := fmt.Sprintf("/fusis/services/%s-%v-%s/servers/%s-%v", svc.Host, svc.Port, svc.Protocol, dst.Host, dst.Port)
+	key := s.path("services", svc.GetId(), "/destinations", dst.GetId())
 
 	exists, _ := s.keyExists(key)
 	if !exists {

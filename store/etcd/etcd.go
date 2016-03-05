@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"regexp"
 	"strconv"
 	"time"
@@ -38,16 +37,16 @@ func New(addrs []string) store.Store {
 	return store
 }
 
-func (s Etcd) GetServices() (*[]store.ServiceRequest, error) {
+func (s Etcd) GetServices() (*[]store.Service, error) {
 	key := fmt.Sprintf("/fusis/services")
 
 	r, err := s.client.Get(context.Background(), key, &client.GetOptions{Recursive: true, Sort: true})
 
-	var services []store.ServiceRequest
+	var services []store.Service
 
 	for _, n := range r.Node.Nodes {
 		conf := n.Nodes[0]
-		var s store.ServiceRequest
+		var s store.Service
 
 		err := getValueFromJson(conf.Value, &s)
 		if err != nil {
@@ -60,7 +59,8 @@ func (s Etcd) GetServices() (*[]store.ServiceRequest, error) {
 	return &services, err
 }
 
-func (s Etcd) UpsertService(svc store.ServiceRequest) error {
+//TODO: Avoid insertion of destination as values on the service
+func (s Etcd) UpsertService(svc store.Service) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/conf", svc.Host, svc.Port, svc.Protocol)
 
 	value, err := json.Marshal(svc)
@@ -73,7 +73,7 @@ func (s Etcd) UpsertService(svc store.ServiceRequest) error {
 	return err
 }
 
-func (s Etcd) DeleteService(svc store.ServiceRequest) error {
+func (s Etcd) DeleteService(svc store.Service) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s", svc.Host, svc.Port, svc.Protocol)
 
 	exists, _ := s.keyExists(key)
@@ -86,7 +86,7 @@ func (s Etcd) DeleteService(svc store.ServiceRequest) error {
 	return err
 }
 
-func (s Etcd) UpsertDestination(svc store.ServiceRequest, dst store.DestinationRequest) error {
+func (s Etcd) UpsertDestination(svc store.Service, dst store.Destination) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/servers/%s-%v", svc.Host, svc.Port, svc.Protocol, dst.Host, dst.Port)
 
 	value, err := json.Marshal(dst)
@@ -99,7 +99,7 @@ func (s Etcd) UpsertDestination(svc store.ServiceRequest, dst store.DestinationR
 	return err
 }
 
-func (s Etcd) DeleteDestination(svc store.ServiceRequest, dst store.DestinationRequest) error {
+func (s Etcd) DeleteDestination(svc store.Service, dst store.Destination) error {
 	key := fmt.Sprintf("/fusis/services/%s-%v-%s/servers/%s-%v", svc.Host, svc.Port, svc.Protocol, dst.Host, dst.Port)
 
 	exists, _ := s.keyExists(key)
@@ -151,7 +151,7 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 		return nil, nil
 	}
 
-	var serviceRequest store.ServiceRequest
+	var serviceRequest store.Service
 
 	switch r.Action {
 	case store.CreateEvent, store.SetEvent:
@@ -181,8 +181,8 @@ func processDestinationChange(r *client.Response) (interface{}, error) {
 		return nil, nil
 	}
 
-	var dstRequest store.DestinationRequest
-	var svcRequest store.ServiceRequest
+	var dstRequest store.Destination
+	var svcRequest store.Service
 
 	getServiceFromRegexMatch(&svcRequest, out)
 
@@ -213,17 +213,16 @@ func getValueFromJson(value string, v interface{}) error {
 	return json.Unmarshal([]byte(value), v)
 }
 
-func getServiceFromRegexMatch(service *store.ServiceRequest, out []string) {
-	service.Host = net.ParseIP(out[1])
+func getServiceFromRegexMatch(service *store.Service, out []string) {
+	service.Host = out[1]
+	service.Protocol = out[3]
 
 	u, _ := strconv.ParseUint(out[2], 10, 64)
 	service.Port = uint16(u)
-
-	service.Protocol.UnmarshalJSON([]byte(out[3]))
 }
 
-func getDestinationFromRegexMatch(dst *store.DestinationRequest, out []string) {
-	dst.Host = net.ParseIP(out[4])
+func getDestinationFromRegexMatch(dst *store.Destination, out []string) {
+	dst.Host = out[4]
 
 	u, _ := strconv.ParseUint(out[5], 10, 64)
 	dst.Port = uint16(u)

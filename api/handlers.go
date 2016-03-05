@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,7 +19,7 @@ func (as ApiService) serviceList(c *gin.Context) {
 		return
 	}
 
-	services := []store.ServiceRequest{}
+	services := []store.Service{}
 
 	for _, s := range ipvsServices {
 		services = append(services, store.NewServiceRequest(s))
@@ -30,7 +29,7 @@ func (as ApiService) serviceList(c *gin.Context) {
 }
 
 func (as ApiService) serviceUpsert(c *gin.Context) {
-	var newService store.ServiceRequest
+	var newService store.Service
 
 	if c.BindJSON(&newService) != nil {
 		return
@@ -72,7 +71,7 @@ func (as ApiService) destinationUpsert(c *gin.Context) {
 		return
 	}
 
-	destination := store.DestinationRequest{Weight: 1, Mode: store.RouteMode}
+	destination := store.Destination{Weight: 1, Mode: "route"}
 
 	if c.BindJSON(&destination) != nil {
 		return
@@ -108,7 +107,7 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 	}
 }
 
-func getServiceFromId(serviceId string) (*store.ServiceRequest, error) {
+func getServiceFromId(serviceId string) (*store.Service, error) {
 	serviceAttrs := strings.Split(serviceId, "-")
 
 	port, err := strconv.ParseUint(serviceAttrs[1], 10, 16)
@@ -117,17 +116,14 @@ func getServiceFromId(serviceId string) (*store.ServiceRequest, error) {
 		return nil, err
 	}
 
-	var proto store.IPProto
-	proto.UnmarshalJSON([]byte(serviceAttrs[2]))
-
-	return &store.ServiceRequest{
-		Host:     net.ParseIP(serviceAttrs[0]),
+	return &store.Service{
+		Host:     serviceAttrs[0],
 		Port:     uint16(port),
-		Protocol: store.IPProto(proto),
+		Protocol: serviceAttrs[2],
 	}, nil
 }
 
-func getDestinationFromId(destinationId string) (*store.DestinationRequest, error) {
+func getDestinationFromId(destinationId string) (*store.Destination, error) {
 	destinationAttrs := strings.Split(destinationId, "-")
 
 	port, err := strconv.ParseUint(destinationAttrs[1], 10, 16)
@@ -136,8 +132,8 @@ func getDestinationFromId(destinationId string) (*store.DestinationRequest, erro
 		return nil, err
 	}
 
-	return &store.DestinationRequest{
-		Host: net.ParseIP(destinationAttrs[0]),
+	return &store.Destination{
+		Host: destinationAttrs[0],
 		Port: uint16(port),
 	}, nil
 }

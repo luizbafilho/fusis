@@ -1,52 +1,46 @@
 package store
 
 import (
-	"encoding/json"
 	"net"
-	"strings"
 	"syscall"
 
 	"github.com/luizbafilho/janus/ipvs"
 )
 
-type ServiceRequest struct {
-	Host         net.IP
-	Port         uint16
-	Protocol     IPProto
-	Scheduler    string
-	Destinations []DestinationRequest
-}
-
-type DestinationRequest struct {
-	Host   net.IP
-	Port   uint16
-	Weight int32
-	Mode   DestinationFlags
-}
-
-type IPProto ipvs.IPProto
-
-//UnmarshalJSON ...
-func (proto *IPProto) UnmarshalJSON(text []byte) error {
-	value := strings.ToLower(strings.Trim(string(text), "\"")) // Avoid converting the quotes
-
-	if value == "udp" {
-		*proto = syscall.IPPROTO_UDP
-	} else {
-		*proto = syscall.IPPROTO_TCP
-	}
-
-	return nil
-}
-
 const (
-	NatMode    = DestinationFlags(ipvs.DFForwardMasq)
-	TunnelMode = DestinationFlags(ipvs.DFForwardTunnel)
-	RouteMode  = DestinationFlags(ipvs.DFForwardRoute)
+	NatMode    = ipvs.DFForwardMasq
+	TunnelMode = ipvs.DFForwardTunnel
+	RouteMode  = ipvs.DFForwardRoute
 )
 
+type Service struct {
+	Host         string
+	Port         uint16
+	Protocol     string
+	Scheduler    string
+	Destinations []Destination
+}
+
+type Destination struct {
+	Host   string
+	Port   uint16
+	Weight int32
+	Mode   string
+}
+
+func stringToIPProto(s string) ipvs.IPProto {
+	var value ipvs.IPProto
+	if s == "udp" {
+		value = syscall.IPPROTO_UDP
+	} else {
+		value = syscall.IPPROTO_TCP
+	}
+
+	return value
+}
+
 //MarshalJSON ...
-func (proto IPProto) MarshalJSON() ([]byte, error) {
+func ipProtoToString(proto ipvs.IPProto) string {
 	var value string
 
 	if proto == syscall.IPPROTO_UDP {
@@ -55,37 +49,27 @@ func (proto IPProto) MarshalJSON() ([]byte, error) {
 		value = "tcp"
 	}
 
-	return json.Marshal(value)
+	return value
 }
 
-func (proto IPProto) String() string {
-	if proto == syscall.IPPROTO_UDP {
-		return "udp"
-	} else {
-		return "tcp"
-	}
-}
+func stringToDestinationFlags(s string) ipvs.DestinationFlags {
+	var flag ipvs.DestinationFlags
 
-type DestinationFlags uint32
-
-//UnmarshalJSON ...
-func (flags *DestinationFlags) UnmarshalJSON(text []byte) error {
-	value := strings.ToLower(strings.Trim(string(text), "\"")) // Avoid converting the quotes
-
-	switch value {
+	switch s {
 	case "nat":
-		*flags = NatMode
+		flag = NatMode
 	case "tunnel":
-		*flags = TunnelMode
+		flag = TunnelMode
 	default:
 		// Default is Direct Routing
-		*flags = RouteMode
+		flag = RouteMode
 	}
-	return nil
+
+	return flag
 }
 
 //MarshalJSON ...
-func (flags DestinationFlags) MarshalJSON() ([]byte, error) {
+func destinationFlagsToString(flags ipvs.DestinationFlags) string {
 	var value string
 
 	switch flags {
@@ -99,10 +83,10 @@ func (flags DestinationFlags) MarshalJSON() ([]byte, error) {
 		value = "route"
 	}
 
-	return json.Marshal(value)
+	return value
 }
 
-func (s ServiceRequest) ToIpvsService() ipvs.Service {
+func (s Service) ToIpvsService() ipvs.Service {
 	destinations := []*ipvs.Destination{}
 
 	for _, dst := range s.Destinations {
@@ -110,44 +94,44 @@ func (s ServiceRequest) ToIpvsService() ipvs.Service {
 	}
 
 	return ipvs.Service{
-		Address:      s.Host,
+		Address:      net.ParseIP(s.Host),
 		Port:         s.Port,
-		Protocol:     ipvs.IPProto(s.Protocol),
+		Protocol:     stringToIPProto(s.Protocol),
 		Scheduler:    s.Scheduler,
 		Destinations: destinations,
 	}
 }
 
-func (d DestinationRequest) ToIpvsDestination() *ipvs.Destination {
+func (d Destination) ToIpvsDestination() *ipvs.Destination {
 	return &ipvs.Destination{
-		Address: d.Host,
+		Address: net.ParseIP(d.Host),
 		Port:    d.Port,
 		Weight:  d.Weight,
-		Flags:   ipvs.DestinationFlags(d.Mode),
+		Flags:   stringToDestinationFlags(d.Mode),
 	}
 }
 
-func NewServiceRequest(s *ipvs.Service) ServiceRequest {
-	destinations := []DestinationRequest{}
+func NewServiceRequest(s *ipvs.Service) Service {
+	destinations := []Destination{}
 
 	for _, dst := range s.Destinations {
 		destinations = append(destinations, newDestinationRequest(dst))
 	}
 
-	return ServiceRequest{
-		Host:         s.Address,
+	return Service{
+		Host:         s.Address.String(),
 		Port:         s.Port,
-		Protocol:     IPProto(s.Protocol),
+		Protocol:     ipProtoToString(s.Protocol),
 		Scheduler:    s.Scheduler,
 		Destinations: destinations,
 	}
 }
 
-func newDestinationRequest(d *ipvs.Destination) DestinationRequest {
-	return DestinationRequest{
-		Host:   d.Address,
+func newDestinationRequest(d *ipvs.Destination) Destination {
+	return Destination{
+		Host:   d.Address.String(),
 		Port:   d.Port,
 		Weight: d.Weight,
-		Mode:   DestinationFlags(d.Flags),
+		Mode:   destinationFlagsToString(d.Flags),
 	}
 }

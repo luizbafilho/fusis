@@ -1,8 +1,6 @@
 package etcd_test
 
 import (
-	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/luizbafilho/janus/store"
@@ -28,10 +26,14 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 func (s *EtcdSuite) TestGetServices(c *C) {
 	svcs, _ := s.store.GetServices()
 
-	var expectedService store.ServiceRequest
+	expectedService := store.Service{
+		Host:      "10.7.0.1",
+		Port:      80,
+		Scheduler: "lc",
+		Protocol:  "tcp",
+	}
 
-	json.Unmarshal([]byte(`{"Host":"10.8.0.1","Port":80,"Protocol":"tcp","Scheduler":"wlc","Destinations":null}`), &expectedService)
-	expected := []store.ServiceRequest{expectedService}
+	expected := []store.Service{expectedService}
 
-	fmt.Println(svcs)
+	c.Assert(*svcs, DeepEquals, expected)
 }

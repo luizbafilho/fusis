@@ -9,23 +9,23 @@ const (
 
 type ServiceEvent struct {
 	Action  string
-	Service ServiceRequest
+	Service Service
 }
 
 type DestinationEvent struct {
 	Action      string
-	Service     ServiceRequest
-	Destination DestinationRequest
+	Service     Service
+	Destination Destination
 }
 
 type Store interface {
 	// GetService(svc ServiceRequest) (ServiceRequest, error)
-	GetServices() (*[]ServiceRequest, error)
-	UpsertService(svc ServiceRequest) error
-	DeleteService(svc ServiceRequest) error
+	GetServices() (*[]Service, error)
+	UpsertService(svc Service) error
+	DeleteService(svc Service) error
 
-	UpsertDestination(svc ServiceRequest, dst DestinationRequest) error
-	DeleteDestination(svc ServiceRequest, dst DestinationRequest) error
+	UpsertDestination(svc Service, dst Destination) error
+	DeleteDestination(svc Service, dst Destination) error
 
 	Subscribe(changes chan interface{}) error
 }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/net/context"
@@ -15,10 +16,11 @@ import (
 )
 
 type Etcd struct {
-	client client.KeysAPI
+	client  client.KeysAPI
+	etcdKey string
 }
 
-func New(addrs []string) store.Store {
+func New(addrs []string, etcdKey string) store.Store {
 	cfg := client.Config{
 		Endpoints:               addrs,
 		Transport:               client.DefaultTransport,
@@ -31,14 +33,32 @@ func New(addrs []string) store.Store {
 	}
 
 	store := Etcd{
-		client: client.NewKeysAPI(c),
+		client:  client.NewKeysAPI(c),
+		etcdKey: etcdKey,
 	}
 
 	return store
 }
 
+func (s Etcd) GetService(serviceId string) (*store.Service, error) {
+	key := s.path("services", serviceId, "conf")
+
+	r, err := s.client.Get(context.Background(), key, &client.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	var service store.Service
+	err = getValueFromJson(r.Node.Value, &service)
+	if err != nil {
+		return nil, err
+	}
+
+	return &service, nil
+}
+
 func (s Etcd) GetServices() (*[]store.Service, error) {
-	key := fmt.Sprintf("/fusis/services")
+	key := s.path("services")
 
 	r, err := s.client.Get(context.Background(), key, &client.GetOptions{Recursive: true, Sort: true})
 
@@ -61,7 +81,7 @@ func (s Etcd) GetServices() (*[]store.Service, error) {
 
 //TODO: Avoid insertion of destination as values on the service
 func (s Etcd) UpsertService(svc store.Service) error {
-	key := fmt.Sprintf("/fusis/services/%s-%v-%s/conf", svc.Host, svc.Port, svc.Protocol)
+	key := s.path("services", svc.GetId(), "conf")
 
 	value, err := json.Marshal(svc)
 	if err != nil {
@@ -74,7 +94,8 @@ func (s Etcd) UpsertService(svc store.Service) error {
 }
 
 func (s Etcd) DeleteService(svc store.Service) error {
-	key := fmt.Sprintf("/fusis/services/%s-%v-%s", svc.Host, svc.Port, svc.Protocol)
+	// key := fmt.Sprintf("/fusis/services/%s-%v-%s", svc.Host, svc.Port, svc.Protocol)
+	key := s.path("services", svc.GetId())
 
 	exists, _ := s.keyExists(key)
 	if !exists {
@@ -108,6 +129,17 @@ func (s Etcd) DeleteDestination(svc store.Service, dst store.Destination) error 
 	}
 
 	_, err := s.client.Delete(context.Background(), key, &client.DeleteOptions{})
+
+	return err
+}
+
+func (s Etcd) Flush() error {
+	exists, _ := s.keyExists(s.etcdKey)
+	if !exists {
+		return fmt.Errorf("Key: %v does not exists.", s.etcdKey)
+	}
+
+	_, err := s.client.Delete(context.Background(), s.etcdKey, &client.DeleteOptions{Recursive: true})
 
 	return err
 }
@@ -252,4 +284,8 @@ func keyNotFound(err error) bool {
 		}
 	}
 	return false
+}
+
+func (s Etcd) path(keys ...string) string {
+	return strings.Join(append([]string{s.etcdKey}, keys...), "/")
 }

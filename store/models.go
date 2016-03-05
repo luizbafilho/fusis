@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"net"
 	"syscall"
 
@@ -26,6 +27,10 @@ type Destination struct {
 	Port   uint16
 	Weight int32
 	Mode   string
+}
+
+func (svc Service) GetId() string {
+	return fmt.Sprintf("%v-%v-%v", svc.Host, svc.Port, svc.Protocol)
 }
 
 func stringToIPProto(s string) ipvs.IPProto {

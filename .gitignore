@@ -1,3 +1,4 @@
 gin-bin
 .vagrant
 janus
+coverage.*

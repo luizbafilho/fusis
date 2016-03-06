@@ -9,13 +9,13 @@ const (
 
 type ServiceEvent struct {
 	Action  string
-	Service Service
+	Service *Service
 }
 
 type DestinationEvent struct {
 	Action      string
-	Service     Service
-	Destination Destination
+	Service     *Service
+	Destination *Destination
 }
 
 type Store interface {

@@ -179,14 +179,15 @@ func (s Etcd) Flush() error {
 }
 
 func (s Etcd) Subscribe(changes chan interface{}) error {
-	w := s.client.Watcher("/fusis/services", &client.WatcherOptions{AfterIndex: 0, Recursive: true})
+	key := s.path("services")
+	w := s.client.Watcher(key, &client.WatcherOptions{AfterIndex: 0, Recursive: true})
 
 	for {
 		response, err := w.Next(context.Background())
 		if err != nil {
 			return err
 		}
-		event, _ := processChange(response)
+		event, _ := s.processChange(response)
 
 		changes <- event
 	}
@@ -195,10 +196,10 @@ func (s Etcd) Subscribe(changes chan interface{}) error {
 type MatcherFn func(*client.Response) (interface{}, error)
 
 // Dispatches etcd key changes changes to the etcd to the matching functions
-func processChange(response *client.Response) (interface{}, error) {
+func (s Etcd) processChange(response *client.Response) (interface{}, error) {
 	matchers := []MatcherFn{
-		processServiceChange,
-		processDestinationChange,
+		s.processServiceChange,
+		s.processDestinationChange,
 	}
 
 	for _, matcher := range matchers {
@@ -210,8 +211,9 @@ func processChange(response *client.Response) (interface{}, error) {
 	return nil, nil
 }
 
-func processServiceChange(r *client.Response) (interface{}, error) {
-	out := regexp.MustCompile(`/fusis/services/(.*)-(\d+)-(tcp|udp)(/conf)?$`).FindStringSubmatch(r.Node.Key)
+func (s Etcd) processServiceChange(r *client.Response) (interface{}, error) {
+	regex := fmt.Sprintf("/%s/services/(.*)-(\\d+)-(tcp|udp)(/conf)?$", s.etcdKey)
+	out := regexp.MustCompile(regex).FindStringSubmatch(r.Node.Key)
 
 	if len(out) != 5 {
 		return nil, nil
@@ -225,7 +227,7 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 
 		return store.ServiceEvent{
 			Action:  store.SetEvent,
-			Service: serviceRequest,
+			Service: &serviceRequest,
 		}, nil
 
 	case store.DeleteEvent:
@@ -233,16 +235,17 @@ func processServiceChange(r *client.Response) (interface{}, error) {
 
 		return store.ServiceEvent{
 			Action:  store.DeleteEvent,
-			Service: serviceRequest,
+			Service: nil,
 		}, nil
 	}
 
 	return nil, fmt.Errorf("unsupported action on the rate: %s", r.Action)
 }
 
-func processDestinationChange(r *client.Response) (interface{}, error) {
-	out := regexp.MustCompile(`/fusis/services/(.*)-(\d+)-(tcp|udp)/servers/(.*)-(\d+)`).FindStringSubmatch(r.Node.Key)
+func (s Etcd) processDestinationChange(r *client.Response) (interface{}, error) {
+	regex := fmt.Sprintf("/%s/services/(.*)-(\\d+)-(tcp|udp)/destinations/(.*)-(\\d+)", s.etcdKey)
 
+	out := regexp.MustCompile(regex).FindStringSubmatch(r.Node.Key)
 	if len(out) != 6 {
 		return nil, nil
 	}
@@ -258,8 +261,8 @@ func processDestinationChange(r *client.Response) (interface{}, error) {
 
 		return store.DestinationEvent{
 			Action:      store.SetEvent,
-			Service:     svcRequest,
-			Destination: dstRequest,
+			Service:     &svcRequest,
+			Destination: &dstRequest,
 		}, nil
 
 	case store.DeleteEvent:
@@ -267,8 +270,8 @@ func processDestinationChange(r *client.Response) (interface{}, error) {
 
 		return store.DestinationEvent{
 			Action:      store.DeleteEvent,
-			Service:     svcRequest,
-			Destination: dstRequest,
+			Service:     nil,
+			Destination: nil,
 		}, nil
 	}
 

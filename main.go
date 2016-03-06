@@ -16,7 +16,7 @@ func main() {
 	log.Printf("IPVS version %s\n", ipvs.Version())
 
 	nodes := []string{"http://127.0.0.1:2379"}
-	s := etcd.New(nodes)
+	s := etcd.New(nodes, "fusis")
 
 	apiService := api.NewAPI(s)
 	engineService := engine.NewEngine(s)

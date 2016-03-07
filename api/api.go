@@ -2,7 +2,7 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/janus/store"
+	"github.com/luizbafilho/fusis/store"
 )
 
 type ApiService struct {

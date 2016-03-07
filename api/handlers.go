@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/janus/ipvs"
-	"github.com/luizbafilho/janus/store"
+	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/store"
 )
 
 func (as ApiService) serviceList(c *gin.Context) {

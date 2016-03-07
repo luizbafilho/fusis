@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/luizbafilho/janus/ipvs"
-	"github.com/luizbafilho/janus/store"
+	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/store"
 )
 
 type EngineService struct {

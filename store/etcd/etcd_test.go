@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/luizbafilho/janus/store"
-	"github.com/luizbafilho/janus/store/etcd"
+	. "github.com/luizbafilho/fusis/store"
+	"github.com/luizbafilho/fusis/store/etcd"
 
 	. "gopkg.in/check.v1"
 )

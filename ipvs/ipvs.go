@@ -25,7 +25,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/luizbafilho/janus/netlink"
+	"github.com/luizbafilho/fusis/netlink"
 )
 
 /*

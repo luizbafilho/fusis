@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/luizbafilho/janus/api"
-	. "github.com/luizbafilho/janus/store"
-	"github.com/luizbafilho/janus/store/etcd"
+	"github.com/luizbafilho/fusis/api"
+	. "github.com/luizbafilho/fusis/store"
+	"github.com/luizbafilho/fusis/store/etcd"
 
 	. "gopkg.in/check.v1"
 )

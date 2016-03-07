@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	. "github.com/luizbafilho/janus/store"
+	. "github.com/luizbafilho/fusis/store"
 )
 
 type Client struct {

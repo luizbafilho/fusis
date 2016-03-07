@@ -8,12 +8,14 @@ import (
 type ApiService struct {
 	store  store.Store
 	router *gin.Engine
+	env    string
 }
 
-func NewAPI(store store.Store) ApiService {
+func NewAPI(store store.Store, env string) ApiService {
 	return ApiService{
 		store:  store,
 		router: gin.Default(),
+		env:    env,
 	}
 }
 
@@ -24,6 +26,10 @@ func (as ApiService) Serve() {
 
 	as.router.POST("/services/:service_id/destinations", as.destinationUpsert)
 	as.router.DELETE("/services/:service_id/destinations/:destination_id", as.destinationDelete)
+
+	if as.env == "test" {
+		as.router.POST("/flush", as.flush)
+	}
 
 	as.router.Run(":8000")
 }

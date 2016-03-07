@@ -116,7 +116,7 @@ func (s Etcd) DeleteService(svc store.Service) error {
 func (s Etcd) GetDestinations(svc store.Service) (*[]store.Destination, error) {
 	key := s.path("services", svc.GetId(), "destinations")
 
-	var destinations []store.Destination
+	destinations := []store.Destination{}
 
 	r, err := s.client.Get(context.Background(), key, &client.GetOptions{Recursive: true, Sort: true})
 	if err != nil {
@@ -227,7 +227,7 @@ func (s Etcd) processServiceChange(r *client.Response) (interface{}, error) {
 
 		return store.ServiceEvent{
 			Action:  store.SetEvent,
-			Service: &serviceRequest,
+			Service: serviceRequest,
 		}, nil
 
 	case store.DeleteEvent:
@@ -235,7 +235,7 @@ func (s Etcd) processServiceChange(r *client.Response) (interface{}, error) {
 
 		return store.ServiceEvent{
 			Action:  store.DeleteEvent,
-			Service: nil,
+			Service: serviceRequest,
 		}, nil
 	}
 
@@ -261,8 +261,8 @@ func (s Etcd) processDestinationChange(r *client.Response) (interface{}, error) 
 
 		return store.DestinationEvent{
 			Action:      store.SetEvent,
-			Service:     &svcRequest,
-			Destination: &dstRequest,
+			Service:     svcRequest,
+			Destination: dstRequest,
 		}, nil
 
 	case store.DeleteEvent:
@@ -270,8 +270,8 @@ func (s Etcd) processDestinationChange(r *client.Response) (interface{}, error) 
 
 		return store.DestinationEvent{
 			Action:      store.DeleteEvent,
-			Service:     nil,
-			Destination: nil,
+			Service:     svcRequest,
+			Destination: dstRequest,
 		}, nil
 	}
 

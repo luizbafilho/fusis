@@ -75,10 +75,11 @@ func (s *EtcdSuite) TestGetServices(c *C) {
 
 func (s *EtcdSuite) TestUpsertServices(c *C) {
 	svc := Service{
-		Host:      "10.8.0.1",
-		Port:      8080,
-		Scheduler: "rr",
-		Protocol:  "tcp",
+		Host:         "10.8.0.1",
+		Port:         8080,
+		Scheduler:    "rr",
+		Protocol:     "tcp",
+		Destinations: []Destination{},
 	}
 
 	//Inserting service
@@ -145,7 +146,7 @@ func (s *EtcdSuite) TestDeleteDestination(c *C) {
 	err = s.store.DeleteDestination(s.service, s.destination)
 	c.Assert(err, IsNil)
 
-	var expected []Destination
+	expected := []Destination{}
 	destinations, err := s.store.GetDestinations(s.service)
 	c.Assert(*destinations, DeepEquals, expected)
 }
@@ -161,7 +162,7 @@ func (s *EtcdSuite) TestSubscribeUpsertService(c *C) {
 	}, 200)
 
 	execWhenReceiveEvent(func(change interface{}) {
-		c.Assert(change, DeepEquals, ServiceEvent{SetEvent, &newSvc})
+		c.Assert(change, DeepEquals, ServiceEvent{SetEvent, newSvc})
 	}, changesChannel)
 }
 
@@ -177,7 +178,7 @@ func (s *EtcdSuite) TestSubscribeDeleteService(c *C) {
 	}, 200)
 
 	execWhenReceiveEvent(func(change interface{}) {
-		c.Assert(change, DeepEquals, ServiceEvent{DeleteEvent, nil})
+		c.Assert(change, DeepEquals, ServiceEvent{DeleteEvent, newSvc})
 	}, changesChannel)
 }
 
@@ -195,7 +196,7 @@ func (s *EtcdSuite) TestSubscribeUpsertDestination(c *C) {
 			Port:     s.service.Port,
 			Protocol: s.service.Protocol,
 		}
-		c.Assert(change, DeepEquals, DestinationEvent{SetEvent, &svc, &s.destination})
+		c.Assert(change, DeepEquals, DestinationEvent{SetEvent, svc, s.destination})
 	}, changesChannel)
 }
 
@@ -209,7 +210,7 @@ func (s *EtcdSuite) TestSubscribeDeleteDestination(c *C) {
 	}, 200)
 
 	execWhenReceiveEvent(func(change interface{}) {
-		c.Assert(change, DeepEquals, DestinationEvent{DeleteEvent, nil, nil})
+		c.Assert(change, DeepEquals, DestinationEvent{DeleteEvent, s.service, s.destination})
 	}, changesChannel)
 }
 

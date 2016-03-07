@@ -107,6 +107,20 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 	}
 }
 
+func (as ApiService) flush(c *gin.Context) {
+	err := as.store.Flush()
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	err = ipvs.Flush()
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+}
+
 func getServiceFromId(serviceId string) (*store.Service, error) {
 	serviceAttrs := strings.Split(serviceId, "-")
 

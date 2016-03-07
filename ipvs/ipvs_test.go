@@ -23,7 +23,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/luizbafilho/janus/netlink"
+	"github.com/luizbafilho/fusis/netlink"
 )
 
 var testStats = Stats{

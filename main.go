@@ -3,10 +3,10 @@ package main
 import (
 	"log"
 
-	"github.com/luizbafilho/janus/api"
-	"github.com/luizbafilho/janus/engine"
-	"github.com/luizbafilho/janus/ipvs"
-	"github.com/luizbafilho/janus/store/etcd"
+	"github.com/luizbafilho/fusis/api"
+	"github.com/luizbafilho/fusis/engine"
+	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/store/etcd"
 )
 
 func main() {

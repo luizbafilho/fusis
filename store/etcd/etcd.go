@@ -12,7 +12,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/coreos/etcd/client"
-	"github.com/luizbafilho/janus/store"
+	"github.com/luizbafilho/fusis/store"
 )
 
 type Etcd struct {

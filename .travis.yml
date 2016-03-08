@@ -18,5 +18,8 @@ before_script:
   - go build
   - sudo ./fusis&
   - sleep 3
+script:
+  - go test -v github.com/luizbafilho/fusis/store/etcd
+  - go test -v github.com/luizbafilho/fusis/api
 services:
   - docker

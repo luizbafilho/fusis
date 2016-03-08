@@ -178,7 +178,9 @@ func (s *EtcdSuite) TestSubscribeDeleteService(c *C) {
 	}, 200)
 
 	execWhenReceiveEvent(func(change interface{}) {
-		c.Assert(change, DeepEquals, ServiceEvent{DeleteEvent, newSvc})
+		event := change.(ServiceEvent)
+		c.Assert(event.Action, Equals, DeleteEvent)
+		c.Assert(event.Service.GetId(), Equals, newSvc.GetId())
 	}, changesChannel)
 }
 
@@ -210,7 +212,10 @@ func (s *EtcdSuite) TestSubscribeDeleteDestination(c *C) {
 	}, 200)
 
 	execWhenReceiveEvent(func(change interface{}) {
-		c.Assert(change, DeepEquals, DestinationEvent{DeleteEvent, s.service, s.destination})
+		event := change.(DestinationEvent)
+		c.Assert(event.Action, Equals, DeleteEvent)
+		c.Assert(event.Service.GetId(), Equals, s.service.GetId())
+		c.Assert(event.Destination.GetId(), Equals, s.destination.GetId())
 	}, changesChannel)
 }
 

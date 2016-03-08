@@ -3,6 +3,7 @@ package api_test
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/luizbafilho/fusis/api"
 	. "github.com/luizbafilho/fusis/store"
@@ -50,11 +51,13 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 }
 
 // func (s *EtcdSuite) TearDownTest(c *C) {
+// 	flushStoreAndIpvs()
 // }
 
 func (s *EtcdSuite) TestGestServices(c *C) {
 	err := s.apiClient.UpsertService(s.service)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 500)
 
 	services, err := s.apiClient.GetServices()
 	c.Assert(err, IsNil)

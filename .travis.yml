@@ -13,7 +13,7 @@ install:
   - go get github.com/gin-gonic/gin
   - go get github.com/coreos/etcd
 before_script:
-  - sleep 1
+  - sleep 2
   - sudo ./fusis
 services:
   - docker

@@ -50,10 +50,6 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	flushStoreAndIpvs()
 }
 
-// func (s *EtcdSuite) TearDownTest(c *C) {
-// 	flushStoreAndIpvs()
-// }
-
 func (s *EtcdSuite) TestGestServices(c *C) {
 	err := s.apiClient.UpsertService(s.service)
 	c.Assert(err, IsNil)
@@ -68,6 +64,7 @@ func (s *EtcdSuite) TestGestServices(c *C) {
 func (s *EtcdSuite) TestUpsertService(c *C) {
 	err := s.apiClient.UpsertService(s.service)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 500)
 
 	svc, err := s.store.GetService(s.service.GetId())
 	c.Assert(*svc, DeepEquals, s.service)
@@ -76,9 +73,11 @@ func (s *EtcdSuite) TestUpsertService(c *C) {
 func (s *EtcdSuite) TestDeleteService(c *C) {
 	err := s.store.UpsertService(s.service)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 500)
 
 	err = s.apiClient.DeleteService(s.service)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 500)
 
 	_, err = s.store.GetService(s.service.GetId())
 	c.Assert(err, NotNil)
@@ -87,6 +86,7 @@ func (s *EtcdSuite) TestDeleteService(c *C) {
 func (s *EtcdSuite) TestUpsertDestination(c *C) {
 	err := s.apiClient.UpsertDestination(s.service, s.destination)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 500)
 
 	destinations, err := s.store.GetDestinations(s.service)
 	c.Assert(err, IsNil)
@@ -97,12 +97,15 @@ func (s *EtcdSuite) TestUpsertDestination(c *C) {
 func (s *EtcdSuite) TestDeleteDestination(c *C) {
 	err := s.store.UpsertService(s.service)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 500)
 
 	err = s.apiClient.UpsertDestination(s.service, s.destination)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 500)
 
 	err = s.apiClient.DeleteDestination(s.service, s.destination)
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 500)
 
 	dsts, err := s.store.GetDestinations(s.service)
 	c.Assert(*dsts, DeepEquals, []Destination{})

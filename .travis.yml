@@ -12,10 +12,11 @@ before_install:
 install:
   - go get github.com/gin-gonic/gin
   - go get github.com/coreos/etcd
+  - go get gopkg.in/check.v1
 before_script:
-  - sleep 1
   - sudo modprobe ip_vs
   - go build
   - sudo ./fusis&
+  - sleep 3
 services:
   - docker

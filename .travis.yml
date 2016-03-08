@@ -1,0 +1,19 @@
+language: go
+sudo: false
+go:
+  - 1.5.3
+env:
+  global:
+    - FUSIS_ENV=test
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential ipvsadm
+  - docker run -d -p 127.0.0.1:2379:2379 --name etcd elcolio/etcd:latest
+install:
+  - go get github.com/gin-gonic/gin
+  - go get github.com/coreos/etcd
+before_script:
+  - sleep 1
+  - sudo ./fusis
+services:
+  - docker

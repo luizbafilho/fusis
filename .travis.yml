@@ -16,6 +16,6 @@ before_script:
   - sleep 1
   - sudo modprobe ip_vs
   - go build
-  - sudo ./fusis
+  - sudo ./fusis&
 services:
   - docker

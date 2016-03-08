@@ -77,5 +77,6 @@ Vagrant.configure(2) do |config|
     sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential
     sudo curl -fsSL https://get.docker.com/ | sh
     sudo usermod -aG docker vagrant
+    echo "answer AUTO_KMODS_ENABLED yes" | sudo tee -a /etc/vmware-tools/locations
   SHELL
 end

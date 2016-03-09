@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/store"
@@ -43,6 +44,11 @@ func (as ApiService) serviceUpsert(c *gin.Context) {
 	var newService store.Service
 
 	if c.BindJSON(&newService) != nil {
+		return
+	}
+
+	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
+		c.JSON(422, gin.H{"errors": govalidator.ErrorsByField(errs)})
 		return
 	}
 

@@ -15,18 +15,19 @@ const (
 )
 
 type Service struct {
-	Host         string
-	Port         uint16
-	Protocol     string
-	Scheduler    string
+	Name         string `valid:"alphanum,required"`
+	Host         string `valid:"required"`
+	Port         uint16 `valid:"required"`
+	Protocol     string `valid:"required"`
+	Scheduler    string `valid:"required"`
 	Destinations []Destination
 }
 
 type Destination struct {
-	Host   string
-	Port   uint16
+	Host   string `valid:"required"`
+	Port   uint16 `valid:"required"`
 	Weight int32
-	Mode   string
+	Mode   string `valid:"required"`
 }
 
 func (svc Service) GetId() string {

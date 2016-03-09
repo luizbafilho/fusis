@@ -21,6 +21,7 @@ func NewAPI(store store.Store, env string) ApiService {
 
 func (as ApiService) Serve() {
 	as.router.GET("/services", as.serviceList)
+	as.router.GET("/services/ipvs", as.serviceListFromIpvs)
 	as.router.POST("/services", as.serviceUpsert)
 	as.router.DELETE("/services/:service_id", as.serviceDelete)
 

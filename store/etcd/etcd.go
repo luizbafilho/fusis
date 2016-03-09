@@ -67,20 +67,34 @@ func (s Etcd) GetService(serviceId string) (*store.Service, error) {
 func (s Etcd) GetServices() (*[]store.Service, error) {
 	key := s.path("services")
 
-	r, err := s.client.Get(context.Background(), key, &client.GetOptions{Recursive: true, Sort: true})
+	services := []store.Service{}
 
-	var services []store.Service
+	r, err := s.client.Get(context.Background(), key, &client.GetOptions{Recursive: true, Sort: true})
+	if err != nil {
+		if err.(client.Error).Code == client.ErrorCodeKeyNotFound {
+			return &services, nil
+		}
+
+		return nil, err
+	}
 
 	for _, n := range r.Node.Nodes {
 		conf := n.Nodes[0]
-		var s store.Service
+		svc := store.Service{}
 
-		err := getValueFromJson(conf.Value, &s)
+		err := getValueFromJson(conf.Value, &svc)
 		if err != nil {
 			return nil, err
 		}
 
-		services = append(services, s)
+		destinations, err := s.GetDestinations(svc)
+		if err != nil {
+			return nil, err
+		}
+
+		svc.Destinations = *destinations
+
+		services = append(services, svc)
 	}
 
 	return &services, err

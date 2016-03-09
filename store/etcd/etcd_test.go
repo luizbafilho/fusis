@@ -209,7 +209,7 @@ func (s *EtcdSuite) TestSubscribeDeleteDestination(c *C) {
 
 	execAfter(func() {
 		s.store.DeleteDestination(s.service, s.destination)
-	}, 500)
+	}, 200)
 
 	execWhenReceiveEvent(func(change interface{}) {
 		event := change.(DestinationEvent)

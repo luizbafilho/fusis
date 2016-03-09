@@ -70,7 +70,7 @@ func (c *Client) UpsertDestination(svc Service, dst Destination) error {
 
 	resp, err := http.Post(c.path("services", svc.GetId(), "destinations"), "application/json", json)
 	if err != nil || resp.StatusCode != 200 {
-		return err
+		return formatError(resp)
 	}
 	return nil
 }

@@ -203,9 +203,10 @@ func (s *EtcdSuite) TestSubscribeUpsertDestination(c *C) {
 }
 
 func (s *EtcdSuite) TestSubscribeDeleteDestination(c *C) {
+	s.store.UpsertDestination(s.service, s.destination)
+
 	changesChannel := make(chan interface{})
 	go s.store.Subscribe(changesChannel)
-	s.store.UpsertDestination(s.service, s.destination)
 
 	execAfter(func() {
 		s.store.DeleteDestination(s.service, s.destination)

@@ -43,7 +43,7 @@ func New(addrs []string, etcdKey string) store.Store {
 func (s Etcd) GetService(serviceId string) (*store.Service, error) {
 	key := s.path("services", serviceId, "conf")
 
-	r, err := s.client.Get(context.Background(), key, &client.GetOptions{})
+	r, err := s.client.Get(context.Background(), key, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,14 @@ func (s Etcd) GetDestinations(svc store.Service) (*[]store.Destination, error) {
 }
 
 func (s Etcd) UpsertDestination(svc store.Service, dst store.Destination) error {
-	key := s.path("services", svc.GetId(), "/destinations", dst.GetId())
+	key := s.path("services", svc.GetId(), "conf")
+
+	exists, _ := s.keyExists(key)
+	if !exists {
+		return fmt.Errorf("Services does not exists.")
+	}
+
+	key = s.path("services", svc.GetId(), "destinations", dst.GetId())
 
 	value, err := json.Marshal(dst)
 	if err != nil {
@@ -155,7 +162,7 @@ func (s Etcd) UpsertDestination(svc store.Service, dst store.Destination) error 
 }
 
 func (s Etcd) DeleteDestination(svc store.Service, dst store.Destination) error {
-	key := s.path("services", svc.GetId(), "/destinations", dst.GetId())
+	key := s.path("services", svc.GetId(), "destinations", dst.GetId())
 
 	exists, _ := s.keyExists(key)
 	if !exists {

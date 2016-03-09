@@ -85,7 +85,10 @@ func (s *EtcdSuite) TestDeleteService(c *C) {
 }
 
 func (s *EtcdSuite) TestUpsertDestination(c *C) {
-	err := s.apiClient.UpsertDestination(s.service, s.destination)
+	err := s.store.UpsertService(s.service)
+	c.Assert(err, IsNil)
+
+	err = s.apiClient.UpsertDestination(s.service, s.destination)
 	c.Assert(err, IsNil)
 
 	destinations, err := s.store.GetDestinations(s.service)

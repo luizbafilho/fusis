@@ -5,7 +5,7 @@ import (
 	"net"
 	"syscall"
 
-	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/google/seesaw/ipvs"
 )
 
 const (

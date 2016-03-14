@@ -1,19 +1,14 @@
 package api
 
-import (
-	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/fusis/store"
-)
+import "github.com/gin-gonic/gin"
 
 type ApiService struct {
-	store  store.Store
 	router *gin.Engine
 	env    string
 }
 
-func NewAPI(store store.Store, env string) ApiService {
+func NewAPI(env string) ApiService {
 	return ApiService{
-		store:  store,
 		router: gin.Default(),
 		env:    env,
 	}

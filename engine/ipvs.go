@@ -65,11 +65,12 @@ func IPVSGetServices() ([]*ipvs.Service, error) {
 // }
 //
 // // IPVSAddService adds the specified service to the IPVS table.
-// func IPVSAddService(svc *ipvs.Service, out *int) error {
-// 	mt.Lock()
-// 	defer mt.Unlock()
-// 	return ipvs.AddService(*svc)
-// }
+func IPVSAddService(svc *ipvs.Service) error {
+	mt.Lock()
+	defer mt.Unlock()
+	return ipvs.AddService(*svc)
+}
+
 //
 // // IPVSUpdateService updates the specified service in the IPVS table.
 // func IPVSUpdateService(svc *ipvs.Service, out *int) error {

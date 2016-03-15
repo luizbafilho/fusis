@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/fusis/engine"
 )
@@ -19,42 +20,25 @@ func (as ApiService) serviceList(c *gin.Context) {
 	c.JSON(http.StatusOK, *services)
 }
 
-func (as ApiService) serviceListFromIpvs(c *gin.Context) {
-	// ipvsServices, err := ipvs.GetServices()
-	//
-	// if err != nil {
-	// 	c.JSON(422, gin.H{"error": fmt.Sprintf("ipvs.GetServices() failed: %v", err)})
-	// 	return
-	// }
-	//
-	// services := []store.Service{}
-	//
-	// for _, s := range ipvsServices {
-	// 	services = append(services, store.NewServiceRequest(s))
-	// }
-	//
-	// c.JSON(http.StatusOK, services)
-}
+func (as ApiService) serviceCreate(c *gin.Context) {
+	var newService engine.Service
 
-func (as ApiService) serviceUpsert(c *gin.Context) {
-	// var newService store.Service
-	//
-	// if c.BindJSON(&newService) != nil {
-	// 	return
-	// }
-	//
-	// if _, errs := govalidator.ValidateStruct(newService); errs != nil {
-	// 	c.JSON(422, gin.H{"errors": govalidator.ErrorsByField(errs)})
-	// 	return
-	// }
-	//
-	// err := as.store.UpsertService(newService)
-	//
-	// if err != nil {
-	// 	c.JSON(422, gin.H{"error": fmt.Sprintf("UpsertService() failed: %v", err)})
-	// } else {
-	// 	c.JSON(http.StatusOK, newService)
-	// }
+	if c.BindJSON(&newService) != nil {
+		return
+	}
+
+	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
+		c.JSON(422, gin.H{"errors": govalidator.ErrorsByField(errs)})
+		return
+	}
+
+	err := engine.AddService(&newService)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("UpsertService() failed: %v", err)})
+	} else {
+		c.JSON(http.StatusOK, newService)
+	}
 }
 
 func (as ApiService) serviceDelete(c *gin.Context) {

@@ -13,3 +13,7 @@ func GetServices() (*[]Service, error) {
 
 	return &services, nil
 }
+
+func AddService(svc *Service) error {
+	return IPVSAddService(svc.ToIpvsService())
+}

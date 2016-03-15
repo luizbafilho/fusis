@@ -15,7 +15,7 @@ const (
 )
 
 type Service struct {
-	Name         string `valid:"alphanum,required"`
+	// Name         string `valid:"alphanum,required"`
 	Host         string `valid:"required"`
 	Port         uint16 `valid:"required"`
 	Protocol     string `valid:"required"`
@@ -96,14 +96,14 @@ func destinationFlagsToString(flags ipvs.DestinationFlags) string {
 	return value
 }
 
-func (s Service) ToIpvsService() ipvs.Service {
+func (s Service) ToIpvsService() *ipvs.Service {
 	destinations := []*ipvs.Destination{}
 
 	for _, dst := range s.Destinations {
 		destinations = append(destinations, dst.ToIpvsDestination())
 	}
 
-	return ipvs.Service{
+	return &ipvs.Service{
 		Address:      net.ParseIP(s.Host),
 		Port:         s.Port,
 		Protocol:     stringToIPProto(s.Protocol),

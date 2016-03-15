@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api"
+	"github.com/luizbafilho/fusis/cluster"
 )
 
 func main() {
@@ -19,6 +20,7 @@ func main() {
 		env = "development"
 	}
 
+	cluster.NewCluster()
 	apiService := api.NewAPI(env)
 
 	log.Printf("====> Running enviroment: %v\n", env)

@@ -1,4 +1,4 @@
-package store
+package engine
 
 import (
 	"fmt"
@@ -121,7 +121,7 @@ func (d Destination) ToIpvsDestination() *ipvs.Destination {
 	}
 }
 
-func NewServiceRequest(s *ipvs.Service) Service {
+func NewService(s *ipvs.Service) Service {
 	destinations := []Destination{}
 
 	for _, dst := range s.Destinations {

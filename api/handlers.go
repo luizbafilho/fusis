@@ -1,16 +1,22 @@
 package api
 
-import "github.com/gin-gonic/gin"
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/luizbafilho/fusis/engine"
+)
 
 func (as ApiService) serviceList(c *gin.Context) {
-	// services, err := as.store.GetServices()
-	//
-	// if err != nil {
-	// 	c.JSON(422, gin.H{"error": fmt.Sprintf("GetServices() failed: %v", err)})
-	// 	return
-	// }
-	//
-	// c.JSON(http.StatusOK, *services)
+	services, err := engine.GetServices()
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("GetServices() failed: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, *services)
 }
 
 func (as ApiService) serviceListFromIpvs(c *gin.Context) {

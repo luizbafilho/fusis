@@ -15,7 +15,7 @@
 package command
 
 import (
-	"github.com/luizbafilho/fusis/cluster"
+	"github.com/luizbafilho/fusis/fusis"
 	"github.com/spf13/cobra"
 )
 
@@ -28,12 +28,12 @@ var agentCmd = &cobra.Command{
 It's responsible for join the balancer cluster and configuring the host network
 properly in order to enable correct IPVS balancing.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		agent, err := cluster.NewAgent()
+		agent, err := fusis.NewAgent()
 		if err != nil {
 			panic(err)
 		}
 
-		err = agent.Start(bindAddr)
+		err = agent.Start(fusisConfig)
 		if err != nil {
 			panic(err)
 		}

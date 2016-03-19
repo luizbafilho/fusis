@@ -15,12 +15,13 @@
 package command
 
 import (
-	"log"
+	log "github.com/Sirupsen/logrus"
+
 	"os"
 
 	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api"
-	"github.com/luizbafilho/fusis/cluster"
+	"github.com/luizbafilho/fusis/fusis"
 	"github.com/spf13/cobra"
 )
 
@@ -40,21 +41,21 @@ func init() {
 
 func run(cmd *cobra.Command, args []string) {
 	if err := ipvs.Init(); err != nil {
-		log.Fatalf("IPVS initialisation failed: %v\n", err)
+		log.Fatalf("IPVS initialisation failed: %v", err)
 	}
-	log.Printf("IPVS version %s\n", ipvs.Version())
+	log.Printf("IPVS version %s", ipvs.Version())
 
 	env := os.Getenv("FUSIS_ENV")
 	if env == "" {
 		env = "development"
 	}
 
-	balancer, err := cluster.NewBalancer()
+	balancer, err := fusis.NewBalancer()
 	if err != nil {
 		panic(err)
 	}
 
-	err = balancer.Start(bindAddr)
+	err = balancer.Start(fusisConfig)
 	if err != nil {
 		panic(err)
 	}

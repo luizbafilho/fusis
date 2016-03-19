@@ -20,12 +20,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/luizbafilho/fusis/fusis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var cfgFile string
-var bindAddr string
+var fusisConfig fusis.Config
 
 var FusisCmd = &cobra.Command{
 	Use:   "fusis",
@@ -50,7 +51,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	FusisCmd.PersistentFlags().StringVarP(&bindAddr, "bind", "", "", "Bind IP address.")
+	FusisCmd.PersistentFlags().StringVarP(&fusisConfig.Interface, "iface", "", "eth0", "Network interface")
 }
 
 // initConfig reads in config file and ENV variables if set.

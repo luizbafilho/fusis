@@ -15,9 +15,6 @@
 package command
 
 import (
-	"fmt"
-
-	"github.com/hashicorp/serf/serf"
 	"github.com/luizbafilho/fusis/cluster"
 	"github.com/spf13/cobra"
 )
@@ -45,13 +42,7 @@ properly in order to enable correct IPVS balancing.`,
 			panic(err)
 		}
 
-		eventCh := make(chan serf.Event, 64)
-		for {
-			select {
-			case e := <-eventCh:
-				fmt.Printf("[INFO] fusis agent: Received event: %s", e.String())
-			}
-		}
+		waitSignals()
 	},
 }
 
@@ -60,14 +51,5 @@ var balancerIP string
 func init() {
 	FusisCmd.AddCommand(agentCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// agentCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// agentCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	agentCmd.Flags().StringVarP(&balancerIP, "balancer", "b", "", "Balancer IP address.")
 }

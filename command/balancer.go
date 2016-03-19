@@ -24,7 +24,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// balancerCmd represents the balancer command
 var balancerCmd = &cobra.Command{
 	Use:   "balancer",
 	Short: "Fusis Balancer",
@@ -37,16 +36,6 @@ and add routes to them in the Load Balancer.`,
 
 func init() {
 	FusisCmd.AddCommand(balancerCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// balancerCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// balancerCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 func run(cmd *cobra.Command, args []string) {
@@ -71,5 +60,7 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	apiService := api.NewAPI(env)
-	apiService.Serve()
+	go apiService.Serve()
+
+	waitSignals()
 }

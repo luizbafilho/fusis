@@ -17,3 +17,7 @@ func GetServices() (*[]Service, error) {
 func AddService(svc *Service) error {
 	return IPVSAddService(svc.ToIpvsService())
 }
+
+func AddDestination(svc *Service, dst *Destination) error {
+	return IPVSAddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
+}

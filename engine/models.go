@@ -3,6 +3,8 @@ package engine
 import (
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/google/seesaw/ipvs"
@@ -24,10 +26,11 @@ type Service struct {
 }
 
 type Destination struct {
-	Host   string `valid:"required"`
-	Port   uint16 `valid:"required"`
-	Weight int32
-	Mode   string `valid:"required"`
+	Host      string `valid:"required"`
+	Port      uint16 `valid:"required"`
+	Weight    int32
+	Mode      string `valid:"required"`
+	ServiceId string `json:"service_id"`
 }
 
 func (svc Service) GetId() string {
@@ -144,4 +147,20 @@ func newDestinationRequest(d *ipvs.Destination) Destination {
 		Weight: d.Weight,
 		Mode:   destinationFlagsToString(d.Flags),
 	}
+}
+
+func GetServiceFromId(serviceId string) (*Service, error) {
+	serviceAttrs := strings.Split(serviceId, "-")
+
+	port, err := strconv.ParseUint(serviceAttrs[1], 10, 16)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &Service{
+		Host:     serviceAttrs[0],
+		Port:     uint16(port),
+		Protocol: serviceAttrs[2],
+	}, nil
 }

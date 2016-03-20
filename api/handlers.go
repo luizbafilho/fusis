@@ -118,22 +118,6 @@ func (as ApiService) flush(c *gin.Context) {
 	// }
 }
 
-// func getServiceFromId(serviceId string) (*store.Service, error) {
-// 	serviceAttrs := strings.Split(serviceId, "-")
-//
-// 	port, err := strconv.ParseUint(serviceAttrs[1], 10, 16)
-//
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	return &store.Service{
-// 		Host:     serviceAttrs[0],
-// 		Port:     uint16(port),
-// 		Protocol: serviceAttrs[2],
-// 	}, nil
-// }
-
 // func getDestinationFromId(destinationId string) (*store.Destination, error) {
 // 	destinationAttrs := strings.Split(destinationId, "-")
 //

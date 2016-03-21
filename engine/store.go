@@ -1,23 +1,5 @@
 package engine
 
-const (
-	CreateEvent = "create"
-	UpdateEvent = "update"
-	SetEvent    = "set"
-	DeleteEvent = "delete"
-)
-
-type ServiceEvent struct {
-	Action  string
-	Service Service
-}
-
-type DestinationEvent struct {
-	Action      string
-	Service     Service
-	Destination Destination
-}
-
 type Store interface {
 	GetService(serviceId string) (*Service, error)
 	GetServices() (*[]Service, error)

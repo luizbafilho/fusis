@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -122,6 +123,14 @@ func (d Destination) ToIpvsDestination() *ipvs.Destination {
 		Weight:  d.Weight,
 		Flags:   stringToDestinationFlags(d.Mode),
 	}
+}
+
+func (s Service) ToJson() ([]byte, error) {
+	return json.Marshal(s)
+}
+
+func (d Destination) ToJson() ([]byte, error) {
+	return json.Marshal(d)
 }
 
 func NewService(s *ipvs.Service) Service {

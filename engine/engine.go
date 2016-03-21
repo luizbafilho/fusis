@@ -1,5 +1,18 @@
 package engine
 
+import "fmt"
+
+var store *BoltDB
+
+func init() {
+	var err error
+	store, err = NewStore()
+	if err != nil {
+		fmt.Println("=======> falhando aqui")
+		panic(err)
+	}
+}
+
 func GetServices() (*[]Service, error) {
 	ipvsSvcs, err := IPVSGetServices()
 	if err != nil {
@@ -15,7 +28,15 @@ func GetServices() (*[]Service, error) {
 }
 
 func AddService(svc *Service) error {
-	return IPVSAddService(svc.ToIpvsService())
+	if err := IPVSAddService(svc.ToIpvsService()); err != nil {
+		return err
+	}
+
+	if err := store.AddService(svc); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func AddDestination(svc *Service, dst *Destination) error {

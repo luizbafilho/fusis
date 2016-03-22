@@ -55,9 +55,12 @@ func (b *Balancer) handleEvents() {
 			case serf.EventMemberJoin:
 				memberEvent := e.(serf.MemberEvent)
 				fmt.Println("=====>> ", memberEvent.Members)
+			case serf.EventMemberFailed:
+				memberEvent := e.(serf.MemberEvent)
+				b.handleMemberLeave(memberEvent)
 			case serf.EventMemberLeave:
 				memberEvent := e.(serf.MemberEvent)
-				fmt.Println("=====>> ", memberEvent.Members)
+				b.handleMemberLeave(memberEvent)
 			case serf.EventQuery:
 				query := e.(*serf.Query)
 				b.handleQuery(query)
@@ -68,6 +71,12 @@ func (b *Balancer) handleEvents() {
 	}
 }
 
+func (b *Balancer) handleMemberLeave(memberEvent serf.MemberEvent) {
+	for _, m := range memberEvent.Members {
+		engine.DeleteDestination(m.Name)
+	}
+}
+
 func (b *Balancer) handleQuery(query *serf.Query) {
 	// name := query.Name
 	payload := query.Payload
@@ -75,7 +84,7 @@ func (b *Balancer) handleQuery(query *serf.Query) {
 	var dst engine.Destination
 	err := json.Unmarshal(payload, &dst)
 	if err != nil {
-		log.Errorf("Fusis Balancer: Unable to Unmarshal: %v", payload)
+		log.Errorf("Fusis Balancer: Unable to Unmarshal: %s", payload)
 	}
 
 	svc, err := engine.GetServiceFromId(dst.ServiceId)

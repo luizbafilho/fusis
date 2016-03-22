@@ -1,6 +1,10 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	log "github.com/Sirupsen/logrus"
+)
 
 var store *BoltDB
 
@@ -40,5 +44,34 @@ func AddService(svc *Service) error {
 }
 
 func AddDestination(svc *Service, dst *Destination) error {
-	return IPVSAddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
+	log.Infof("Adding Destination: %v", dst.Name)
+	if err := IPVSAddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
+		return err
+	}
+
+	if err := store.AddDestination(dst); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteDestination(id string) error {
+	log.Infof("Deleting Destination: %v", id)
+	dst := store.GetDestination(id)
+
+	svc, err := GetServiceFromId(dst.ServiceId)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := IPVSDeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
+		return err
+	}
+
+	if err := store.DeleteDestination(dst); err != nil {
+		return err
+	}
+
+	return nil
 }

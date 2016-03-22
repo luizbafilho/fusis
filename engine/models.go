@@ -18,7 +18,7 @@ const (
 )
 
 type Service struct {
-	// Name         string `valid:"alphanum,required"`
+	Name         string `valid:"alphanum,required"`
 	Host         string `valid:"required"`
 	Port         uint16 `valid:"required"`
 	Protocol     string `valid:"required"`
@@ -27,6 +27,7 @@ type Service struct {
 }
 
 type Destination struct {
+	Name      string
 	Host      string `valid:"required"`
 	Port      uint16 `valid:"required"`
 	Weight    int32
@@ -39,7 +40,7 @@ func (svc Service) GetId() string {
 }
 
 func (dst Destination) GetId() string {
-	return fmt.Sprintf("%v-%v", dst.Host, dst.Port)
+	return dst.Name
 }
 
 func stringToIPProto(s string) ipvs.IPProto {

@@ -102,8 +102,8 @@ func IPVSAddDestination(svc ipvs.Service, dst ipvs.Destination) error {
 // }
 //
 // // IPVSDeleteDestination deletes the specified destination from the IPVS table.
-// func IPVSDeleteDestination(dst *ncctypes.IPVSDestination, out *int) error {
-// 	mt.Lock()
-// 	defer mt.Unlock()
-// 	return ipvs.DeleteDestination(*dst.Service, *dst.Destination)
-// }
+func IPVSDeleteDestination(svc ipvs.Service, dst ipvs.Destination) error {
+	mt.Lock()
+	defer mt.Unlock()
+	return ipvs.DeleteDestination(svc, dst)
+}

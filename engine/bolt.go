@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -14,6 +15,11 @@ type BoltDB struct {
 	db *bolt.DB
 	sync.Mutex
 }
+
+var (
+	services     = []byte("services")
+	destinations = []byte("destinations")
+)
 
 func NewStore() (*BoltDB, error) {
 	db, err := bolt.Open("fusis.db", 0600, &bolt.Options{Timeout: 1 * time.Second})
@@ -49,11 +55,8 @@ func createBucket(db *bolt.DB, name string) error {
 }
 
 func (s *BoltDB) AddService(svc *Service) error {
-	s.Lock()
-	defer s.Unlock()
-
 	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("services"))
+		b := tx.Bucket(services)
 
 		json, err := svc.ToJson()
 		if err != nil {
@@ -67,7 +70,6 @@ func (s *BoltDB) AddService(svc *Service) error {
 		return err
 	})
 	if err != nil {
-		fmt.Println("=========> erro no update")
 		return err
 	}
 	return nil
@@ -75,4 +77,53 @@ func (s *BoltDB) AddService(svc *Service) error {
 
 func (s *BoltDB) GetService(serviceId string) (*Service, error) {
 	return nil, nil
+}
+
+func (s *BoltDB) AddDestination(dst *Destination) error {
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(destinations)
+
+		json, err := dst.ToJson()
+		if err != nil {
+			return err
+		}
+
+		err = b.Put([]byte(dst.GetId()), json)
+		if err != nil {
+			log.Errorf("store.AddDestination failed: %v", err)
+		}
+		return err
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *BoltDB) GetDestination(id string) *Destination {
+	var dst Destination
+
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(destinations)
+		v := b.Get([]byte(id))
+		if err := json.Unmarshal(v, &dst); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil
+	}
+
+	return &dst
+}
+
+func (s *BoltDB) DeleteDestination(dst *Destination) error {
+	// Delete the key in a different write transaction.
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(destinations).Delete([]byte(dst.Name))
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }

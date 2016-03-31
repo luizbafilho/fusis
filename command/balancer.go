@@ -36,6 +36,7 @@ and add routes to them in the Load Balancer.`,
 }
 
 func init() {
+	balancerCmd.Flags().StringVarP(&fusisConfig.Interface, "iface", "", "eth0", "Network interface")
 	FusisCmd.AddCommand(balancerCmd)
 }
 

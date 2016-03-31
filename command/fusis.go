@@ -51,7 +51,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	FusisCmd.PersistentFlags().StringVarP(&fusisConfig.Interface, "iface", "", "eth0", "Network interface")
+	// FusisCmd.PersistentFlags().StringVarP(&fusisConfig.Interface, "iface", "", "eth0", "Network interface")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -61,8 +61,9 @@ func initConfig() {
 	}
 
 	viper.SetConfigName(".fusis") // name of config file (without extension)
-	viper.AddConfigPath("$HOME")  // adding home directory as first search path
-	viper.AutomaticEnv()          // read in environment variables that match
+	viper.SetConfigType("json")
+	viper.AddConfigPath(".") // adding home directory as first search path
+	viper.AutomaticEnv()     // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {

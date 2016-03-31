@@ -15,9 +15,16 @@
 package command
 
 import (
+	"os"
+
+	log "github.com/Sirupsen/logrus"
+
 	"github.com/luizbafilho/fusis/fusis"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
+
+var agentConfig fusis.AgentConfig
 
 // agentCmd represents the balancer command
 var agentCmd = &cobra.Command{
@@ -26,30 +33,49 @@ var agentCmd = &cobra.Command{
 	Long: `fusis agent is the command used to run the agent process.
 
 It's responsible for join the balancer cluster and configuring the host network
-properly in order to enable correct IPVS balancing.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		agent, err := fusis.NewAgent()
-		if err != nil {
-			panic(err)
-		}
-
-		err = agent.Start(fusisConfig)
-		if err != nil {
-			panic(err)
-		}
-		_, err = agent.Join([]string{balancerIP}, true)
-		if err != nil {
-			panic(err)
-		}
-
-		waitSignals()
+properly in orderj to enable correct IPVS balancing.`,
+	Run: runAgentCmd,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		viper.Unmarshal(&agentConfig)
 	},
 }
 
-var balancerIP string
+func runAgentCmd(cmd *cobra.Command, args []string) {
+	agent, err := fusis.NewAgent(&agentConfig)
+	if err != nil {
+		panic(err)
+	}
+
+	err = agent.Start()
+	if err != nil {
+		panic(err)
+	}
+	_, err = agent.Join([]string{agentConfig.Balancer}, true)
+	if err != nil {
+		panic(err)
+	}
+
+	waitSignals()
+}
 
 func init() {
 	FusisCmd.AddCommand(agentCmd)
+	setupConfig()
+}
 
-	agentCmd.Flags().StringVarP(&balancerIP, "balancer", "b", "", "Balancer IP address.")
+func setupConfig() {
+	hostname, _ := os.Hostname()
+	agentCmd.Flags().StringVarP(&agentConfig.Balancer, "balancer", "b", "", "master balancer IP address")
+	agentCmd.Flags().StringVarP(&agentConfig.Name, "name", "n", hostname, "node name (unique in the cluster)")
+	agentCmd.Flags().StringVar(&agentConfig.Host, "host", "", "host IP address")
+	agentCmd.Flags().Uint16VarP(&agentConfig.Port, "port", "p", 80, "port number")
+	agentCmd.Flags().Int32VarP(&agentConfig.Weight, "weight", "w", 1, "host weigth")
+	agentCmd.Flags().StringVarP(&agentConfig.Mode, "mode", "m", "nat", "host IP address")
+	agentCmd.Flags().StringVar(&agentConfig.Service, "service", "", "service id")
+	agentCmd.Flags().StringVar(&agentConfig.Interface, "iface", "eth0", "Network interface")
+
+	err := viper.BindPFlags(agentCmd.Flags())
+	if err != nil {
+		log.Errorf("error binding pflags: %v", err)
+	}
 }

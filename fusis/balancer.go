@@ -2,7 +2,6 @@ package fusis
 
 import (
 	"encoding/json"
-	"fmt"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/engine"
@@ -53,8 +52,7 @@ func (b *Balancer) handleEvents() {
 		case e := <-b.eventCh:
 			switch e.EventType() {
 			case serf.EventMemberJoin:
-				memberEvent := e.(serf.MemberEvent)
-				fmt.Println("=====>> ", memberEvent.Members)
+				// memberEvent := e.(serf.MemberEvent)
 			case serf.EventMemberFailed:
 				memberEvent := e.(serf.MemberEvent)
 				b.handleMemberLeave(memberEvent)

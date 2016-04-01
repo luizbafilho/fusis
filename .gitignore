@@ -2,3 +2,4 @@ gin-bin
 .vagrant
 bin
 coverage.*
+*.db

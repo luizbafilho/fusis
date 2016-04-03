@@ -41,7 +41,7 @@ Vagrant.configure(2) do |config|
     sudo apt-get install -y vim-gnome
 
     echo "====> Installing dependencies"
-    sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags
+    sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump
 
     echo "====> Installing tmux 2.1"
     sudo apt-get build-dep -y tmux
@@ -59,5 +59,8 @@ Vagrant.configure(2) do |config|
     vim +PlugInstall +qa! && echo "Done! :)"
     cd $HOME/.vim/plugged/YouCompleteMe
     ./install.py --gocode-completer
+
+    echo "====> Config autojump"
+    echo 'source /usr/share/autojump/autojump.sh' >> $HOME/.bash_profile
   SHELL
 end

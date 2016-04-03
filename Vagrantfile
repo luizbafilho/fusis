@@ -6,79 +6,58 @@
 # backwards compatibility). Please don't change it unless you know what
 # you're doing.
 Vagrant.configure(2) do |config|
-  # The most common configuration options are documented and commented below.
-  # For a complete reference, please see the online documentation at
-  # https://docs.vagrantup.com.
+  config.vm.box = "ubuntu/trusty64"
+  config.ssh.forward_x11 = true
 
-  # Every Vagrant development environment requires a box. You can search for
-  # boxes at https://atlas.hashicorp.com/search.
-  config.vm.box = "geerlingguy/ubuntu1404"
-
-  # Disable automatic box update checking. If you disable this, then
-  # boxes will only be checked for updates when the user runs
-  # `vagrant box outdated`. This is not recommended.
-  # config.vm.box_check_update = false
-
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine. In the example below,
-  # accessing "localhost:8080" will access port 80 on the guest machine.
   config.vm.network "forwarded_port", guest: 8000, host: 8000
 
-  # Create a private network, which allows host-only access to the machine
-  # using a specific IP.
   config.vm.network "private_network", ip: "192.168.33.10"
 
-  # Create a public network, which generally matched to bridged network.
-  # Bridged networks make the machine appear as another physical device on
-  # your network.
-  # config.vm.network "public_network"
-
-  # Share an additional folder to the guest VM. The first argument is
-  # the path on the host to the actual folder. The second argument is
-  # the path on the guest to mount the folder. And the optional third
-  # argument is a set of non-required options.
   config.vm.synced_folder "/Users/luiz/projects/gocode", "/home/vagrant/gocode"
 
-  # Provider-specific configuration so you can fine-tune various
-  # backing providers for Vagrant. These expose provider-specific options.
-  # Example for VirtualBox:
-  #
-  config.vm.provider "vmware_fusion" do |vb|
-    # Display the VirtualBox GUI when booting the machine
-    # vb.gui = true
-
-
-    # Customize the amount of memory on the VM:
-    vb.cpus = 2
+  config.vm.provider "virtualbox" do |vb|
+    vb.cpus = 4
     vb.memory = "2048"
   end
-  #
-  # View the documentation for the provider you are using for more
-  # information on available options.
 
-  # Define a Vagrant Push strategy for pushing to Atlas. Other push strategies
-  # such as FTP and Heroku are also available. See the documentation at
-  # https://docs.vagrantup.com/v2/push/atlas.html for more information.
-  # config.push.define "atlas" do |push|
-  #   push.app = "YOUR_ATLAS_USERNAME/YOUR_APPLICATION_NAME"
-  # end
-
-  # Enable provisioning with a shell script. Additional provisioners such as
-  # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
-  # documentation for more information about their specific syntax and use.
-  config.vm.provision "shell", inline: <<-SHELL
+  config.vm.provision "shell", privileged: false, inline: <<-SHELL
     sudo apt-get update
-    sudo apt-get install -y ipvsadm
 
-    curl -O https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz
-    tar -xvf go1.5.3.linux-amd64.tar.gz
+    HOME=/home/vagrant
+
+    curl -O https://storage.googleapis.com/golang/go1.6.linux-amd64.tar.gz
+    tar -xvf go1.6.linux-amd64.tar.gz
     sudo mv go /usr/local
-    echo export PATH=$PATH:/usr/local/go/bin >> /home/vagrant/.profile
-    mkdir /home/vagrant/gocode
-    echo export GOPATH=/home/vagrant/gocode >> /home/vagrant/.profile
-    sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential
-    sudo curl -fsSL https://get.docker.com/ | sh
-    sudo usermod -aG docker vagrant
-    echo "answer AUTO_KMODS_ENABLED yes" | sudo tee -a /etc/vmware-tools/locations
+    echo export PATH=$PATH:/usr/local/go/bin >> $HOME/.profile
+    mkdir $HOME/gocode
+    echo export GOPATH=$HOME/gocode >> $HOME/.profile
+
+    # echo "====> Installing docker"
+    # sudo curl -fsSL https://get.docker.com/ | sh
+    # sudo usermod -aG docker vagrant
+
+    echo "====> Installing vim-gnome"
+    sudo locale-gen UTF-8
+    sudo apt-get install -y vim-gnome
+
+    echo "====> Installing dependencies"
+    sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags
+
+    echo "====> Installing tmux 2.1"
+    sudo apt-get build-dep -y tmux
+    git clone https://github.com/tmux/tmux.git
+    cd tmux
+    git checkout 2.1
+    sh autogen.sh
+    ./configure && make
+    sudo make install
+    wget https://gist.githubusercontent.com/luizbafilho/99c6ec91b0c3415df75b4c4cf7d0265a/raw/bb10b105f4809c3549e20777e1afdde9b50bc915/.tmux.conf -O  $HOME/.tmux.conf
+
+    echo "====> Downloading vimfiles"
+    git clone https://github.com/luizbafilho/vimfiles.git $HOME/.vim
+    ln -s $HOME/.vim/vimrc $HOME/.vimrc
+    vim +PlugInstall +qa! && echo "Done! :)"
+    cd $HOME/.vim/plugged/YouCompleteMe
+    ./install.py --gocode-completer
   SHELL
 end

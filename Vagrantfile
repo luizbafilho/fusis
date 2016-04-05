@@ -6,7 +6,7 @@
 # backwards compatibility). Please don't change it unless you know what
 # you're doing.
 Vagrant.configure(2) do |config|
-  config.vm.box = "ubuntu/trusty64"
+  config.vm.box = "geerlingguy/ubuntu1404"
   config.ssh.forward_x11 = true
 
   config.vm.network "forwarded_port", guest: 8000, host: 8000
@@ -15,7 +15,7 @@ Vagrant.configure(2) do |config|
 
   config.vm.synced_folder "/Users/luiz/projects/gocode", "/home/vagrant/gocode"
 
-  config.vm.provider "virtualbox" do |vb|
+  config.vm.provider "vmware_fusion" do |vb|
     vb.cpus = 4
     vb.memory = "2048"
   end
@@ -32,16 +32,16 @@ Vagrant.configure(2) do |config|
     mkdir $HOME/gocode
     echo export GOPATH=$HOME/gocode >> $HOME/.profile
 
-    # echo "====> Installing docker"
-    # sudo curl -fsSL https://get.docker.com/ | sh
-    # sudo usermod -aG docker vagrant
+    echo "====> Installing docker"
+    sudo curl -fsSL https://get.docker.com/ | sh
+    sudo usermod -aG docker vagrant
 
     echo "====> Installing vim-gnome"
     sudo locale-gen UTF-8
     sudo apt-get install -y vim-gnome
 
     echo "====> Installing dependencies"
-    sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump
+    sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump xauth
 
     echo "====> Installing tmux 2.1"
     sudo apt-get build-dep -y tmux
@@ -59,6 +59,7 @@ Vagrant.configure(2) do |config|
     vim +PlugInstall +qa! && echo "Done! :)"
     cd $HOME/.vim/plugged/YouCompleteMe
     ./install.py --gocode-completer
+
 
     echo "====> Config autojump"
     echo 'source /usr/share/autojump/autojump.sh' >> $HOME/.bash_profile

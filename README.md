@@ -5,7 +5,7 @@ Fusis Balancer is a dynamic Layer 4 Load Balancer powered by [IPVS](http://www.l
 
 Running the Fusis Agent in your servers, lets the balancer detect new nodes and add new routes to them.
 
-It also has a HTTP API to manages your services dynamically.
+There is also a HTTP API to manages your services dynamically.
 
 ### IPVS
 IPVS (IP Virtual Server) implements transport-layer load balancing directly in the Linux Kernel. It's being aroung since 1999 and its very stable and battle tested. Used by many companies like Google, Facebook, Github, Soundcloud and many others.
@@ -19,10 +19,10 @@ Serf is solution for distributed cluster management, message delivery and failur
 ## Why?
 The whole goal of this project it is to bring a accessible way to use IPVS.
 
-Fusis Balance will be responsible for dectect new/failed nodes and add/remove a route to it and automatically configure the network in order to make everything work.
+Fusis Balance will be responsible for detect new/failed nodes and add/remove routes to it. It will automatically configure the network in order to make everything work.
 
 ## State
-This project it's under heavy development. It's not usable yet, but you can **Star** :star: the project and follow the updates.
+This project it's under heavy development, it's not usable yet, but you can **Star** :star: the project and follow the updates.
 
 # Development
 There is compile and runtime dependency on [libnl](https://www.infradead.org/~tgr/libnl/).

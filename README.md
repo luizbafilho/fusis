@@ -28,6 +28,14 @@ This project it's under heavy development. It's not usable yet, but you can **St
 There is compile and runtime dependency on [libnl](https://www.infradead.org/~tgr/libnl/).
 
 On a Debian/Ubuntu style system, you should be able to prepare for building by running:
-```
+``
 apt-get install libnl-3-dev libnl-genl-3-dev
-```
+``
+
+Install `govendor` and get the dependencies.
+``
+go get github.com/kardianos/govendor
+govendor add +e
+``
+
+You will need at least **Go 1.5**.`

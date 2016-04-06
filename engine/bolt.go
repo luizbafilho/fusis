@@ -75,8 +75,32 @@ func (s *BoltDB) AddService(svc *Service) error {
 	return nil
 }
 
-func (s *BoltDB) GetService(serviceId string) (*Service, error) {
-	return nil, nil
+func (s *BoltDB) GetService(id string) (*Service, error) {
+	var svc Service
+
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(services)
+		v := b.Get([]byte(id))
+		if err := json.Unmarshal(v, &svc); err != nil {
+			return nil
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return &svc, nil
+}
+
+func (s *BoltDB) DeleteService(svc *Service) error {
+	// Delete the key in a different write transaction.
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(services).Delete([]byte(svc.GetId()))
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *BoltDB) AddDestination(dst *Destination) error {

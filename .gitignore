@@ -3,3 +3,4 @@ gin-bin
 bin
 coverage.*
 *.db
+tags

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -18,7 +17,7 @@ const (
 )
 
 type Service struct {
-	Name         string `valid:"alphanum,required"`
+	Name         string `valid:"required"`
 	Host         string `valid:"required"`
 	Port         uint16 `valid:"required"`
 	Protocol     string `valid:"required"`
@@ -36,7 +35,8 @@ type Destination struct {
 }
 
 func (svc Service) GetId() string {
-	return fmt.Sprintf("%v-%v-%v", svc.Host, svc.Port, svc.Protocol)
+	// return fmt.Sprintf("%v-%v-%v", svc.Host, svc.Port, svc.Protocol)
+	return svc.Name
 }
 
 func (dst Destination) GetId() string {

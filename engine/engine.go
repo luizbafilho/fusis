@@ -43,6 +43,28 @@ func AddService(svc *Service) error {
 	return nil
 }
 
+func GetService(id string) (*Service, error) {
+	return store.GetService(id)
+}
+
+func DeleteService(id string) error {
+	log.Infof("Deleting Service: %v", id)
+	svc, err := store.GetService(id)
+	if err != nil {
+		return err
+	}
+
+	if err := IPVSDeleteService(svc.ToIpvsService()); err != nil {
+		return err
+	}
+
+	if err := store.DeleteService(svc); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func AddDestination(svc *Service, dst *Destination) error {
 	log.Infof("Adding Destination: %v", dst.Name)
 	if err := IPVSAddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {

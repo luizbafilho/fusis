@@ -42,21 +42,14 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 }
 
 func (as ApiService) serviceDelete(c *gin.Context) {
-	// serviceId := c.Param("service_id")
-	// service, err := getServiceFromId(serviceId)
-	//
-	// if err != nil {
-	// 	c.JSON(400, gin.H{"error": err.Error()})
-	// 	return
-	// }
-	//
-	// err = as.store.DeleteService(*service)
-	//
-	// if err != nil {
-	// 	c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteService() failed: %v\n", err)})
-	// } else {
-	// 	c.Data(http.StatusOK, gin.MIMEHTML, nil)
-	// }
+	serviceId := c.Param("service_id")
+	err := engine.DeleteService(serviceId)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteService() failed: %v\n", err)})
+	} else {
+		c.Data(http.StatusOK, gin.MIMEHTML, nil)
+	}
 }
 
 func (as ApiService) destinationUpsert(c *gin.Context) {

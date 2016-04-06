@@ -79,12 +79,13 @@ func IPVSAddService(svc *ipvs.Service) error {
 // 	return ipvs.UpdateService(*svc)
 // }
 //
-// // IPVSDeleteService deletes the specified service from the IPVS table.
-// func IPVSDeleteService(svc *ipvs.Service, out *int) error {
-// 	mt.Lock()
-// 	defer mt.Unlock()
-// 	return ipvs.DeleteService(*svc)
-// }
+// IPVSDeleteService deletes the specified service from the IPVS table.
+func IPVSDeleteService(svc *ipvs.Service) error {
+	mt.Lock()
+	defer mt.Unlock()
+	return ipvs.DeleteService(*svc)
+}
+
 //
 // IPVSAddDestination adds the specified destination to the IPVS table.
 func IPVSAddDestination(svc ipvs.Service, dst ipvs.Destination) error {

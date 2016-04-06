@@ -1,7 +1,7 @@
 Fusis Balancer
 ======
 
-Fusis Balancer is a dynamic Layer 4 Load Balancer baked by [IPVS](http://www.linuxvirtualserver.org/) and [Serf](https://www.serfdom.io/).
+Fusis Balancer is a dynamic Layer 4 Load Balancer powered by [IPVS](http://www.linuxvirtualserver.org/) and [Serf](https://www.serfdom.io/).
 
 Running the Fusis Agent in your servers, lets the balancer detect new nodes and add new routes to them.
 

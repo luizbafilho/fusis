@@ -38,4 +38,4 @@ go get github.com/kardianos/govendor
 govendor add +e
 ``
 
-You will need at least **Go 1.5**.`
+You will need at least **Go 1.5**.

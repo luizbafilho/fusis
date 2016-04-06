@@ -93,7 +93,6 @@ func (s *BoltDB) GetService(id string) (*Service, error) {
 }
 
 func (s *BoltDB) DeleteService(svc *Service) error {
-	// Delete the key in a different write transaction.
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(services).Delete([]byte(svc.GetId()))
 	}); err != nil {
@@ -142,7 +141,6 @@ func (s *BoltDB) GetDestination(id string) *Destination {
 }
 
 func (s *BoltDB) DeleteDestination(dst *Destination) error {
-	// Delete the key in a different write transaction.
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(destinations).Delete([]byte(dst.Name))
 	}); err != nil {

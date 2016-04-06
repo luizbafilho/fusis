@@ -82,7 +82,7 @@ func DeleteDestination(id string) error {
 	log.Infof("Deleting Destination: %v", id)
 	dst := store.GetDestination(id)
 
-	svc, err := GetServiceFromId(dst.ServiceId)
+	svc, err := GetService(dst.ServiceId)
 	if err != nil {
 		panic(err)
 	}

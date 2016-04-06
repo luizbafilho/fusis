@@ -52,49 +52,39 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 	}
 }
 
-func (as ApiService) destinationUpsert(c *gin.Context) {
-	// serviceId := c.Param("service_id")
-	// service, err := getServiceFromId(serviceId)
-	//
-	// if err != nil {
-	// 	c.JSON(400, gin.H{"error": err.Error()})
-	// 	return
-	// }
-	//
-	// destination := store.Destination{Weight: 1, Mode: "route"}
-	//
-	// if c.BindJSON(&destination) != nil {
-	// 	return
-	// }
-	//
-	// err = as.store.UpsertDestination(*service, destination)
-	//
-	// if err != nil {
-	// 	c.JSON(422, gin.H{"error": fmt.Sprintf("UpsertDestination() failed: %v\n", err)})
-	// } else {
-	// 	c.JSON(http.StatusOK, destination)
-	// }
+func (as ApiService) destinationCreate(c *gin.Context) {
+	serviceId := c.Param("service_id")
+	service, err := engine.GetService(serviceId)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	destination := &engine.Destination{Weight: 1, Mode: "route"}
+
+	if c.BindJSON(destination) != nil {
+		return
+	}
+
+	err = engine.AddDestination(service, destination)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("UpsertDestination() failed: %v\n", err)})
+	} else {
+		c.JSON(http.StatusOK, destination)
+	}
 }
 
 func (as ApiService) destinationDelete(c *gin.Context) {
-	// serviceId := c.Param("service_id")
-	// destinationId := c.Param("destination_id")
-	//
-	// service, err := getServiceFromId(serviceId)
-	// destination, err := getDestinationFromId(destinationId)
-	//
-	// if err != nil {
-	// 	c.JSON(400, gin.H{"error": err.Error()})
-	// 	return
-	// }
-	//
-	// err = as.store.DeleteDestination(*service, *destination)
-	//
-	// if err != nil {
-	// 	c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v\n", err)})
-	// } else {
-	// 	c.Data(http.StatusOK, gin.MIMEHTML, nil)
-	// }
+	destinationId := c.Param("destination_id")
+
+	err := engine.DeleteDestination(destinationId)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v\n", err)})
+	} else {
+		c.Data(http.StatusOK, gin.MIMEHTML, nil)
+	}
 }
 
 func (as ApiService) flush(c *gin.Context) {

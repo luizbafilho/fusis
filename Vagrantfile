@@ -6,22 +6,23 @@
 # backwards compatibility). Please don't change it unless you know what
 # you're doing.
 Vagrant.configure(2) do |config|
-  config.vm.box = "geerlingguy/ubuntu1404"
+  config.vm.box = "parallels/ubuntu-14.04"
   config.ssh.forward_x11 = true
 
   config.vm.network "forwarded_port", guest: 8000, host: 8000
 
   config.vm.network "private_network", ip: "192.168.33.10"
 
-  config.vm.synced_folder "/Users/luiz/projects/gocode", "/home/vagrant/gocode"
+  config.vm.synced_folder ENV['GOPATH'], "/home/vagrant/gocode"
 
-  config.vm.provider "vmware_fusion" do |vb|
+  config.vm.provider "parallels" do |vb|
     vb.cpus = 4
     vb.memory = "2048"
   end
 
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
     sudo apt-get update
+    sudo apt-get install curl
 
     HOME=/home/vagrant
 

@@ -24,20 +24,23 @@ Fusis Balancer will be responsible for detecting new/failed nodes and add/remove
 ## State
 This project it's under heavy development, it's not usable yet, but you can **Star** :star: the project and follow the updates.
 
-# Development
-There is compilation and runtime dependency on [libnl](https://www.infradead.org/~tgr/libnl/).
+# Installation
 
+There is compilation and runtime dependency on [libnl](https://www.infradead.org/~tgr/libnl/).
 On a Debian/Ubuntu style system, you should be able to prepare for building by running:
+
 ``
 apt-get install libnl-3-dev libnl-genl-3-dev
 ``
 
 Get this project into GOPATH:
+
 ```
 go get -v github.com/luizbafilho/fusis
 ```
 
 Also, get these projects:
+
 ```
 go get -v github.com/hashicorp/errwrap
 go get -v github.com/hashicorp/go-multierror
@@ -45,9 +48,32 @@ go get -v github.com/miekg/dns
 ```
 
 Install `govendor` and get the dependencies.
+
 ```
 go get github.com/kardianos/govendor
 govendor add +e
 ```
 
 You will need at least **Go 1.5**.
+
+
+## Installing IPVS
+
+IPVS is a Kernel module. Install it using modprobe to enable it on the kernel:
+
+```
+# Enables ipvs on kernel
+$> modprobe ip_vs
+
+# Also install the IPVS command line tool
+$> sudo apt-get install ipvsadm
+```
+
+To use IPVS, you must enable the IP forwarding parameter for kernel
+```
+$> sudo sysctl -w net.ipv4.ip_forward=1
+```
+
+## Running the project
+
+

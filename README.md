@@ -19,13 +19,13 @@ Serf is solution for distributed cluster management, message delivery and failur
 ## Why?
 The whole goal of this project it is to bring a accessible way to use IPVS.
 
-Fusis Balance will be responsible for detect new/failed nodes and add/remove routes to it. It will automatically configure the network in order to make everything work.
+Fusis Balancer will be responsible for detecting new/failed nodes and add/remove routes to it. It will automatically configure the network in order to make everything work.
 
 ## State
 This project it's under heavy development, it's not usable yet, but you can **Star** :star: the project and follow the updates.
 
 # Development
-There is compile and runtime dependency on [libnl](https://www.infradead.org/~tgr/libnl/).
+There is compilation and runtime dependency on [libnl](https://www.infradead.org/~tgr/libnl/).
 
 On a Debian/Ubuntu style system, you should be able to prepare for building by running:
 ``

@@ -33,9 +33,9 @@ apt-get install libnl-3-dev libnl-genl-3-dev
 ``
 
 Install `govendor` and get the dependencies.
-``
+```
 go get github.com/kardianos/govendor
 govendor add +e
-``
+```
 
 You will need at least **Go 1.5**.

@@ -6,7 +6,6 @@
 # backwards compatibility). Please don't change it unless you know what
 # you're doing.
 Vagrant.configure(2) do |config|
-  config.vm.box = "parallels/ubuntu-14.04"
   config.ssh.forward_x11 = true
 
   config.vm.network "forwarded_port", guest: 8000, host: 8000
@@ -15,14 +14,34 @@ Vagrant.configure(2) do |config|
 
   config.vm.synced_folder ENV['GOPATH'], "/home/vagrant/gocode"
 
-  config.vm.provider "parallels" do |vb|
-    vb.cpus = 4
-    vb.memory = "2048"
+  config.vm.provider "vmware_fusion" do |provider, override|
+    override.vm.box = "geerlingguy/ubuntu1404"
+    provider.cpus = 4
+    provider.memory = "2048"
+  end
+
+  config.vm.provider "virtualbox" do |provider, override|
+    override.vm.box = "hashicorp/precise64"
+    provider.cpus = 4
+    provider.memory = "2048"
+  end
+
+  config.vm.provider "parallels" do |provider, override|
+    override.vm.box = "parallels/ubuntu-14.04"
+    provider.cpus = 4
+    provider.memory = "2048"
+  end
+
+  config.vm.provider "libvirt" do |provider, override|
+    override.vm.box = "sputnik13/trusty64"
+    provider.cpus = 4
+    provider.memory = "2048"
+    provider.driver = "kvm"
   end
 
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
     sudo apt-get update
-    sudo apt-get install curl
+    sudo apt-get install curl wget
 
     HOME=/home/vagrant
 

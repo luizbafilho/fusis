@@ -21,7 +21,7 @@ Vagrant.configure(2) do |config|
   end
 
   config.vm.provider "virtualbox" do |provider, override|
-    override.vm.box = "hashicorp/precise64"
+    override.vm.box = "ubuntu/trusty64"
     provider.cpus = 4
     provider.memory = "2048"
   end

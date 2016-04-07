@@ -92,12 +92,14 @@ available behind the fusis router:
 $> curl -i {IP OF FUSIS HOST}:8000/services
 ```
 You should see an answer like:
-> HTTP/1.1 200 OK
-> Content-Type: application/json; charset=utf-8
-> Date: Thu, 07 Apr 2016 21:23:18 GMT
-> Content-Length: 3
-> 
-> []
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Thu, 07 Apr 2016 21:23:18 GMT
+Content-Length: 3
+
+[]
+```
 
 Just for a test, lets add some route to any fake IP. At the fusis host type:
 
@@ -112,9 +114,11 @@ $> curl -i {IP OF FUSIS HOST}:8000/services
 ```
 
 You will see that there is a new route on response:
-> HTTP/1.1 200 OK
-> Content-Type: application/json; charset=utf-8
-> Date: Thu, 07 Apr 2016 22:08:42 GMT
-> Content-Length: 94
-> 
-> [{"Name":"","Host":"10.0.0.1","Port":80,"Protocol":"tcp","Scheduler":"rr","Destinations":[]}]
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Thu, 07 Apr 2016 22:08:42 GMT
+Content-Length: 94
+
+[{"Name":"","Host":"10.0.0.1","Port":80,"Protocol":"tcp","Scheduler":"rr","Destinations":[]}]
+```

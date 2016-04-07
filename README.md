@@ -32,6 +32,18 @@ On a Debian/Ubuntu style system, you should be able to prepare for building by r
 apt-get install libnl-3-dev libnl-genl-3-dev
 ``
 
+Get this project into GOPATH:
+```
+go get -v github.com/luizbafilho/fusis
+```
+
+Also, get these projects:
+```
+go get -v github.com/hashicorp/errwrap
+go get -v github.com/hashicorp/go-multierror
+go get -v github.com/miekg/dns
+```
+
 Install `govendor` and get the dependencies.
 ```
 go get github.com/kardianos/govendor

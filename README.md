@@ -76,4 +76,45 @@ $> sudo sysctl -w net.ipv4.ip_forward=1
 
 ## Running the project
 
+Now that you have IPVS and fusis installed, run the project:
 
+```
+# Remenber, fusis binary is at $GOPATH/bin/fusis. Add it to system PATH
+$> sudo fusis balancer --iface eth0
+```
+You should see something like:
+> [GIN-debug] Listening and serving HTTP on :8000
+
+
+Now, from another host send a request asking for what services do we have
+available behind the fusis router:
+```
+$> curl -i {IP OF FUSIS HOST}:8000/services
+```
+You should see an answer like:
+> HTTP/1.1 200 OK
+> Content-Type: application/json; charset=utf-8
+> Date: Thu, 07 Apr 2016 21:23:18 GMT
+> Content-Length: 3
+> 
+> []
+
+Just for a test, lets add some route to any fake IP. At the fusis host type:
+
+```
+$> sudo ipvsadm -A -t 10.0.0.1:80 -s rr
+```
+
+Then, make another request:
+
+```
+$> curl -i {IP OF FUSIS HOST}:8000/services
+```
+
+You will see that there is a new route on response:
+> HTTP/1.1 200 OK
+> Content-Type: application/json; charset=utf-8
+> Date: Thu, 07 Apr 2016 22:08:42 GMT
+> Content-Length: 94
+> 
+> [{"Name":"","Host":"10.0.0.1","Port":80,"Protocol":"tcp","Scheduler":"rr","Destinations":[]}]

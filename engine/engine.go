@@ -4,17 +4,19 @@ import (
 	"fmt"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/iaas"
 )
 
 var store *BoltDB
+var cs *iaas.CloudstackIaaS
 
 func init() {
 	var err error
 	store, err = NewStore()
 	if err != nil {
-		fmt.Println("=======> falhando aqui")
 		panic(err)
 	}
+	cs = iaas.NewCloudstackIaaS("0b5b922f-6b71-4955-b6bf-250685323dc9", "vr5P_5mC_H7vN1MDRQqotbW8h6EEjjnIGrDiqhLEyHJHY8lb_wznIDkeNPgjfmv45M4PCqkRX6fzxk5bMY_etQ", "rz7-Hek8YpblTb8wOXj-oaK6ZW2sAIF_Ph7Wy53q2GLLWNrAe1px3LAGW23OW3KanOUz1OHEatLOJb1WDK8Cvw")
 }
 
 func GetServices() (*[]Service, error) {
@@ -32,13 +34,23 @@ func GetServices() (*[]Service, error) {
 }
 
 func AddService(svc *Service) error {
-	// perguntar ao cloudstack o VIP
-	// adicionar o VIP na maquina
-	if err := IPVSAddService(svc.ToIpvsService()); err != nil {
+	service, _ := store.GetService(svc.GetId())
+	if service != nil {
+		return fmt.Errorf("Service already exists: %+v", service)
+	}
+
+	ip, err := cs.SetVip("fusis")
+	if err != nil {
 		return err
 	}
 
+	svc.Host = ip
+
 	if err := store.AddService(svc); err != nil {
+		return err
+	}
+
+	if err := IPVSAddService(svc.ToIpvsService()); err != nil {
 		return err
 	}
 
@@ -74,6 +86,20 @@ func AddDestination(svc *Service, dst *Destination) error {
 	}
 
 	if err := store.AddDestination(dst); err != nil {
+		return err
+	}
+
+	service, err := store.GetService(dst.ServiceId)
+	if err != nil {
+		return err
+	}
+
+	dsts := service.Destinations
+	dsts = append(dsts, *dst)
+	service.Destinations = dsts
+
+	err = store.AddService(service)
+	if err != nil {
 		return err
 	}
 

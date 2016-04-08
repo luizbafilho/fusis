@@ -47,20 +47,20 @@ func NewCloudstackIaaS(pId, apiKey, secretKey string) *CloudstackIaaS {
 	}
 }
 
-func (i *CloudstackIaaS) SetVip(vmName string) error {
+func (i *CloudstackIaaS) SetVip(vmName string) (string, error) {
 	nicId, err := i.GetNicId(vmName)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	ip, err := i.getIP(nicId)
 	if err != nil {
-		return err
+		return "", err
 	}
 	log.Println("====> Requested IP:", ip)
 	i.setIpToLocalInterface(ip)
 
-	return nil
+	return strings.Split(ip, "/")[0], nil
 }
 
 func (i *CloudstackIaaS) DeleteVip(ipId string) error {

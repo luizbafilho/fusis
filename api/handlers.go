@@ -20,6 +20,17 @@ func (as ApiService) serviceList(c *gin.Context) {
 	c.JSON(http.StatusOK, *services)
 }
 
+func (as ApiService) serviceGet(c *gin.Context) {
+	serviceId := c.Param("service_id")
+	service, err := engine.GetService(serviceId)
+
+	if err != nil {
+		c.JSON(422, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
+	} else {
+		c.JSON(http.StatusOK, service)
+	}
+}
+
 func (as ApiService) serviceCreate(c *gin.Context) {
 	var newService engine.Service
 
@@ -60,7 +71,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	destination := &engine.Destination{Weight: 1, Mode: "route"}
+	destination := &engine.Destination{Weight: 1, Mode: "route", ServiceId: serviceId}
 
 	if c.BindJSON(destination) != nil {
 		return

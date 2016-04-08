@@ -18,7 +18,7 @@ const (
 
 type Service struct {
 	Name         string `valid:"required"`
-	Host         string `valid:"required"`
+	Host         string
 	Port         uint16 `valid:"required"`
 	Protocol     string `valid:"required"`
 	Scheduler    string `valid:"required"`

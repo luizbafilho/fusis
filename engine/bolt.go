@@ -81,6 +81,11 @@ func (s *BoltDB) GetService(id string) (*Service, error) {
 	if err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(services)
 		v := b.Get([]byte(id))
+
+		if v == nil {
+			return fmt.Errorf("Services not found: %+v", id)
+		}
+
 		if err := json.Unmarshal(v, &svc); err != nil {
 			return nil
 		}

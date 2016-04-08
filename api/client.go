@@ -51,6 +51,7 @@ package api
 // 	return nil
 // }
 //
+//
 // func (c *Client) DeleteService(svc Service) error {
 // 	client := &http.Client{}
 // 	req, err := http.NewRequest("DELETE", c.path("services", svc.GetId()), nil)

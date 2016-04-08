@@ -32,6 +32,8 @@ func GetServices() (*[]Service, error) {
 }
 
 func AddService(svc *Service) error {
+	// perguntar ao cloudstack o VIP
+	// adicionar o VIP na maquina
 	if err := IPVSAddService(svc.ToIpvsService()); err != nil {
 		return err
 	}

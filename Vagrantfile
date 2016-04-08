@@ -12,7 +12,7 @@ Vagrant.configure(2) do |config|
 
   config.vm.network "private_network", ip: "192.168.33.10"
 
-  config.vm.synced_folder ENV['GOPATH'], "/home/vagrant/gocode"
+  config.vm.synced_folder ENV['GOPATH'], "/home/vagrant/gocode", type: "nfs"
 
   config.vm.provider "vmware_fusion" do |provider, override|
     override.vm.box = "geerlingguy/ubuntu1404"

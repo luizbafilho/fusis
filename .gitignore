@@ -6,3 +6,4 @@ coverage.*
 tags
 vendor/*
 !vendor/vendor.json
+net/net

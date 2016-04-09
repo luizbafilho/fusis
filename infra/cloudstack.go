@@ -1,4 +1,4 @@
-package iaas
+package infra
 
 import (
 	"crypto/hmac"

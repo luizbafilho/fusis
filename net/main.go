@@ -1,6 +1,6 @@
 package main
 
-import "github.com/luizbafilho/fusis/iaas"
+import "github.com/luizbafilho/fusis/infra"
 
 func main() {
 	// =======>> Adicionando default gateway
@@ -18,6 +18,6 @@ func main() {
 
 	// fmt.Println("===>", gwRoutes)
 
-	cs := iaas.NewCloudstackIaaS("0b5b922f-6b71-4955-b6bf-250685323dc9", "vr5P_5mC_H7vN1MDRQqotbW8h6EEjjnIGrDiqhLEyHJHY8lb_wznIDkeNPgjfmv45M4PCqkRX6fzxk5bMY_etQ", "rz7-Hek8YpblTb8wOXj-oaK6ZW2sAIF_Ph7Wy53q2GLLWNrAe1px3LAGW23OW3KanOUz1OHEatLOJb1WDK8Cvw")
+	cs := infra.NewCloudstackIaaS("0b5b922f-6b71-4955-b6bf-250685323dc9", "vr5P_5mC_H7vN1MDRQqotbW8h6EEjjnIGrDiqhLEyHJHY8lb_wznIDkeNPgjfmv45M4PCqkRX6fzxk5bMY_etQ", "rz7-Hek8YpblTb8wOXj-oaK6ZW2sAIF_Ph7Wy53q2GLLWNrAe1px3LAGW23OW3KanOUz1OHEatLOJb1WDK8Cvw")
 	cs.SetVip("fusis")
 }

@@ -31,11 +31,10 @@ type Destination struct {
 	Port      uint16 `valid:"required"`
 	Weight    int32
 	Mode      string `valid:"required"`
-	ServiceId string `json:"service_id"`
+	ServiceId string `valid:"required"`
 }
 
 func (svc Service) GetId() string {
-	// return fmt.Sprintf("%v-%v-%v", svc.Host, svc.Port, svc.Protocol)
 	return svc.Name
 }
 

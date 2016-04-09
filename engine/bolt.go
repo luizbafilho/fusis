@@ -75,6 +75,35 @@ func (s *BoltDB) AddService(svc *Service) error {
 	return nil
 }
 
+func (s *BoltDB) GetServices() ([]*Service, error) {
+	svcs := []*Service{}
+	var svc Service
+
+	forFunc := func(k, v []byte) error {
+		if err := json.Unmarshal(v, &svc); err != nil {
+			return err
+		}
+		svcs = append(svcs, &svc)
+		return nil
+	}
+
+	viewFunc := func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(services))
+
+		if err := b.ForEach(forFunc); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	if err := s.db.View(viewFunc); err != nil {
+		return nil, err
+	}
+
+	return svcs, nil
+}
+
 func (s *BoltDB) GetService(id string) (*Service, error) {
 	var svc Service
 
@@ -87,7 +116,7 @@ func (s *BoltDB) GetService(id string) (*Service, error) {
 		}
 
 		if err := json.Unmarshal(v, &svc); err != nil {
-			return nil
+			return err
 		}
 		return nil
 	}); err != nil {

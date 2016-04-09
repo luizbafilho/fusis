@@ -17,7 +17,7 @@ func (as ApiService) serviceList(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, *services)
+	c.JSON(http.StatusOK, services)
 }
 
 func (as ApiService) serviceGet(c *gin.Context) {

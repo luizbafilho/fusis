@@ -34,8 +34,8 @@ func AddService(svc *Service) error {
 	// 	return err
 	// }
 
-	ip := "10.2.3.4"
-	svc.Host = ip
+	// ip := "10.2.3.4"
+	// svc.Host = ip
 
 	if err := store.AddService(svc); err != nil {
 		return err

@@ -77,9 +77,9 @@ func (s *BoltDB) AddService(svc *Service) error {
 
 func (s *BoltDB) GetServices() ([]*Service, error) {
 	svcs := []*Service{}
-	var svc Service
 
 	forFunc := func(k, v []byte) error {
+		var svc Service
 		if err := json.Unmarshal(v, &svc); err != nil {
 			return err
 		}

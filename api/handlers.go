@@ -32,11 +32,13 @@ func (as ApiService) serviceGet(c *gin.Context) {
 }
 
 func (as ApiService) serviceCreate(c *gin.Context) {
-	var newService engine.Service
+	newService := engine.Service{}
 
 	if c.BindJSON(&newService) != nil {
 		return
 	}
+	//Guarantees that no one tries to create a destination together with a service
+	newService.Destinations = []engine.Destination{}
 
 	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
 		c.JSON(422, gin.H{"errors": govalidator.ErrorsByField(errs)})

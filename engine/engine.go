@@ -1,33 +1,31 @@
 package engine
 
 import (
-	"fmt"
-
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/infra"
 )
 
-var store *BoltDB
+var store *StoreBolt
 var cs *infra.CloudstackIaaS
 
 func init() {
 	var err error
-	store, err = NewStore()
+	store, err = NewStore("fusis.db")
 	if err != nil {
 		panic(err)
 	}
-	cs = infra.NewCloudstackIaaS("0b5b922f-6b71-4955-b6bf-250685323dc9", "vr5P_5mC_H7vN1MDRQqotbW8h6EEjjnIGrDiqhLEyHJHY8lb_wznIDkeNPgjfmv45M4PCqkRX6fzxk5bMY_etQ", "rz7-Hek8YpblTb8wOXj-oaK6ZW2sAIF_Ph7Wy53q2GLLWNrAe1px3LAGW23OW3KanOUz1OHEatLOJb1WDK8Cvw")
+	// cs = infra.NewCloudstackIaaS("0b5b922f-6b71-4955-b6bf-250685323dc9", "vr5P_5mC_H7vN1MDRQqotbW8h6EEjjnIGrDiqhLEyHJHY8lb_wznIDkeNPgjfmv45M4PCqkRX6fzxk5bMY_etQ", "rz7-Hek8YpblTb8wOXj-oaK6ZW2sAIF_Ph7Wy53q2GLLWNrAe1px3LAGW23OW3KanOUz1OHEatLOJb1WDK8Cvw")
 }
 
-func GetServices() ([]*Service, error) {
+func GetServices() (*[]Service, error) {
 	return store.GetServices()
 }
 
 func AddService(svc *Service) error {
-	service, _ := store.GetService(svc.GetId())
-	if service != nil {
-		return fmt.Errorf("Service already exists: %+v", service)
-	}
+	// service, _ := store.GetService(svc.GetId())
+	// if service != nil {
+	// 	return fmt.Errorf("Service already exists: %+v", service)
+	// }
 
 	// ip, err := cs.SetVip("fusis")
 	// if err != nil {

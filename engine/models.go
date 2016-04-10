@@ -17,7 +17,8 @@ const (
 )
 
 type Service struct {
-	Name         string `valid:"required"`
+	Id           string `storm:"id"`
+	Name         string `storm:"unique"`
 	Host         string
 	Port         uint16 `valid:"required"`
 	Protocol     string `valid:"required"`
@@ -26,12 +27,13 @@ type Service struct {
 }
 
 type Destination struct {
-	Name      string
+	Id        string `storm:"id"`
+	Name      string `storm:"unique"`
 	Host      string `valid:"required"`
 	Port      uint16 `valid:"required"`
 	Weight    int32
 	Mode      string `valid:"required"`
-	ServiceId string `valid:"required"`
+	ServiceId string `storm:"index" valid:"required"`
 }
 
 func (svc Service) GetId() string {

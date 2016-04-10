@@ -70,25 +70,11 @@ func DeleteService(id string) error {
 
 func AddDestination(svc *Service, dst *Destination) error {
 	log.Infof("Adding Destination: %v", dst.Name)
-	if err := IPVSAddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
-		return err
-	}
-
 	if err := store.AddDestination(dst); err != nil {
 		return err
 	}
 
-	service, err := store.GetService(dst.ServiceId)
-	if err != nil {
-		return err
-	}
-
-	dsts := service.Destinations
-	dsts = append(dsts, *dst)
-	service.Destinations = dsts
-
-	err = store.AddService(service)
-	if err != nil {
+	if err := IPVSAddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
 		return err
 	}
 
@@ -97,18 +83,20 @@ func AddDestination(svc *Service, dst *Destination) error {
 
 func DeleteDestination(id string) error {
 	log.Infof("Deleting Destination: %v", id)
-	dst := store.GetDestination(id)
-
-	svc, err := GetService(dst.ServiceId)
+	dst, err := store.GetDestination(id)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	if err := IPVSDeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
+	svc, err := store.GetService(dst.ServiceId)
+	if err != nil {
 		return err
 	}
 
 	if err := store.DeleteDestination(dst); err != nil {
+		return err
+	}
+	if err := IPVSDeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
 		return err
 	}
 

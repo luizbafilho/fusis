@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/asdine/storm"
@@ -107,24 +106,21 @@ func (s *StoreBolt) AddDestination(dst *Destination) error {
 		return err
 	}
 	return nil
-	// if err := s.db.Bolt.Update(func(tx *bolt.Tx) error {
-	// 	b := tx.Bucket(destinations)
-	//
-	// 	json, err := dst.ToJson()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	//
-	// 	err = b.Put([]byte(dst.GetId()), json)
-	// 	if err != nil {
-	// 		log.Errorf("store.AddDestination failed: %v", err)
-	// 	}
-	// 	return err
-	// }); err != nil {
-	// 	return err
-	// }
-	//
-	// return nil
+}
+
+func (s *StoreBolt) GetDestination(name string) (*Destination, error) {
+	var dst Destination
+
+	err := s.db.One("Name", name, &dst)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dst, nil
+}
+
+func (s *StoreBolt) DeleteDestination(dst *Destination) error {
+	return s.db.Remove(dst)
 }
 
 func (s *StoreBolt) getDestinations(svc *Service) error {
@@ -134,32 +130,5 @@ func (s *StoreBolt) getDestinations(svc *Service) error {
 		return err
 	}
 	svc.Destinations = dsts
-	return nil
-}
-
-func (s *StoreBolt) GetDestination(id string) *Destination {
-	var dst Destination
-
-	if err := s.db.Bolt.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(destinations)
-		v := b.Get([]byte(id))
-		if err := json.Unmarshal(v, &dst); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return nil
-	}
-
-	return &dst
-}
-
-func (s *StoreBolt) DeleteDestination(dst *Destination) error {
-	if err := s.db.Bolt.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(destinations).Delete([]byte(dst.Name))
-	}); err != nil {
-		return err
-	}
-
 	return nil
 }

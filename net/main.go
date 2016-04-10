@@ -1,6 +1,9 @@
 package main
 
-import "github.com/luizbafilho/fusis/api"
+import (
+	"github.com/luizbafilho/fusis/api"
+	"github.com/luizbafilho/fusis/engine"
+)
 
 func main() {
 	// =======>> Adicionando default gateway
@@ -29,8 +32,22 @@ func main() {
 	// 	Protocol:  "tcp",
 	// 	Scheduler: "lc",
 	// }
+	//
+	// err := client.CreateService(svc)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	err := client.DeleteService("blabla")
+	dst := engine.Destination{
+		Host:      "192.168.1.1",
+		Port:      80,
+		Weight:    1,
+		Mode:      "nat",
+		Name:      "hostname",
+		ServiceId: "blabla",
+	}
+
+	err := client.AddDestination(dst)
 	if err != nil {
 		panic(err)
 	}

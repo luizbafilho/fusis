@@ -77,19 +77,19 @@ func (c *Client) DeleteService(id string) error {
 	return nil
 }
 
-//
-// func (c *Client) UpsertDestination(svc Service, dst Destination) error {
-// 	json, err := encode(dst)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	resp, err := http.Post(c.path("services", svc.GetId(), "destinations"), "application/json", json)
-// 	if err != nil || resp.StatusCode != 200 {
-// 		return formatError(resp)
-// 	}
-// 	return nil
-// }
+func (c *Client) AddDestination(dst Destination) error {
+	json, err := encode(dst)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(c.path("services", dst.ServiceId, "destinations"), "application/json", json)
+	if err != nil || resp.StatusCode != 200 {
+		return formatError(resp)
+	}
+	return nil
+}
+
 //
 // func (c *Client) DeleteDestination(svc Service, dst Destination) error {
 // 	client := &http.Client{}

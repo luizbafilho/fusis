@@ -44,10 +44,10 @@ func main() {
 		Weight:    1,
 		Mode:      "nat",
 		Name:      "hostname",
-		ServiceId: "blabla",
+		ServiceId: "filmes",
 	}
 
-	err := client.AddDestination(dst)
+	err := client.DeleteDestination(dst)
 	if err != nil {
 		panic(err)
 	}

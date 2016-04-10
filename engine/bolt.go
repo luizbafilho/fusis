@@ -83,6 +83,12 @@ func (s *BoltDB) GetServices() ([]*Service, error) {
 		if err := json.Unmarshal(v, &svc); err != nil {
 			return err
 		}
+		dsts, err := s.GetDestinations(svc.GetId())
+		if err != nil {
+			return err
+		}
+
+		svc.Destinations = dsts
 		svcs = append(svcs, &svc)
 		return nil
 	}
@@ -155,6 +161,37 @@ func (s *BoltDB) AddDestination(dst *Destination) error {
 	}
 
 	return nil
+}
+
+func (s *BoltDB) GetDestinations(serviceId string) ([]Destination, error) {
+	dsts := []Destination{}
+
+	forFunc := func(k, v []byte) error {
+		var dst Destination
+		if err := json.Unmarshal(v, &dst); err != nil {
+			return err
+		}
+		if dst.ServiceId == serviceId {
+			dsts = append(dsts, dst)
+		}
+		return nil
+	}
+
+	viewFunc := func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(destinations))
+
+		if err := b.ForEach(forFunc); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	if err := s.db.View(viewFunc); err != nil {
+		return nil, err
+	}
+
+	return dsts, nil
 }
 
 func (s *BoltDB) GetDestination(id string) *Destination {

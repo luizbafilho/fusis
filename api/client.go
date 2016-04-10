@@ -90,18 +90,18 @@ func (c *Client) AddDestination(dst Destination) error {
 	return nil
 }
 
-//
-// func (c *Client) DeleteDestination(svc Service, dst Destination) error {
-// 	client := &http.Client{}
-// 	req, err := http.NewRequest("DELETE", c.path("services", svc.GetId(), "destinations", dst.GetId()), nil)
-// 	resp, err := client.Do(req)
-//
-// 	if err != nil || resp.StatusCode != 200 {
-// 		return formatError(resp)
-// 	}
-//
-// 	return nil
-// }
+func (c *Client) DeleteDestination(dst Destination) error {
+	client := &http.Client{}
+	req, err := http.NewRequest("DELETE", c.path("services", dst.ServiceId, "destinations", dst.GetId()), nil)
+	resp, err := client.Do(req)
+
+	if err != nil || resp.StatusCode != 200 {
+		return formatError(resp)
+	}
+
+	return nil
+}
+
 func encode(obj interface{}) (io.Reader, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {

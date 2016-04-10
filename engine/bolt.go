@@ -96,13 +96,7 @@ func (s *StoreBolt) GetService(name string) (*Service, error) {
 }
 
 func (s *StoreBolt) DeleteService(svc *Service) error {
-	if err := s.db.Bolt.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(services).Delete([]byte(svc.GetId()))
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	return s.db.Remove(svc)
 }
 
 func (s *StoreBolt) AddDestination(dst *Destination) error {

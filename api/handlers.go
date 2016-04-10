@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/asaskevich/govalidator"
+	"github.com/asdine/storm"
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/fusis/engine"
 )
@@ -25,10 +26,15 @@ func (as ApiService) serviceGet(c *gin.Context) {
 	service, err := engine.GetService(serviceId)
 
 	if err != nil {
-		c.JSON(422, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
-	} else {
-		c.JSON(http.StatusOK, service)
+		if err == storm.ErrNotFound {
+			c.JSON(404, gin.H{"error": fmt.Sprintf("GetService(): %v", err)})
+		} else {
+			c.JSON(422, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
+		}
+		return
 	}
+
+	c.JSON(http.StatusOK, service)
 }
 
 func (as ApiService) serviceCreate(c *gin.Context) {

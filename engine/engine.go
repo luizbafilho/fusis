@@ -3,6 +3,7 @@ package engine
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/infra"
+	"github.com/luizbafilho/fusis/steps"
 )
 
 var store *StoreBolt
@@ -21,11 +22,12 @@ func GetServices() (*[]Service, error) {
 }
 
 func AddService(svc *Service) error {
-	if err := store.AddService(svc); err != nil {
-		return err
-	}
+	seq := steps.NewSequence(
+		addServiceStore{svc},
+		addServiceIpvs{svc},
+	)
 
-	if err := IPVSAddService(svc.ToIpvsService()); err != nil {
+	if err := seq.Execute(); err != nil {
 		return err
 	}
 

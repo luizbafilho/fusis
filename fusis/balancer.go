@@ -76,7 +76,6 @@ func (b *Balancer) handleMemberLeave(memberEvent serf.MemberEvent) {
 }
 
 func (b *Balancer) handleQuery(query *serf.Query) {
-	// name := query.Name
 	payload := query.Payload
 
 	var dst engine.Destination
@@ -85,7 +84,7 @@ func (b *Balancer) handleQuery(query *serf.Query) {
 		log.Errorf("Fusis Balancer: Unable to Unmarshal: %s", payload)
 	}
 
-	svc, err := engine.GetServiceFromId(dst.ServiceId)
+	svc, err := engine.GetService(dst.ServiceId)
 	if err != nil {
 		panic(err)
 	}

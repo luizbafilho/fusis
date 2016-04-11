@@ -14,11 +14,6 @@ type StoreBolt struct {
 	path string
 }
 
-var (
-	services     = []byte("services")
-	destinations = []byte("destinations")
-)
-
 func NewStore(path string) (*StoreBolt, error) {
 	db, err := storm.OpenWithOptions(path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {

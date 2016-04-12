@@ -2,12 +2,10 @@ package engine
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/luizbafilho/fusis/infra"
 	"github.com/luizbafilho/fusis/steps"
 )
 
 var store *StoreBolt
-var cs *infra.CloudstackIaaS
 
 func init() {
 	var err error

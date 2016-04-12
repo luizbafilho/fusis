@@ -1,6 +1,7 @@
 package net
 
 import (
+	"io/ioutil"
 	"net"
 
 	log "github.com/Sirupsen/logrus"
@@ -33,4 +34,22 @@ func AddIp(ip string, iface string) error {
 
 	netlink.AddrAdd(link, addr)
 	return nil
+}
+
+func GetIpByInterface(iface string) (string, error) {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		return "", err
+	}
+
+	addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+	if err != nil {
+		return "", err
+	}
+
+	return addrs[0].IP.String(), nil
+}
+
+func SetIpForwarding() error {
+	return ioutil.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0644)
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api"
 	"github.com/luizbafilho/fusis/fusis"
+	"github.com/luizbafilho/fusis/net"
 	"github.com/spf13/cobra"
 )
 
@@ -45,6 +46,11 @@ func run(cmd *cobra.Command, args []string) {
 		log.Fatalf("IPVS initialisation failed: %v", err)
 	}
 	log.Printf("IPVS version %s", ipvs.Version())
+
+	if err := net.SetIpForwarding(); err != nil {
+		log.Fatal(err)
+		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")
+	}
 
 	env := os.Getenv("FUSIS_ENV")
 	if env == "" {

@@ -26,7 +26,7 @@ import (
 )
 
 var cfgFile string
-var fusisConfig fusis.Config
+var fusisConfig fusis.BalancerConfig
 
 var FusisCmd = &cobra.Command{
 	Use:   "fusis",

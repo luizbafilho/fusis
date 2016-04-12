@@ -22,7 +22,7 @@ func NewBalancer() (*Balancer, error) {
 	return balancer, nil
 }
 
-func (b *Balancer) Start(config Config) error {
+func (b *Balancer) Start(config BalancerConfig) error {
 	conf := serf.DefaultConfig()
 	conf.Init()
 	conf.Tags["role"] = "balancer"

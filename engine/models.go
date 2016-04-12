@@ -3,8 +3,6 @@ package engine
 import (
 	"encoding/json"
 	"net"
-	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/google/seesaw/ipvs"
@@ -17,8 +15,9 @@ const (
 )
 
 type Service struct {
-	Name         string `valid:"required"`
-	Host         string `valid:"required"`
+	Id           string `storm:"id"`
+	Name         string `storm:"unique"`
+	Host         string
 	Port         uint16 `valid:"required"`
 	Protocol     string `valid:"required"`
 	Scheduler    string `valid:"required"`
@@ -26,16 +25,16 @@ type Service struct {
 }
 
 type Destination struct {
-	Name      string
+	Id        string `storm:"id"`
+	Name      string `storm:"unique"`
 	Host      string `valid:"required"`
 	Port      uint16 `valid:"required"`
 	Weight    int32
 	Mode      string `valid:"required"`
-	ServiceId string `json:"service_id"`
+	ServiceId string `storm:"index" valid:"required"`
 }
 
 func (svc Service) GetId() string {
-	// return fmt.Sprintf("%v-%v-%v", svc.Host, svc.Port, svc.Protocol)
 	return svc.Name
 }
 
@@ -157,20 +156,4 @@ func newDestinationRequest(d *ipvs.Destination) Destination {
 		Weight: d.Weight,
 		Mode:   destinationFlagsToString(d.Flags),
 	}
-}
-
-func GetServiceFromId(serviceId string) (*Service, error) {
-	serviceAttrs := strings.Split(serviceId, "-")
-
-	port, err := strconv.ParseUint(serviceAttrs[1], 10, 16)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Service{
-		Host:     serviceAttrs[0],
-		Port:     uint16(port),
-		Protocol: serviceAttrs[2],
-	}, nil
 }

@@ -16,6 +16,7 @@ func NewAPI(env string) ApiService {
 
 func (as ApiService) Serve() {
 	as.router.GET("/services", as.serviceList)
+	as.router.GET("/services/:service_id", as.serviceGet)
 	as.router.POST("/services", as.serviceCreate)
 	as.router.DELETE("/services/:service_id", as.serviceDelete)
 
@@ -26,5 +27,5 @@ func (as ApiService) Serve() {
 		as.router.POST("/flush", as.flush)
 	}
 
-	as.router.Run(":8000")
+	as.router.Run("0.0.0.0:8000")
 }

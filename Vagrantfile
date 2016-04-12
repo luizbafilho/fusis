@@ -82,6 +82,6 @@ Vagrant.configure(2) do |config|
 
 
     echo "====> Config autojump"
-    echo 'source /usr/share/autojump/autojump.sh' >> $HOME/.bash_profile
+    echo 'source /usr/share/autojump/autojump.sh' >> $HOME/.bashrc
   SHELL
 end

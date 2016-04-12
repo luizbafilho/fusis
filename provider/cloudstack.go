@@ -8,15 +8,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/vishvananda/netlink"
+	"github.com/luizbafilho/fusis/net"
 )
 
 const (
@@ -57,7 +57,7 @@ func (i *CloudstackIaaS) SetVip(vmName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	log.Println("====> Requested IP:", ip)
+	log.Infof("====> Requested IP:", ip)
 	i.setIpToLocalInterface(ip)
 
 	return strings.Split(ip, "/")[0], nil
@@ -159,7 +159,7 @@ func (i *CloudstackIaaS) waitForAsyncJob(jobId string) (queryAsyncJobResultRespo
 
 // returns a CIDR formated IP
 func (i *CloudstackIaaS) getIP(nicId string) (string, error) {
-	log.Println("====> Getting New Ip")
+	log.Infof("====> Getting New Ip")
 
 	params := map[string]string{}
 	params["nicid"] = nicId
@@ -175,13 +175,13 @@ func (i *CloudstackIaaS) getIP(nicId string) (string, error) {
 
 	err := i.doCloudStackRequest("addIpToNic", params, response)
 	if err != nil {
-		log.Fatalln("[Err] %v", err)
+		log.Error(err)
 		return "", err
 	}
 
 	asyncResp, err := i.waitForAsyncJob(response.AddIpToVmNicResponse.JobId)
 	if err != nil {
-		log.Fatalln("[Err] %v", err)
+		log.Error(err)
 		return "", err
 	}
 
@@ -198,7 +198,7 @@ func (i *CloudstackIaaS) getIP(nicId string) (string, error) {
 
 // It returns the mask in bits
 func (i *CloudstackIaaS) getNetworkMask(netId string) (string, error) {
-	log.Println("====> Getting Network Mask")
+	log.Infof("====> Getting Network Mask")
 	type result struct {
 		ListNetworksResponse struct {
 			Network []struct {
@@ -221,7 +221,7 @@ func (i *CloudstackIaaS) getNetworkMask(netId string) (string, error) {
 }
 
 func (i *CloudstackIaaS) GetNicId(name string) (string, error) {
-	log.Println("====> Getting NIC Id")
+	log.Infof("====> Getting NIC Id")
 	type result struct {
 		ListVirtualMachinesResponse struct {
 			VirtualMachine []struct {
@@ -247,18 +247,6 @@ func (i *CloudstackIaaS) GetNicId(name string) (string, error) {
 }
 
 func (i *CloudstackIaaS) setIpToLocalInterface(ip string) error {
-	log.Println("====> Setting IP to local interface!")
-
-	link, err := netlink.LinkByName("eth0")
-	if err != nil {
-		return err
-	}
-
-	addr, err := netlink.ParseAddr(ip)
-	if err != nil {
-		return err
-	}
-
-	netlink.AddrAdd(link, addr)
-	return nil
+	log.Infof("====> Setting IP to local interface!")
+	return net.AddIp(ip, "eth0")
 }

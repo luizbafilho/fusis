@@ -17,4 +17,20 @@ func AddDefaultGateway(ip string) error {
 		log.Errorf("Adding Default Gateway: %s", ip)
 		return err
 	}
+	return nil
+}
+
+func AddIp(ip string, iface string) error {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		return err
+	}
+
+	addr, err := netlink.ParseAddr(ip)
+	if err != nil {
+		return err
+	}
+
+	netlink.AddrAdd(link, addr)
+	return nil
 }

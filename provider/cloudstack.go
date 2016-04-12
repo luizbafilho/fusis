@@ -1,4 +1,4 @@
-package infra
+package provider
 
 import (
 	"crypto/hmac"

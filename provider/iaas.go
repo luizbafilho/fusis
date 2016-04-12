@@ -1,4 +1,4 @@
-package infra
+package provider
 
 type IaaS interface {
 	SetVip() error

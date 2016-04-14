@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
 
 	"github.com/hashicorp/serf/serf"
@@ -22,7 +23,7 @@ func NewBalancer() (*Balancer, error) {
 	return balancer, nil
 }
 
-func (b *Balancer) Start(config BalancerConfig) error {
+func (b *Balancer) Start(config config.BalancerConfig) error {
 	conf := serf.DefaultConfig()
 	conf.Init()
 	conf.Tags["role"] = "balancer"

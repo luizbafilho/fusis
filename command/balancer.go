@@ -1,17 +1,3 @@
-// Copyright © 2016 NAME HERE <EMAIL ADDRESS>
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package command
 
 import (
@@ -21,9 +7,11 @@ import (
 
 	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api"
+	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/fusis"
 	"github.com/luizbafilho/fusis/net"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var balancerCmd = &cobra.Command{
@@ -34,11 +22,14 @@ var balancerCmd = &cobra.Command{
 It's responsible for creating new Services and watching for Agents joining the cluster,
 and add routes to them in the Load Balancer.`,
 	Run: run,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		viper.Unmarshal(&config.BalancerConf)
+	},
 }
 
 func init() {
-	balancerCmd.Flags().StringVarP(&fusisConfig.Interface, "iface", "", "eth0", "Network interface")
 	FusisCmd.AddCommand(balancerCmd)
+	setupLbConfig()
 }
 
 func run(cmd *cobra.Command, args []string) {
@@ -62,7 +53,7 @@ func run(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	err = balancer.Start(fusisConfig)
+	err = balancer.Start(config.BalancerConf)
 	if err != nil {
 		panic(err)
 	}
@@ -71,4 +62,13 @@ func run(cmd *cobra.Command, args []string) {
 	go apiService.Serve()
 
 	waitSignals()
+}
+
+func setupLbConfig() {
+	balancerCmd.Flags().StringVarP(&config.BalancerConf.Interface, "interface", "", "eth0", "Network interface")
+
+	err := viper.BindPFlags(balancerCmd.Flags())
+	if err != nil {
+		log.Errorf("error binding pflags: %v", err)
+	}
 }

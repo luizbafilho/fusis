@@ -7,3 +7,4 @@ tags
 vendor/*
 !vendor/vendor.json
 net/net
+fusis.json

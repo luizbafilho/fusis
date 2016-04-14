@@ -1,6 +1,20 @@
-package fusis
+package config
 
 import "github.com/luizbafilho/fusis/net"
+
+// {
+// 	"provider": {
+// 		"type": "cloudstack",
+// 		"params": {
+// 			"apiKey": "seila",
+// 			"secretKey": "testando"
+// 		}
+// 	}
+// }
+type Provider struct {
+	Type   string
+	Params map[string]string
+}
 
 type Config struct {
 	Interface string
@@ -8,6 +22,8 @@ type Config struct {
 
 type BalancerConfig struct {
 	Config
+
+	Provider Provider
 }
 
 type AgentConfig struct {
@@ -25,3 +41,5 @@ type AgentConfig struct {
 func (c *Config) GetIpByInterface() (string, error) {
 	return net.GetIpByInterface(c.Interface)
 }
+
+var BalancerConf BalancerConfig

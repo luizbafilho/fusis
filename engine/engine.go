@@ -21,6 +21,7 @@ func GetServices() (*[]Service, error) {
 
 func AddService(svc *Service) error {
 	seq := steps.NewSequence(
+		setVip{svc},
 		addServiceStore{svc},
 		addServiceIpvs{svc},
 	)

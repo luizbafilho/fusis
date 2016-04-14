@@ -1,17 +1,3 @@
-// Copyright © 2016 NAME HERE <EMAIL ADDRESS>
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package command
 
 import (
@@ -20,13 +6,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/luizbafilho/fusis/fusis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var cfgFile string
-var fusisConfig fusis.BalancerConfig
 
 var FusisCmd = &cobra.Command{
 	Use:   "fusis",
@@ -50,8 +34,6 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	// FusisCmd.PersistentFlags().StringVarP(&fusisConfig.Interface, "iface", "", "eth0", "Network interface")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -60,7 +42,7 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	}
 
-	viper.SetConfigName(".fusis") // name of config file (without extension)
+	viper.SetConfigName("fusis") // name of config file (without extension)
 	viper.SetConfigType("json")
 	viper.AddConfigPath(".") // adding home directory as first search path
 	viper.AutomaticEnv()     // read in environment variables that match

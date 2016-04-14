@@ -1,4 +1,4 @@
-package provider
+package cloudstack
 
 import (
 	"crypto/hmac"
@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +18,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/luizbafilho/fusis/net"
+	"github.com/luizbafilho/fusis/provider"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -24,36 +27,38 @@ const (
 	jobFailed
 )
 
-type CloudstackIaaS struct {
+type Cloudstack struct {
 	ProjectId string
+	ApiUrl    string
 	ApiKey    string
 	SecretKey string
+	Hostname  string
 }
 
-type queryAsyncJobResultResponse struct {
-	QueryAsyncJobResultResponse struct {
-		JobStatus     int         `json:"jobstatus"`
-		JobResult     interface{} `json:"jobresult"`
-		JobResultType string      `json:"jobresulttype"`
-		JobResultCode int         `json:"jobresultcode"`
-	} `json:"queryasyncjobresultresponse"`
+func init() {
+	provider.RegisterProviderFactory("cloudstack", newCloudstack)
 }
 
-func NewCloudstackIaaS(pId, apiKey, secretKey string) *CloudstackIaaS {
-	return &CloudstackIaaS{
-		ProjectId: pId,
-		ApiKey:    apiKey,
-		SecretKey: secretKey,
+func newCloudstack() provider.Provider {
+	//TODO: Validate params presence
+	hostname, _ := os.Hostname()
+	viper.SetDefault("provider.params.hostname", hostname)
+	return Cloudstack{
+		ProjectId: viper.GetString("provider.params.projectId"),
+		ApiUrl:    viper.GetString("provider.params.apiUrl"),
+		ApiKey:    viper.GetString("provider.params.apiKey"),
+		SecretKey: viper.GetString("provider.params.secretKey"),
+		Hostname:  viper.GetString("provider.params.hostname"),
 	}
 }
 
-func (i *CloudstackIaaS) SetVip(vmName string) (string, error) {
-	nicId, err := i.GetNicId(vmName)
+func (i Cloudstack) SetVip() (interface{}, error) {
+	nicId, err := i.getNicId(i.Hostname)
 	if err != nil {
 		return "", err
 	}
 
-	ip, err := i.getIP(nicId)
+	ip, err := i.getIp(nicId)
 	if err != nil {
 		return "", err
 	}
@@ -63,9 +68,10 @@ func (i *CloudstackIaaS) SetVip(vmName string) (string, error) {
 	return strings.Split(ip, "/")[0], nil
 }
 
-func (i *CloudstackIaaS) DeleteVip(ipId string) error {
+func (i Cloudstack) UnsetVip(ipId interface{}) error {
+	ipid := ipId.(string)
 	params := map[string]string{}
-	params["id"] = ipId
+	params["id"] = ipid
 	response := &map[string]interface{}{}
 	err := i.doCloudStackRequest("removeIpFromNic", params, response)
 	spew.Dump(response)
@@ -73,7 +79,7 @@ func (i *CloudstackIaaS) DeleteVip(ipId string) error {
 	return err
 }
 
-func (i *CloudstackIaaS) ListNicIps(vmId string) error {
+func (i *Cloudstack) listNicIps(vmId string) error {
 	params := map[string]string{}
 	params["virtualmachineid"] = vmId
 	response := &map[string]interface{}{}
@@ -82,7 +88,7 @@ func (i *CloudstackIaaS) ListNicIps(vmId string) error {
 	return err
 }
 
-func (i *CloudstackIaaS) doCloudStackRequest(cmd string, params map[string]string, result interface{}) error {
+func (i *Cloudstack) doCloudStackRequest(cmd string, params map[string]string, result interface{}) error {
 	url, err := i.buildCloudStackUrl(cmd, params)
 	if err != nil {
 		return err
@@ -114,7 +120,7 @@ func (i *CloudstackIaaS) doCloudStackRequest(cmd string, params map[string]strin
 	return nil
 }
 
-func (i *CloudstackIaaS) buildCloudStackUrl(command string, params map[string]string) (string, error) {
+func (i *Cloudstack) buildCloudStackUrl(command string, params map[string]string) (string, error) {
 	apiKey := "vr5P_5mC_H7vN1MDRQqotbW8h6EEjjnIGrDiqhLEyHJHY8lb_wznIDkeNPgjfmv45M4PCqkRX6fzxk5bMY_etQ"
 	secretKey := "rz7-Hek8YpblTb8wOXj-oaK6ZW2sAIF_Ph7Wy53q2GLLWNrAe1px3LAGW23OW3KanOUz1OHEatLOJb1WDK8Cvw"
 
@@ -140,7 +146,7 @@ func (i *CloudstackIaaS) buildCloudStackUrl(command string, params map[string]st
 	return fmt.Sprintf("%s?%s&signature=%s", cloudstackUrl, queryString, url.QueryEscape(signature)), nil
 }
 
-func (i *CloudstackIaaS) waitForAsyncJob(jobId string) (queryAsyncJobResultResponse, error) {
+func (i *Cloudstack) waitForAsyncJob(jobId string) (queryAsyncJobResultResponse, error) {
 	var jobResponse queryAsyncJobResultResponse
 	for {
 		err := i.doCloudStackRequest("queryAsyncJobResult", map[string]string{"jobid": jobId}, &jobResponse)
@@ -158,7 +164,7 @@ func (i *CloudstackIaaS) waitForAsyncJob(jobId string) (queryAsyncJobResultRespo
 }
 
 // returns a CIDR formated IP
-func (i *CloudstackIaaS) getIP(nicId string) (string, error) {
+func (i *Cloudstack) getIp(nicId string) (string, error) {
 	log.Infof("====> Getting New Ip")
 
 	params := map[string]string{}
@@ -197,7 +203,7 @@ func (i *CloudstackIaaS) getIP(nicId string) (string, error) {
 }
 
 // It returns the mask in bits
-func (i *CloudstackIaaS) getNetworkMask(netId string) (string, error) {
+func (i *Cloudstack) getNetworkMask(netId string) (string, error) {
 	log.Infof("====> Getting Network Mask")
 	type result struct {
 		ListNetworksResponse struct {
@@ -220,7 +226,7 @@ func (i *CloudstackIaaS) getNetworkMask(netId string) (string, error) {
 	return mask, nil
 }
 
-func (i *CloudstackIaaS) GetNicId(name string) (string, error) {
+func (i *Cloudstack) getNicId(name string) (string, error) {
 	log.Infof("====> Getting NIC Id")
 	type result struct {
 		ListVirtualMachinesResponse struct {
@@ -246,7 +252,7 @@ func (i *CloudstackIaaS) GetNicId(name string) (string, error) {
 	return response.ListVirtualMachinesResponse.VirtualMachine[0].Nic[0].Id, nil
 }
 
-func (i *CloudstackIaaS) setIpToLocalInterface(ip string) error {
+func (i *Cloudstack) setIpToLocalInterface(ip string) error {
 	log.Infof("====> Setting IP to local interface!")
 	return net.AddIp(ip, "eth0")
 }

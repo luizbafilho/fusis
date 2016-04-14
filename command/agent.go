@@ -19,14 +19,14 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/fusis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var agentConfig fusis.AgentConfig
+var agentConfig config.AgentConfig
 
-// agentCmd represents the balancer command
 var agentCmd = &cobra.Command{
 	Use:   "agent",
 	Short: "Fusis Agent",

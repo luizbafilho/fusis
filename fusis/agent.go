@@ -3,6 +3,7 @@ package fusis
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/serf/serf"
+	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
 )
 
@@ -10,10 +11,10 @@ type Agent struct {
 	serf *serf.Serf
 	// eventCh is used for Serf to deliver events on
 	eventCh chan serf.Event
-	config  *AgentConfig
+	config  *config.AgentConfig
 }
 
-func NewAgent(config *AgentConfig) (*Agent, error) {
+func NewAgent(config *config.AgentConfig) (*Agent, error) {
 	log.Infof("Fusis Agent: Config ==> %+v", config)
 	agent := &Agent{
 		eventCh: make(chan serf.Event, 64),

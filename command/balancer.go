@@ -23,7 +23,7 @@ It's responsible for creating new Services and watching for Agents joining the c
 and add routes to them in the Load Balancer.`,
 	Run: run,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		viper.Unmarshal(&config.BalancerConf)
+		viper.Unmarshal(&config.Balancer)
 	},
 }
 
@@ -53,7 +53,7 @@ func run(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	err = balancer.Start(config.BalancerConf)
+	err = balancer.Start(config.Balancer)
 	if err != nil {
 		panic(err)
 	}
@@ -65,7 +65,7 @@ func run(cmd *cobra.Command, args []string) {
 }
 
 func setupLbConfig() {
-	balancerCmd.Flags().StringVarP(&config.BalancerConf.Interface, "interface", "", "eth0", "Network interface")
+	balancerCmd.Flags().StringVarP(&config.Balancer.Interface, "interface", "", "eth0", "Network interface")
 
 	err := viper.BindPFlags(balancerCmd.Flags())
 	if err != nil {

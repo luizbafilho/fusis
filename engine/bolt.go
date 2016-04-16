@@ -6,6 +6,7 @@ import (
 	"github.com/asdine/storm"
 	"github.com/boltdb/bolt"
 	log "github.com/golang/glog"
+	. "github.com/luizbafilho/fusis/engine/store"
 	"github.com/pborman/uuid"
 )
 

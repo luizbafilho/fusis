@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	. "github.com/luizbafilho/fusis/engine"
+	. "github.com/luizbafilho/fusis/engine/store"
 )
 
 type Client struct {

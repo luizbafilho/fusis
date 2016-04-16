@@ -2,6 +2,7 @@ package engine
 
 import (
 	log "github.com/Sirupsen/logrus"
+	. "github.com/luizbafilho/fusis/engine/store"
 	"github.com/luizbafilho/fusis/steps"
 )
 

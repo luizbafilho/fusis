@@ -8,6 +8,7 @@ import (
 	"github.com/asdine/storm"
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/fusis/engine"
+	"github.com/luizbafilho/fusis/engine/store"
 )
 
 func (as ApiService) serviceList(c *gin.Context) {
@@ -38,13 +39,13 @@ func (as ApiService) serviceGet(c *gin.Context) {
 }
 
 func (as ApiService) serviceCreate(c *gin.Context) {
-	newService := engine.Service{}
+	newService := store.Service{}
 
 	if c.BindJSON(&newService) != nil {
 		return
 	}
 	//Guarantees that no one tries to create a destination together with a service
-	newService.Destinations = []engine.Destination{}
+	newService.Destinations = []store.Destination{}
 
 	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
 		c.JSON(422, gin.H{"errors": govalidator.ErrorsByField(errs)})
@@ -79,7 +80,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	destination := &engine.Destination{Weight: 1, Mode: "route", ServiceId: serviceId}
+	destination := &store.Destination{Weight: 1, Mode: "route", ServiceId: serviceId}
 
 	if c.BindJSON(destination) != nil {
 		return

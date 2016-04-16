@@ -1,10 +1,13 @@
 package provider
 
-import "github.com/luizbafilho/fusis/config"
+import (
+	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/engine/store"
+)
 
 type Provider interface {
-	SetVip() (interface{}, error)
-	UnsetVip(setResult interface{}) error
+	AllocateVip(s *store.Service) error
+	ReleaseVip(s store.Service) error
 }
 
 type providerFactory func() Provider
@@ -16,7 +19,7 @@ func RegisterProviderFactory(ptype string, fac providerFactory) {
 }
 
 func GetProvider() Provider {
-	factory := providerFactories[config.BalancerConf.Provider.Type]
+	factory := providerFactories[config.Balancer.Provider.Type]
 	provider := factory()
 	return provider
 }

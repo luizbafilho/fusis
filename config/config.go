@@ -42,4 +42,4 @@ func (c *Config) GetIpByInterface() (string, error) {
 	return net.GetIpByInterface(c.Interface)
 }
 
-var BalancerConf BalancerConfig
+var Balancer BalancerConfig

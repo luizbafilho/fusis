@@ -4,7 +4,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/serf/serf"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/engine"
+	"github.com/luizbafilho/fusis/engine/store"
 )
 
 type Agent struct {
@@ -92,7 +92,7 @@ func (a *Agent) broadcastToBalancers() {
 		host = a.config.Host
 	}
 
-	dst := engine.Destination{
+	dst := store.Destination{
 		Name:      a.config.Name,
 		Host:      host,
 		Port:      a.config.Port,

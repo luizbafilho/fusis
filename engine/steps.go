@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	. "github.com/luizbafilho/fusis/engine/store"
 	"github.com/luizbafilho/fusis/provider"
 	"github.com/luizbafilho/fusis/steps"
 )
@@ -50,17 +51,16 @@ type setVip struct {
 
 func (sv setVip) Do(prev steps.Result) (steps.Result, error) {
 	prov := provider.GetProvider()
-	ip, err := prov.SetVip()
+	err := prov.AllocateVip(sv.Service)
 	if err != nil {
 		return nil, err
 	}
-	sv.Service.Host = ip.(string)
 	return nil, nil
 }
 
 func (sv setVip) Undo() error {
 	prov := provider.GetProvider()
-	err := prov.UnsetVip(nil)
+	err := prov.ReleaseVip(*sv.Service)
 	if err != nil {
 		return err
 	}

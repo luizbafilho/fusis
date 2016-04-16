@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	. "github.com/luizbafilho/fusis/engine/store"
+	. "github.com/luizbafilho/fusis/ipvs"
 )
 
 type Client struct {

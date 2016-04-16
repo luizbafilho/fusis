@@ -4,7 +4,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/serf/serf"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/engine/store"
+	"github.com/luizbafilho/fusis/ipvs"
 )
 
 type Agent struct {
@@ -92,7 +92,7 @@ func (a *Agent) broadcastToBalancers() {
 		host = a.config.Host
 	}
 
-	dst := store.Destination{
+	dst := ipvs.Destination{
 		Name:      a.config.Name,
 		Host:      host,
 		Port:      a.config.Port,

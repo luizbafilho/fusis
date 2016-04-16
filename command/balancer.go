@@ -3,11 +3,10 @@ package command
 import (
 	log "github.com/Sirupsen/logrus"
 
-	"os"
-
 	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/fusis"
 	"github.com/luizbafilho/fusis/net"
 	"github.com/spf13/cobra"
@@ -29,24 +28,29 @@ and add routes to them in the Load Balancer.`,
 
 func init() {
 	FusisCmd.AddCommand(balancerCmd)
-	setupLbConfig()
+	setupBalancerConfig()
+}
+
+func setupBalancerConfig() {
+	balancerCmd.Flags().StringVarP(&config.Balancer.Interface, "interface", "", "eth0", "Network interface")
+
+	err := viper.BindPFlags(balancerCmd.Flags())
+	if err != nil {
+		log.Errorf("error binding pflags: %v", err)
+	}
 }
 
 func run(cmd *cobra.Command, args []string) {
 	if err := ipvs.Init(); err != nil {
 		log.Fatalf("IPVS initialisation failed: %v", err)
 	}
-	log.Printf("IPVS version %s", ipvs.Version())
 
 	if err := net.SetIpForwarding(); err != nil {
-		log.Fatal(err)
 		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")
+		log.Fatal(err)
 	}
 
-	env := os.Getenv("FUSIS_ENV")
-	if env == "" {
-		env = "development"
-	}
+	engine.Init()
 
 	balancer, err := fusis.NewBalancer()
 	if err != nil {
@@ -58,17 +62,8 @@ func run(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	apiService := api.NewAPI(env)
+	apiService := api.NewAPI()
 	go apiService.Serve()
 
 	waitSignals()
-}
-
-func setupLbConfig() {
-	balancerCmd.Flags().StringVarP(&config.Balancer.Interface, "interface", "", "eth0", "Network interface")
-
-	err := viper.BindPFlags(balancerCmd.Flags())
-	if err != nil {
-		log.Errorf("error binding pflags: %v", err)
-	}
 }

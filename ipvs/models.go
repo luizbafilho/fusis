@@ -1,17 +1,17 @@
-package store
+package ipvs
 
 import (
 	"encoding/json"
 	"net"
 	"syscall"
 
-	"github.com/google/seesaw/ipvs"
+	gipvs "github.com/google/seesaw/ipvs"
 )
 
 const (
-	NatMode    = ipvs.DFForwardMasq
-	TunnelMode = ipvs.DFForwardTunnel
-	RouteMode  = ipvs.DFForwardRoute
+	NatMode    = gipvs.DFForwardMasq
+	TunnelMode = gipvs.DFForwardTunnel
+	RouteMode  = gipvs.DFForwardRoute
 )
 
 type Service struct {
@@ -42,8 +42,8 @@ func (dst Destination) GetId() string {
 	return dst.Name
 }
 
-func stringToIPProto(s string) ipvs.IPProto {
-	var value ipvs.IPProto
+func stringToIPProto(s string) gipvs.IPProto {
+	var value gipvs.IPProto
 	if s == "udp" {
 		value = syscall.IPPROTO_UDP
 	} else {
@@ -54,7 +54,7 @@ func stringToIPProto(s string) ipvs.IPProto {
 }
 
 //MarshalJSON ...
-func ipProtoToString(proto ipvs.IPProto) string {
+func ipProtoToString(proto gipvs.IPProto) string {
 	var value string
 
 	if proto == syscall.IPPROTO_UDP {
@@ -66,8 +66,8 @@ func ipProtoToString(proto ipvs.IPProto) string {
 	return value
 }
 
-func stringToDestinationFlags(s string) ipvs.DestinationFlags {
-	var flag ipvs.DestinationFlags
+func stringToDestinationFlags(s string) gipvs.DestinationFlags {
+	var flag gipvs.DestinationFlags
 
 	switch s {
 	case "nat":
@@ -83,7 +83,7 @@ func stringToDestinationFlags(s string) ipvs.DestinationFlags {
 }
 
 //MarshalJSON ...
-func destinationFlagsToString(flags ipvs.DestinationFlags) string {
+func destinationFlagsToString(flags gipvs.DestinationFlags) string {
 	var value string
 
 	switch flags {
@@ -100,14 +100,14 @@ func destinationFlagsToString(flags ipvs.DestinationFlags) string {
 	return value
 }
 
-func (s Service) ToIpvsService() *ipvs.Service {
-	destinations := []*ipvs.Destination{}
+func (s Service) ToIpvsService() *gipvs.Service {
+	destinations := []*gipvs.Destination{}
 
 	for _, dst := range s.Destinations {
 		destinations = append(destinations, dst.ToIpvsDestination())
 	}
 
-	return &ipvs.Service{
+	return &gipvs.Service{
 		Address:      net.ParseIP(s.Host),
 		Port:         s.Port,
 		Protocol:     stringToIPProto(s.Protocol),
@@ -116,8 +116,8 @@ func (s Service) ToIpvsService() *ipvs.Service {
 	}
 }
 
-func (d Destination) ToIpvsDestination() *ipvs.Destination {
-	return &ipvs.Destination{
+func (d Destination) ToIpvsDestination() *gipvs.Destination {
+	return &gipvs.Destination{
 		Address: net.ParseIP(d.Host),
 		Port:    d.Port,
 		Weight:  d.Weight,
@@ -133,7 +133,7 @@ func (d Destination) ToJson() ([]byte, error) {
 	return json.Marshal(d)
 }
 
-func NewService(s *ipvs.Service) Service {
+func NewService(s *gipvs.Service) Service {
 	destinations := []Destination{}
 
 	for _, dst := range s.Destinations {
@@ -149,7 +149,7 @@ func NewService(s *ipvs.Service) Service {
 	}
 }
 
-func newDestinationRequest(d *ipvs.Destination) Destination {
+func newDestinationRequest(d *gipvs.Destination) Destination {
 	return Destination{
 		Host:   d.Address.String(),
 		Port:   d.Port,

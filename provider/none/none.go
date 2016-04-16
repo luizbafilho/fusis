@@ -2,7 +2,7 @@ package none
 
 import (
 	"github.com/Sirupsen/logrus"
-	"github.com/luizbafilho/fusis/engine/store"
+	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
 	"github.com/spf13/viper"
 )
@@ -23,7 +23,7 @@ func new() provider.Provider {
 	}
 }
 
-func (n None) AllocateVip(s *store.Service) error {
+func (n None) AllocateVip(s *ipvs.Service) error {
 	// ip, err := n.getIp()
 	// if err != nil {
 	// 	return nil, err
@@ -36,7 +36,7 @@ func (n None) AllocateVip(s *store.Service) error {
 	return nil
 }
 
-func (n None) ReleaseVip(s store.Service) error {
+func (n None) ReleaseVip(s ipvs.Service) error {
 	logrus.Error("Deleting vip")
 	return nil
 }

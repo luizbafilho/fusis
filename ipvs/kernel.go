@@ -13,98 +13,98 @@
 // limitations under the License.
 
 // Author: jsing@google.com (Joel Sing)
-
-package engine
+package ipvs
 
 import (
 	"sync"
 
 	log "github.com/golang/glog"
-	"github.com/google/seesaw/ipvs"
+	gipvs "github.com/google/seesaw/ipvs"
 )
 
 var mt sync.Mutex
 
 // initIPVS initialises the IPVS sub-component.
-func initIPVS() {
+func initKernel() error {
 	mt.Lock()
 	defer mt.Unlock()
-	log.Infof("Initialising IPVS...")
-	if err := ipvs.Init(); err != nil {
+	log.Infof("Initialising gipvs...")
+	if err := gipvs.Init(); err != nil {
 		// TODO(jsing): modprobe ip_vs and try again.
 		log.Fatalf("IPVS initialisation failed: %v", err)
+		return err
 	}
-	log.Infof("IPVS version %s", ipvs.Version())
+	return nil
 }
 
 // IPVSFlush flushes all services and destinations from the IPVS table.
-func IPVSFlush() error {
+func (k *IpvsKernel) Flush() error {
 	mt.Lock()
 	defer mt.Unlock()
-	return ipvs.Flush()
+	return gipvs.Flush()
 }
 
 // IPVSGetServices gets the currently configured services from the IPVS table.
-func IPVSGetServices() ([]*ipvs.Service, error) {
+func (k *IpvsKernel) GetServices() ([]*gipvs.Service, error) {
 	mt.Lock()
 	defer mt.Unlock()
-	return ipvs.GetServices()
+	return gipvs.GetServices()
 }
 
 // IPVSGetService gets the currently configured service from the IPVS table,
 // which matches the specified service.
-// func IPVSGetService(svc ipvs.Service) (error) {
+// func (k *IpvsKernel) IPVSGetService(svc gipvs.Service) (error) {
 // 	mt.Lock()
 // 	defer mt.Unlock()
-// 	so, err := ipvs.GetService(svc)
+// 	so, err := gipvs.GetService(svc)
 // 	if err != nil {
 // 		return err
 // 	}
-// 	s.Services = []*ipvs.Service{so}
+// 	s.Services = []*gipvs.Service{so}
 // 	return nil
 // }
 //
 // // IPVSAddService adds the specified service to the IPVS table.
-func IPVSAddService(svc *ipvs.Service) error {
+func (k *IpvsKernel) AddService(svc *gipvs.Service) error {
 	mt.Lock()
 	defer mt.Unlock()
-	return ipvs.AddService(*svc)
+	return gipvs.AddService(*svc)
 }
 
 //
 // // IPVSUpdateService updates the specified service in the IPVS table.
-// func IPVSUpdateService(svc *ipvs.Service, out *int) error {
+// func (k *IpvsKernel) IPVSUpdateService(svc *gipvs.Service, out *int) error {
 // 	mt.Lock()
 // 	defer mt.Unlock()
-// 	return ipvs.UpdateService(*svc)
+// 	return gipvs.UpdateService(*svc)
 // }
 //
 // IPVSDeleteService deletes the specified service from the IPVS table.
-func IPVSDeleteService(svc *ipvs.Service) error {
+func (k *IpvsKernel) DeleteService(svc *gipvs.Service) error {
 	mt.Lock()
 	defer mt.Unlock()
-	return ipvs.DeleteService(*svc)
+	return gipvs.DeleteService(*svc)
 }
 
 //
 // IPVSAddDestination adds the specified destination to the IPVS table.
-func IPVSAddDestination(svc ipvs.Service, dst ipvs.Destination) error {
+func (k *IpvsKernel) AddDestination(svc gipvs.Service, dst gipvs.Destination) error {
 	mt.Lock()
 	defer mt.Unlock()
-	return ipvs.AddDestination(svc, dst)
+	return gipvs.AddDestination(svc, dst)
 }
 
 //
 // // IPVSUpdateDestination updates the specified destination in the IPVS table.
-// func IPVSUpdateDestination(dst *ncctypes.IPVSDestination, out *int) error {
+// func (k *IpvsKernel) IPVSUpdateDestination(dst *ncctypes.IPVSDestination, out *int) error {
 // 	mt.Lock()
 // 	defer mt.Unlock()
-// 	return ipvs.UpdateDestination(*dst.Service, *dst.Destination)
+// 	return gipvs.UpdateDestination(*dst.Service, *dst.Destination)
 // }
 //
 // // IPVSDeleteDestination deletes the specified destination from the IPVS table.
-func IPVSDeleteDestination(svc ipvs.Service, dst ipvs.Destination) error {
+func (k *IpvsKernel) DeleteDestination(svc gipvs.Service, dst gipvs.Destination) error {
 	mt.Lock()
 	defer mt.Unlock()
-	return ipvs.DeleteDestination(svc, dst)
+	return gipvs.DeleteDestination(svc, dst)
 }

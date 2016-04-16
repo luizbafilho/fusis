@@ -2,25 +2,25 @@ package engine
 
 import (
 	log "github.com/Sirupsen/logrus"
-	. "github.com/luizbafilho/fusis/engine/store"
+	"github.com/luizbafilho/fusis/db"
+	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/steps"
 )
 
-var store *StoreBolt
-
-func init() {
-	var err error
-	store, err = NewStore("fusis.db")
+func Init() {
+	db, err := db.New("fusis.db")
 	if err != nil {
 		panic(err)
 	}
+
+	ipvs.Init(db)
 }
 
-func GetServices() (*[]Service, error) {
-	return store.GetServices()
+func GetServices() (*[]ipvs.Service, error) {
+	return ipvs.Store.GetServices()
 }
 
-func AddService(svc *Service) error {
+func AddService(svc *ipvs.Service) error {
 	seq := steps.NewSequence(
 		setVip{svc},
 		addServiceStore{svc},
@@ -34,35 +34,35 @@ func AddService(svc *Service) error {
 	return nil
 }
 
-func GetService(id string) (*Service, error) {
-	return store.GetService(id)
+func GetService(id string) (*ipvs.Service, error) {
+	return ipvs.Store.GetService(id)
 }
 
 func DeleteService(id string) error {
-	log.Infof("Deleting Service: %v", id)
-	svc, err := store.GetService(id)
+	log.Infof("Deleting ipvs.Service: %v", id)
+	svc, err := ipvs.Store.GetService(id)
 	if err != nil {
 		return err
 	}
 
-	if err := IPVSDeleteService(svc.ToIpvsService()); err != nil {
+	if err := ipvs.Kernel.DeleteService(svc.ToIpvsService()); err != nil {
 		return err
 	}
 
-	if err := store.DeleteService(svc); err != nil {
+	if err := ipvs.Store.DeleteService(svc); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func AddDestination(svc *Service, dst *Destination) error {
+func AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
 	log.Infof("Adding Destination: %v", dst.Name)
-	if err := store.AddDestination(dst); err != nil {
+	if err := ipvs.Store.AddDestination(dst); err != nil {
 		return err
 	}
 
-	if err := IPVSAddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
+	if err := ipvs.Kernel.AddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
 		return err
 	}
 
@@ -71,20 +71,20 @@ func AddDestination(svc *Service, dst *Destination) error {
 
 func DeleteDestination(id string) error {
 	log.Infof("Deleting Destination: %v", id)
-	dst, err := store.GetDestination(id)
+	dst, err := ipvs.Store.GetDestination(id)
 	if err != nil {
 		return err
 	}
 
-	svc, err := store.GetService(dst.ServiceId)
+	svc, err := ipvs.Store.GetService(dst.ServiceId)
 	if err != nil {
 		return err
 	}
 
-	if err := store.DeleteDestination(dst); err != nil {
+	if err := ipvs.Store.DeleteDestination(dst); err != nil {
 		return err
 	}
-	if err := IPVSDeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
+	if err := ipvs.Kernel.DeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
 		return err
 	}
 

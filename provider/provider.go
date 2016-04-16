@@ -2,12 +2,12 @@ package provider
 
 import (
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/engine/store"
+	"github.com/luizbafilho/fusis/ipvs"
 )
 
 type Provider interface {
-	AllocateVip(s *store.Service) error
-	ReleaseVip(s store.Service) error
+	AllocateVip(s *ipvs.Service) error
+	ReleaseVip(s ipvs.Service) error
 }
 
 type providerFactory func() Provider

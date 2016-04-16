@@ -8,7 +8,7 @@ import (
 	"github.com/asdine/storm"
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/fusis/engine"
-	"github.com/luizbafilho/fusis/engine/store"
+	"github.com/luizbafilho/fusis/ipvs"
 )
 
 func (as ApiService) serviceList(c *gin.Context) {
@@ -39,13 +39,13 @@ func (as ApiService) serviceGet(c *gin.Context) {
 }
 
 func (as ApiService) serviceCreate(c *gin.Context) {
-	newService := store.Service{}
+	newService := ipvs.Service{}
 
 	if c.BindJSON(&newService) != nil {
 		return
 	}
 	//Guarantees that no one tries to create a destination together with a service
-	newService.Destinations = []store.Destination{}
+	newService.Destinations = []ipvs.Destination{}
 
 	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
 		c.JSON(422, gin.H{"errors": govalidator.ErrorsByField(errs)})
@@ -80,7 +80,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	destination := &store.Destination{Weight: 1, Mode: "route", ServiceId: serviceId}
+	destination := &ipvs.Destination{Weight: 1, Mode: "route", ServiceId: serviceId}
 
 	if c.BindJSON(destination) != nil {
 		return
@@ -108,7 +108,7 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 }
 
 func (as ApiService) flush(c *gin.Context) {
-	// err := as.store.Flush()
+	// err := as.ipvs.Flush()
 	// if err != nil {
 	// 	c.JSON(400, gin.H{"error": err.Error()})
 	// 	return
@@ -121,7 +121,7 @@ func (as ApiService) flush(c *gin.Context) {
 	// }
 }
 
-// func getDestinationFromId(destinationId string) (*store.Destination, error) {
+// func getDestinationFromId(destinationId string) (*ipvs.Destination, error) {
 // 	destinationAttrs := strings.Split(destinationId, "-")
 //
 // 	port, err := strconv.ParseUint(destinationAttrs[1], 10, 16)
@@ -130,7 +130,7 @@ func (as ApiService) flush(c *gin.Context) {
 // 		return nil, err
 // 	}
 //
-// 	return &store.Destination{
+// 	return &ipvs.Destination{
 // 		Host: destinationAttrs[0],
 // 		Port: uint16(port),
 // 	}, nil

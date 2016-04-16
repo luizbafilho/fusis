@@ -6,7 +6,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
-	"github.com/luizbafilho/fusis/engine/store"
+	"github.com/luizbafilho/fusis/ipvs"
 	_ "github.com/luizbafilho/fusis/provider/none"
 
 	"github.com/hashicorp/serf/serf"
@@ -81,7 +81,7 @@ func (b *Balancer) handleMemberLeave(memberEvent serf.MemberEvent) {
 func (b *Balancer) handleQuery(query *serf.Query) {
 	payload := query.Payload
 
-	var dst store.Destination
+	var dst ipvs.Destination
 	err := json.Unmarshal(payload, &dst)
 	if err != nil {
 		log.Errorf("Fusis Balancer: Unable to Unmarshal: %s", payload)

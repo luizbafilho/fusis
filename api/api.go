@@ -1,16 +1,21 @@
 package api
 
-import "github.com/gin-gonic/gin"
+import (
+	"os"
+
+	"github.com/gin-gonic/gin"
+)
 
 type ApiService struct {
 	router *gin.Engine
 	env    string
 }
 
-func NewAPI(env string) ApiService {
+func NewAPI() ApiService {
+
 	return ApiService{
 		router: gin.Default(),
-		env:    env,
+		env:    getEnv(),
 	}
 }
 
@@ -28,4 +33,12 @@ func (as ApiService) Serve() {
 	}
 
 	as.router.Run("0.0.0.0:8000")
+}
+
+func getEnv() string {
+	env := os.Getenv("FUSIS_ENV")
+	if env == "" {
+		env = "development"
+	}
+	return env
 }

@@ -50,8 +50,12 @@ type setVip struct {
 }
 
 func (sv setVip) Do(prev steps.Result) (steps.Result, error) {
-	prov := provider.GetProvider()
-	err := prov.AllocateVip(sv.Service)
+	prov, err := provider.GetProvider()
+	if err != nil {
+		return nil, err
+	}
+
+	err = prov.AllocateVip(sv.Service)
 	if err != nil {
 		return nil, err
 	}
@@ -59,8 +63,12 @@ func (sv setVip) Do(prev steps.Result) (steps.Result, error) {
 }
 
 func (sv setVip) Undo() error {
-	prov := provider.GetProvider()
-	err := prov.ReleaseVip(*sv.Service)
+	prov, err := provider.GetProvider()
+	if err != nil {
+		return err
+	}
+
+	err = prov.ReleaseVip(*sv.Service)
 	if err != nil {
 		return err
 	}

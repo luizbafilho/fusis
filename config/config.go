@@ -7,7 +7,8 @@ import "github.com/luizbafilho/fusis/net"
 // 		"type": "cloudstack",
 // 		"params": {
 // 			"apiKey": "seila",
-// 			"secretKey": "testando"
+// 			"secretKey": "testando",
+//		  "vipRange":"192.168.0.1/24"
 // 		}
 // 	}
 // }

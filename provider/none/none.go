@@ -1,14 +1,15 @@
 package none
 
 import (
-	"github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
-	"github.com/spf13/viper"
 )
 
 type None struct {
 	Interface string
+	VipRange  string
 }
 
 func init() {
@@ -16,27 +17,39 @@ func init() {
 }
 
 func new() provider.Provider {
-	viper.SetDefault("provider.params.interface", "eth0")
 
 	return &None{
-		Interface: viper.GetString("provider.params.interface"),
+		Interface: config.Balancer.Provider.Params["interface"],
+		VipRange:  config.Balancer.Provider.Params["vipRange"],
 	}
 }
 
+func (n None) Initialize() error {
+	return initializeRange(n.VipRange)
+}
+
+func initializeRange(ipRange string) error {
+	if err := ipam.InitRange(ipRange); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (n None) AllocateVip(s *ipvs.Service) error {
-	// ip, err := n.getIp()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	//
-	// err = fusis_net.AddIp(ip, n.Interface)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	ip, err := ipam.Allocate()
+	if err != nil {
+		return err
+	}
+	s.Host = ip
+
 	return nil
 }
 
 func (n None) ReleaseVip(s ipvs.Service) error {
-	logrus.Error("Deleting vip")
+	err := ipam.Release(s.Host)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

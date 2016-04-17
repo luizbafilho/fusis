@@ -65,6 +65,15 @@ func (s *IpvsStore) GetService(name string) (*Service, error) {
 }
 
 func (s *IpvsStore) DeleteService(svc *Service) error {
+	var dsts []Destination
+	Store.db.Find("ServiceId", svc.GetId(), &dsts)
+
+	for _, d := range dsts {
+		if err := Store.db.Remove(d); err != nil {
+			return err
+		}
+	}
+
 	return Store.db.Remove(svc)
 }
 

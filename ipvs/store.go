@@ -3,22 +3,21 @@ package ipvs
 import (
 	"github.com/asdine/storm"
 	log "github.com/golang/glog"
-	"github.com/luizbafilho/fusis/db"
 	"github.com/pborman/uuid"
 )
 
-func initStore(s *db.DB) error {
-	if err := s.DB.Init(&Service{}); err != nil {
+func initStore(s *storm.DB) error {
+	if err := s.Init(&Service{}); err != nil {
 		log.Errorf("Service bucket creation failed: %v", err)
 		return err
 	}
 
-	if err := s.DB.Init(&Destination{}); err != nil {
+	if err := s.Init(&Destination{}); err != nil {
 		log.Errorf("Destination bucket creation failed: %v", err)
 		return err
 	}
 
-	Store = &IpvsStore{s.DB}
+	Store = &IpvsStore{s}
 
 	return nil
 }

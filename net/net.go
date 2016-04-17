@@ -9,7 +9,7 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-func AddIp(ip string, iface string) error {
+func AddIp(ip, iface string) error {
 	link, err := netlink.LinkByName(iface)
 	if err != nil {
 		return err
@@ -20,8 +20,21 @@ func AddIp(ip string, iface string) error {
 		return err
 	}
 
-	netlink.AddrAdd(link, addr)
-	return nil
+	return netlink.AddrAdd(link, addr)
+}
+
+func DelIp(ip, iface string) error {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		return err
+	}
+
+	addr, err := netlink.ParseAddr(ip)
+	if err != nil {
+		return err
+	}
+
+	return netlink.AddrDel(link, addr)
 }
 
 func GetIpByInterface(iface string) (string, error) {

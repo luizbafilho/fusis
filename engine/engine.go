@@ -29,11 +29,7 @@ func AddService(svc *ipvs.Service) error {
 		addServiceIpvs{svc},
 	)
 
-	if err := seq.Execute(); err != nil {
-		return err
-	}
-
-	return nil
+	return seq.Execute()
 }
 
 func GetService(id string) (*ipvs.Service, error) {
@@ -41,21 +37,21 @@ func GetService(id string) (*ipvs.Service, error) {
 }
 
 func DeleteService(id string) error {
-	log.Infof("Deleting ipvs.Service: %v", id)
+	log.Infof("Deleting Service: %v", id)
+
 	svc, err := ipvs.Store.GetService(id)
 	if err != nil {
 		return err
 	}
 
-	if err := ipvs.Kernel.DeleteService(svc.ToIpvsService()); err != nil {
-		return err
-	}
+	log.Info("Starting delete sequence")
+	seq := steps.NewSequence(
+		deleteServiceIpvs{svc},
+		deleteServiceStore{svc},
+		unsetVip{svc},
+	)
 
-	if err := ipvs.Store.DeleteService(svc); err != nil {
-		return err
-	}
-
-	return nil
+	return seq.Execute()
 }
 
 func AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {

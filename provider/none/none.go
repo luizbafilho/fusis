@@ -4,6 +4,7 @@ import (
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/provider"
 )
 
@@ -42,7 +43,7 @@ func (n None) AllocateVip(s *ipvs.Service) error {
 	}
 	s.Host = ip
 
-	return nil
+	return net.AddIp(ip+"/32", config.Balancer.Provider.Params["interface"])
 }
 
 func (n None) ReleaseVip(s ipvs.Service) error {
@@ -51,5 +52,5 @@ func (n None) ReleaseVip(s ipvs.Service) error {
 		return err
 	}
 
-	return nil
+	return net.DelIp(s.Host+"/32", config.Balancer.Provider.Params["interface"])
 }

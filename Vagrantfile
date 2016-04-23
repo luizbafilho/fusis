@@ -7,6 +7,7 @@
 # you're doing.
 Vagrant.configure(2) do |config|
   config.ssh.forward_x11 = true
+  config.ssh.forward_agent = true
 
   config.vm.network "forwarded_port", guest: 8000, host: 8000
 

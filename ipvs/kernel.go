@@ -18,7 +18,7 @@ package ipvs
 import (
 	"sync"
 
-	log "github.com/golang/glog"
+	"github.com/Sirupsen/logrus"
 	gipvs "github.com/google/seesaw/ipvs"
 )
 
@@ -28,10 +28,10 @@ var mt sync.Mutex
 func initKernel() error {
 	mt.Lock()
 	defer mt.Unlock()
-	log.Infof("Initialising gipvs...")
+	logrus.Infof("Initialising gipvs...")
 	if err := gipvs.Init(); err != nil {
 		// TODO(jsing): modprobe ip_vs and try again.
-		log.Fatalf("IPVS initialisation failed: %v", err)
+		logrus.Fatalf("IPVS initialisation failed: %v", err)
 		return err
 	}
 	return nil

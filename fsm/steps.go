@@ -1,4 +1,4 @@
-package engine
+package fsm
 
 import (
 	"github.com/luizbafilho/fusis/ipvs"

@@ -1,6 +1,7 @@
 package none
 
 import (
+	"github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/ipvs"
@@ -30,6 +31,7 @@ func (n None) Initialize() error {
 }
 
 func initializeRange(ipRange string) error {
+	logrus.Infof("Initializing range: %v", ipRange)
 	if err := ipam.InitRange(ipRange); err != nil {
 		return err
 	}

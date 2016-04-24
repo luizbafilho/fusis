@@ -7,12 +7,12 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/asdine/storm"
 	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/fusis/engine"
+	"github.com/luizbafilho/fusis/fusis"
 	"github.com/luizbafilho/fusis/ipvs"
 )
 
 func (as ApiService) serviceList(c *gin.Context) {
-	services, err := engine.GetServices()
+	services, err := fusis.GetServices()
 
 	if err != nil {
 		c.JSON(422, gin.H{"error": fmt.Sprintf("GetServices() failed: %v", err)})
@@ -24,7 +24,7 @@ func (as ApiService) serviceList(c *gin.Context) {
 
 func (as ApiService) serviceGet(c *gin.Context) {
 	serviceId := c.Param("service_id")
-	service, err := engine.GetService(serviceId)
+	service, err := fusis.GetService(serviceId)
 
 	if err != nil {
 		if err == storm.ErrNotFound {
@@ -52,9 +52,10 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 		return
 	}
 
-	err := engine.AddService(&newService)
+	err := as.balancer.AddService(&newService)
 
 	if err != nil {
+
 		c.JSON(422, gin.H{"error": fmt.Sprintf("UpsertService() failed: %v", err)})
 	} else {
 		c.JSON(http.StatusOK, newService)
@@ -63,7 +64,7 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 
 func (as ApiService) serviceDelete(c *gin.Context) {
 	serviceId := c.Param("service_id")
-	err := engine.DeleteService(serviceId)
+	err := fusis.DeleteService(serviceId)
 
 	if err != nil {
 		c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteService() failed: %v\n", err)})
@@ -74,7 +75,7 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 
 func (as ApiService) destinationCreate(c *gin.Context) {
 	serviceId := c.Param("service_id")
-	service, err := engine.GetService(serviceId)
+	service, err := fusis.GetService(serviceId)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
@@ -86,7 +87,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	err = engine.AddDestination(service, destination)
+	err = fusis.AddDestination(service, destination)
 
 	if err != nil {
 		c.JSON(422, gin.H{"error": fmt.Sprintf("UpsertDestination() failed: %v\n", err)})
@@ -98,7 +99,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 func (as ApiService) destinationDelete(c *gin.Context) {
 	destinationId := c.Param("destination_id")
 
-	err := engine.DeleteDestination(destinationId)
+	err := fusis.DeleteDestination(destinationId)
 
 	if err != nil {
 		c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v\n", err)})

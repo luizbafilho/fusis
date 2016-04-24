@@ -5,6 +5,8 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/asdine/storm"
+	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/db"
 	"github.com/mikioh/ipaddr"
 	"github.com/tsuru/tsuru/log"
 )
@@ -25,19 +27,26 @@ type AllocatedIP struct {
 	RangeId string
 }
 
-func Init(s *storm.DB) error {
-	store = s
-	if err := s.Init(&Range{}); err != nil {
+//Init ipam
+func Init() error {
+	var err error
+
+	store, err = db.New(config.Balancer.ConfigPath + "/ipam.db")
+	if err != nil {
+		return err
+	}
+
+	if err = store.Init(&Range{}); err != nil {
 		log.Errorf("Range bucket creation failed: %v", err)
 		return err
 	}
 
-	if err := s.Init(&AvaliableIP{}); err != nil {
+	if err := store.Init(&AvaliableIP{}); err != nil {
 		log.Errorf("AvaliableIP bucket creation failed: %v", err)
 		return err
 	}
 
-	if err := s.Init(&AllocatedIP{}); err != nil {
+	if err := store.Init(&AllocatedIP{}); err != nil {
 		log.Errorf("AllocatedIP bucket creation failed: %v", err)
 		return err
 	}

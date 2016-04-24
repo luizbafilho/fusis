@@ -4,18 +4,24 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/luizbafilho/fusis/fusis"
 )
 
+// ApiService ...
 type ApiService struct {
-	router *gin.Engine
-	env    string
+	balancer *fusis.Balancer
+	router   *gin.Engine
+	env      string
 }
 
-func NewAPI() ApiService {
+//NewAPI ...
+func NewAPI(balancer *fusis.Balancer) ApiService {
+	gin.SetMode(gin.ReleaseMode)
 
 	return ApiService{
-		router: gin.Default(),
-		env:    getEnv(),
+		balancer: balancer,
+		router:   gin.Default(),
+		env:      getEnv(),
 	}
 }
 
@@ -31,7 +37,6 @@ func (as ApiService) Serve() {
 	if as.env == "test" {
 		as.router.POST("/flush", as.flush)
 	}
-
 	as.router.Run("0.0.0.0:8000")
 }
 

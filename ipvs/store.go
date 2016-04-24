@@ -23,7 +23,7 @@ func initStore(s *storm.DB) error {
 }
 
 func (s *IpvsStore) AddService(svc *Service) error {
-	svc.Id = uuid.New()
+	// svc.Id = uuid.New()
 	err := Store.db.Save(svc)
 	if err != nil {
 		log.Errorf("store.AddService failed: %v", err)

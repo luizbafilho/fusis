@@ -24,7 +24,9 @@ type Config struct {
 type BalancerConfig struct {
 	Config
 
-	Provider Provider
+	Single     bool
+	Provider   Provider
+	ConfigPath string
 }
 
 type AgentConfig struct {

@@ -6,7 +6,6 @@ import (
 	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/fusis"
 	"github.com/luizbafilho/fusis/net"
 	"github.com/spf13/cobra"
@@ -33,6 +32,8 @@ func init() {
 
 func setupBalancerConfig() {
 	balancerCmd.Flags().StringVarP(&config.Balancer.Interface, "interface", "", "eth0", "Network interface")
+	balancerCmd.Flags().StringVarP(&config.Balancer.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
+	balancerCmd.Flags().BoolVarP(&config.Balancer.Single, "single", "s", false, "Configuration directory")
 
 	err := viper.BindPFlags(balancerCmd.Flags())
 	if err != nil {
@@ -50,19 +51,14 @@ func run(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	engine.Init()
+	// engine.Init()
 
 	balancer, err := fusis.NewBalancer()
 	if err != nil {
 		panic(err)
 	}
 
-	err = balancer.Start(config.Balancer)
-	if err != nil {
-		panic(err)
-	}
-
-	apiService := api.NewAPI()
+	apiService := api.NewAPI(balancer)
 	go apiService.Serve()
 
 	waitSignals()

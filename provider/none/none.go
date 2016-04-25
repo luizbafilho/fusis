@@ -26,14 +26,7 @@ func new() provider.Provider {
 }
 
 func (n None) Initialize() error {
-	return initializeRange(n.VipRange)
-}
-
-func initializeRange(ipRange string) error {
-	if err := ipam.InitRange(ipRange); err != nil {
-		return err
-	}
-	return nil
+	return ipam.Init(n.VipRange)
 }
 
 func (n None) AllocateVip(s *ipvs.Service) error {

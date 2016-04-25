@@ -3,7 +3,6 @@ package engine
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/db"
-	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/steps"
 )
@@ -15,7 +14,6 @@ func Init() {
 	}
 
 	ipvs.Init(db)
-	ipam.Init(db)
 }
 
 func GetServices() (*[]ipvs.Service, error) {

@@ -6,7 +6,7 @@ import (
 	"github.com/pborman/uuid"
 )
 
-func initStore(s *storm.DB) error {
+func InitStore(s *storm.DB) error {
 	if err := s.Init(&Service{}); err != nil {
 		log.Errorf("Service bucket creation failed: %v", err)
 		return err

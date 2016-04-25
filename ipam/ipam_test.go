@@ -6,6 +6,7 @@ import (
 
 	"github.com/asdine/storm"
 	"github.com/luizbafilho/fusis/db"
+	"github.com/luizbafilho/fusis/ipvs"
 
 	. "gopkg.in/check.v1"
 )
@@ -13,103 +14,49 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type IpamSuite struct {
-	db      *storm.DB
-	ipRange string
+	db *storm.DB
 }
 
 var _ = Suite(&IpamSuite{})
 
 func (s *IpamSuite) SetUpSuite(c *C) {
-	var stormDB *storm.DB
-	stormDB, err := db.New("fusis_test.db")
-	if err != nil {
+	s.db, _ = db.New("fusis_test.db")
+
+	ipvs.InitStore(s.db)
+
+	if err := Init("192.168.0.0/28"); err != nil {
 		panic(err)
 	}
-
-	s.db = stormDB
-	s.ipRange = "192.168.1.0/28"
-
-	Init(s.db)
 }
 
 func (s *IpamSuite) TearDownSuite(c *C) {
 	os.Remove("fusis_test.db")
 }
 
-func (s *IpamSuite) SetUpTest(c *C) {
-	InitRange(s.ipRange)
-}
-
-func (s *IpamSuite) TearDownTest(c *C) {
-	var rs []Range
-	store.All(&rs)
-	for _, r := range rs {
-		store.Remove(r)
-	}
-
-	var aips []AvaliableIP
-	store.All(&aips)
-
-	for _, a := range aips {
-		store.Remove(a)
-	}
-
-	var alips []AllocatedIP
-	store.All(&alips)
-
-	for _, a := range alips {
-		store.Remove(a)
-	}
-}
-
-func (s *IpamSuite) TestRangeInitialization(c *C) {
-	savedRange := Range{}
-	s.db.One("ID", s.ipRange, &savedRange)
-
-	c.Assert(savedRange, DeepEquals, Range{s.ipRange})
-
-	var avaliableIps []AvaliableIP
-	s.db.All(&avaliableIps)
-
-	c.Assert(avaliableIps[0], DeepEquals, AvaliableIP{"192.168.1.1", "192.168.1.0/28"})
-}
-
-func (s *IpamSuite) TestRangeInitializationValidation(c *C) {
-	ip, _ := Allocate()
-	InitRange(s.ipRange)
-
-	var aip AvaliableIP
-	err := s.db.One("IP", ip, &aip)
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), DeepEquals, "not found")
-}
-
 func (s *IpamSuite) TestIpAllocation(c *C) {
+	service := &ipvs.Service{
+		Id:   "test",
+		Host: "192.168.0.1",
+	}
+	s.db.Save(service)
+
 	ip, err := Allocate()
 	c.Assert(err, IsNil)
-	c.Assert(ip, DeepEquals, "192.168.1.1")
+	c.Assert(ip, DeepEquals, "192.168.0.2")
 
-	var allocatedIps []AllocatedIP
-	s.db.All(&allocatedIps)
-	c.Assert(allocatedIps[0], DeepEquals, AllocatedIP{"192.168.1.1", "192.168.1.0/28"})
+	service = &ipvs.Service{
+		Id:   "test2",
+		Host: "192.168.0.2",
+	}
+	s.db.Save(service)
 
-	var avaliableIp AvaliableIP
-	err = s.db.One("IP", ip, &avaliableIp)
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), DeepEquals, "not found")
-}
+	ip, err = Allocate()
+	c.Assert(err, IsNil)
+	c.Assert(ip, DeepEquals, "192.168.0.3")
 
-func (s *IpamSuite) TestIpRelease(c *C) {
-	ip := "192.168.1.1"
-	Release(ip)
+	s.db.Remove(service)
 
-	var allocatedIps []AllocatedIP
-	s.db.All(&allocatedIps)
-
-	c.Assert(len(allocatedIps), DeepEquals, 0)
-
-	var avaliableIp AvaliableIP
-	s.db.One("IP", ip, &avaliableIp)
-
-	c.Assert(avaliableIp, DeepEquals, AvaliableIP{ip, s.ipRange})
+	ip, err = Allocate()
+	c.Assert(err, IsNil)
+	c.Assert(ip, DeepEquals, "192.168.0.2")
 }

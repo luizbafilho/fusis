@@ -4,35 +4,26 @@ import (
 	"encoding/json"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/luizbafilho/fusis/fsm"
+	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
-	"github.com/luizbafilho/fusis/provider"
 	"github.com/pborman/uuid"
 )
 
+// GetServices get all services
 func GetServices() (*[]ipvs.Service, error) {
 	return ipvs.Store.GetServices()
 }
 
 // AddService ...
 func (b *Balancer) AddService(svc *ipvs.Service) error {
-	// if s.raft.State() != raft.Leader {
-	// 	return fmt.Errorf("not leader")
-	// }
-	//
-	prov, err := provider.GetProvider()
-	if err != nil {
-		return err
-	}
-
-	if err := prov.AllocateVip(svc); err != nil {
+	if err := b.provider.AllocateVip(svc); err != nil {
 		return err
 	}
 
 	svc.Id = uuid.New()
 
-	c := &fsm.Command{
-		Op:      fsm.AddServiceOp,
+	c := &engine.Command{
+		Op:      engine.AddServiceOp,
 		Service: svc,
 	}
 
@@ -43,12 +34,17 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 
 	f := b.raft.Apply(bytes, raftTimeout)
 	if err, ok := f.(error); ok {
+		if err := b.provider.ReleaseVip(*svc); err != nil {
+			return err
+		}
+
 		return err
 	}
 
 	return nil
 }
 
+//GetService get a service
 func GetService(id string) (*ipvs.Service, error) {
 	return ipvs.Store.GetService(id)
 }

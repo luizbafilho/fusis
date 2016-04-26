@@ -1,4 +1,4 @@
-package fsm
+package engine
 
 import (
 	"encoding/json"
@@ -14,8 +14,8 @@ import (
 	"github.com/luizbafilho/fusis/steps"
 )
 
-// FusisFSM ...
-type FusisFSM struct {
+// Engine ...
+type Engine struct {
 	Db *storm.DB
 
 	sync.Mutex
@@ -30,20 +30,22 @@ const (
 	DelDestinationOp
 )
 
+// Command represents a command in raft log
 type Command struct {
 	Op          int
 	Service     *ipvs.Service
 	Destination *ipvs.Destination
 }
 
-func New(db *storm.DB) *FusisFSM {
-	return &FusisFSM{
+// New creates a new Engine
+func New(db *storm.DB) *Engine {
+	return &Engine{
 		Db: db,
 	}
 }
 
 // Apply actions to fsm
-func (f *FusisFSM) Apply(l *raft.Log) interface{} {
+func (e *Engine) Apply(l *raft.Log) interface{} {
 	var c Command
 	if err := json.Unmarshal(l.Data, &c); err != nil {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
@@ -53,7 +55,7 @@ func (f *FusisFSM) Apply(l *raft.Log) interface{} {
 	logrus.Infof("Actions received to be aplied to fsm: %v", c)
 	switch c.Op {
 	case AddServiceOp:
-		if err := f.applyAddService(c.Service); err != nil {
+		if err := e.applyAddService(c.Service); err != nil {
 			logrus.Error(err)
 			return err
 		}
@@ -61,7 +63,7 @@ func (f *FusisFSM) Apply(l *raft.Log) interface{} {
 	return nil
 }
 
-func (f *FusisFSM) applyAddService(svc *ipvs.Service) error {
+func (e *Engine) applyAddService(svc *ipvs.Service) error {
 	seq := steps.NewSequence(
 		addServiceStore{svc},
 		addServiceIpvs{svc},
@@ -71,7 +73,7 @@ func (f *FusisFSM) applyAddService(svc *ipvs.Service) error {
 }
 
 //Snapshot returns a snapshot of the key-value store.
-func (e *FusisFSM) Snapshot() (raft.FSMSnapshot, error) {
+func (e *Engine) Snapshot() (raft.FSMSnapshot, error) {
 	logrus.Info("Chamando snapshot")
 	e.Lock()
 	defer e.Unlock()
@@ -80,7 +82,7 @@ func (e *FusisFSM) Snapshot() (raft.FSMSnapshot, error) {
 }
 
 // Restore stores the key-value store to a previous state.
-func (e *FusisFSM) Restore(rc io.ReadCloser) error {
+func (e *Engine) Restore(rc io.ReadCloser) error {
 	logrus.Info("Chamando restore")
 	return nil
 }

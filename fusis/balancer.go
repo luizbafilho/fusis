@@ -13,9 +13,10 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/db"
-	"github.com/luizbafilho/fusis/fsm"
+	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/provider"
 	_ "github.com/luizbafilho/fusis/provider/none" // to intialize
 
 	"github.com/hashicorp/raft"
@@ -35,7 +36,8 @@ type Balancer struct {
 	serf *serf.Serf
 	raft *raft.Raft // The consensus mechanism
 
-	fsm *fsm.FusisFSM
+	engine   *engine.Engine
+	provider provider.Provider
 }
 
 // NewBalancer initializes a new balancer
@@ -45,9 +47,15 @@ func NewBalancer() (*Balancer, error) {
 		panic(err)
 	}
 
+	prov, err := provider.GetProvider()
+	if err != nil {
+		return nil, err
+	}
+
 	balancer := &Balancer{
-		eventCh: make(chan serf.Event, 64),
-		fsm:     fsm.New(db),
+		eventCh:  make(chan serf.Event, 64),
+		engine:   engine.New(db),
+		provider: prov,
 	}
 
 	if err = balancer.setupSerf(); err != nil {
@@ -141,7 +149,7 @@ func (b *Balancer) setupRaft() error {
 	}
 
 	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(raftConfig, b.fsm, logStore, logStore, snapshots, peerStore, transport)
+	ra, err := raft.NewRaft(raftConfig, b.engine, logStore, logStore, snapshots, peerStore, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}

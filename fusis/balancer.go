@@ -14,7 +14,6 @@ import (
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/db"
 	"github.com/luizbafilho/fusis/engine"
-	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
 	_ "github.com/luizbafilho/fusis/provider/none" // to intialize
@@ -65,10 +64,6 @@ func NewBalancer() (*Balancer, error) {
 
 	if err = balancer.setupRaft(); err != nil {
 		log.Errorln("Setuping Raft")
-		panic(err)
-	}
-
-	if err := ipam.Init(); err != nil {
 		panic(err)
 	}
 

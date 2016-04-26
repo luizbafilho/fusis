@@ -1,7 +1,6 @@
 package none
 
 import (
-	"github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/ipvs"
@@ -27,15 +26,7 @@ func new() provider.Provider {
 }
 
 func (n None) Initialize() error {
-	return initializeRange(n.VipRange)
-}
-
-func initializeRange(ipRange string) error {
-	logrus.Infof("Initializing range: %v", ipRange)
-	if err := ipam.InitRange(ipRange); err != nil {
-		return err
-	}
-	return nil
+	return ipam.Init(n.VipRange)
 }
 
 func (n None) AllocateVip(s *ipvs.Service) error {

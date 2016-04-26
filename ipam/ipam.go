@@ -1,84 +1,16 @@
 package ipam
 
 import (
-	"net"
-
-	"github.com/Sirupsen/logrus"
-	"github.com/asdine/storm"
-	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/db"
+	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/mikioh/ipaddr"
-	"github.com/tsuru/tsuru/log"
 )
 
-var store *storm.DB
+var rangeCursor *ipaddr.Cursor
 
-type Range struct {
-	ID string
-}
-
-type AvaliableIP struct {
-	IP      string `storm:"id"`
-	RangeId string
-}
-
-type AllocatedIP struct {
-	IP      string `storm:"id"`
-	RangeId string
-}
-
-//Init ipam
-func Init() error {
+//Init initilizes ipam module
+func Init(iprange string) error {
 	var err error
-
-	store, err = db.New(config.Balancer.ConfigPath + "/ipam.db")
-	if err != nil {
-		return err
-	}
-
-	if err = store.Init(&Range{}); err != nil {
-		log.Errorf("Range bucket creation failed: %v", err)
-		return err
-	}
-
-	if err := store.Init(&AvaliableIP{}); err != nil {
-		log.Errorf("AvaliableIP bucket creation failed: %v", err)
-		return err
-	}
-
-	if err := store.Init(&AllocatedIP{}); err != nil {
-		log.Errorf("AllocatedIP bucket creation failed: %v", err)
-		return err
-	}
-
-	return nil
-}
-
-func InitRange(ipRange string) error {
-	iprange := &Range{}
-	err := store.One("ID", ipRange, iprange)
-
-	if err != nil && err != storm.ErrNotFound {
-		return err
-	}
-
-	if err == nil {
-		logrus.Warnf("Range already initiated: %v", ipRange)
-		return nil
-	}
-
-	iprange, err = newIpRange(ipRange)
-	if err != nil {
-		return err
-	}
-
-	err = store.Save(iprange)
-	if err != nil {
-		log.Errorf("InitRange failed: %v", err)
-		return err
-	}
-
-	err = initAvaliableIPs(ipRange)
+	rangeCursor, err = ipaddr.Parse(iprange)
 	if err != nil {
 		return err
 	}
@@ -86,70 +18,39 @@ func InitRange(ipRange string) error {
 	return nil
 }
 
+//Allocate allocates a new avaliable ip
 func Allocate() (string, error) {
-	var ips []AvaliableIP
-
-	if err := store.All(&ips); err != nil {
-		return "", err
-	}
-
-	allocated := ips[0]
-
-	if err := store.Remove(allocated); err != nil {
-		return "", err
-	}
-
-	if err := store.Save(AllocatedIP{allocated.IP, allocated.RangeId}); err != nil {
-		return "", err
-	}
-
-	return allocated.IP, nil
-}
-
-func Release(allocIp string) error {
-	var ip AllocatedIP
-
-	if err := store.One("IP", allocIp, &ip); err != nil {
-		return err
-	}
-
-	if err := store.Remove(ip); err != nil {
-		return err
-	}
-
-	if err := store.Save(AvaliableIP{ip.IP, ip.RangeId}); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func initAvaliableIPs(ipRange string) error {
-	c, err := ipaddr.Parse(ipRange)
-	if err != nil {
-		return err
-	}
-
-	for pos := c.Next(); pos != nil; pos = c.Next() {
-		err := store.Save(AvaliableIP{
-			IP:      pos.IP.String(),
-			RangeId: ipRange,
-		})
+	for pos := rangeCursor.Next(); pos != nil; pos = rangeCursor.Next() {
+		contains, err := allocatedContains(pos.IP.String())
 		if err != nil {
-			return err
+			return "", err
+		}
+
+		if !contains {
+			rangeCursor.Set(rangeCursor.First())
+			return pos.IP.String(), nil
 		}
 	}
 
+	return "", nil
+}
+
+//Release releases a allocated IP
+func Release(allocIP string) error {
 	return nil
 }
 
-func newIpRange(ipRange string) (*Range, error) {
-	_, _, err := net.ParseCIDR(ipRange)
+func allocatedContains(e string) (bool, error) {
+	services, err := ipvs.Store.GetServices()
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
-	return &Range{
-		ID: ipRange,
-	}, nil
+	for _, a := range *services {
+		if a.Host == e {
+			return true, nil
+		}
+
+	}
+	return false, nil
 }

@@ -6,7 +6,7 @@ var Store *IpvsStore
 var Kernel *IpvsKernel
 
 func Init(s *storm.DB) error {
-	if err := initStore(s); err != nil {
+	if err := InitStore(s); err != nil {
 		return err
 	}
 

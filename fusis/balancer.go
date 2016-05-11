@@ -12,7 +12,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/db"
 	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
@@ -40,12 +39,8 @@ type Balancer struct {
 }
 
 // NewBalancer initializes a new balancer
+//TODO: Graceful shutdown on initialization errors
 func NewBalancer() (*Balancer, error) {
-	db, err := db.New("fusis.db")
-	if err != nil {
-		panic(err)
-	}
-
 	prov, err := provider.GetProvider()
 	if err != nil {
 		return nil, err
@@ -53,7 +48,7 @@ func NewBalancer() (*Balancer, error) {
 
 	balancer := &Balancer{
 		eventCh:  make(chan serf.Event, 64),
-		engine:   engine.New(db),
+		engine:   engine.New(),
 		provider: prov,
 	}
 
@@ -67,7 +62,8 @@ func NewBalancer() (*Balancer, error) {
 		panic(err)
 	}
 
-	if err := ipvs.Init(db); err != nil {
+	//Initializes ipvs store (boltdb) and ipvs module
+	if err := ipvs.Init(); err != nil {
 		panic(err)
 	}
 

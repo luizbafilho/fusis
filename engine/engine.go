@@ -8,7 +8,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/asdine/storm"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/steps"
@@ -38,10 +37,8 @@ type Command struct {
 }
 
 // New creates a new Engine
-func New(db *storm.DB) *Engine {
-	return &Engine{
-		Db: db,
-	}
+func New() *Engine {
+	return &Engine{}
 }
 
 // Apply actions to fsm
@@ -51,7 +48,6 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
 	}
 
-	spew.Dump(c)
 	logrus.Infof("Actions received to be aplied to fsm: %v", c)
 	switch c.Op {
 	case AddServiceOp:
@@ -67,6 +63,7 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 	seq := steps.NewSequence(
 		addServiceStore{svc},
 		addServiceIpvs{svc},
+		// setVip{svc},
 	)
 
 	return seq.Execute()

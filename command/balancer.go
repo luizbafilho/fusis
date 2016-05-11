@@ -3,7 +3,6 @@ package command
 import (
 	log "github.com/Sirupsen/logrus"
 
-	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/fusis"
@@ -42,16 +41,10 @@ func setupBalancerConfig() {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	if err := ipvs.Init(); err != nil {
-		log.Fatalf("IPVS initialisation failed: %v", err)
-	}
-
 	if err := net.SetIpForwarding(); err != nil {
 		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")
 		log.Fatal(err)
 	}
-
-	// engine.Init()
 
 	balancer, err := fusis.NewBalancer()
 	if err != nil {

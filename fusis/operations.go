@@ -16,7 +16,7 @@ func GetServices() (*[]ipvs.Service, error) {
 
 // AddService ...
 func (b *Balancer) AddService(svc *ipvs.Service) error {
-	if err := b.provider.AllocateVip(svc); err != nil {
+	if err := b.provider.AllocateVIP(svc); err != nil {
 		return err
 	}
 
@@ -34,7 +34,7 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 
 	f := b.raft.Apply(bytes, raftTimeout)
 	if err, ok := f.(error); ok {
-		if err := b.provider.ReleaseVip(*svc); err != nil {
+		if err := b.provider.ReleaseVIP(*svc); err != nil {
 			return err
 		}
 

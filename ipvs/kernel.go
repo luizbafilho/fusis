@@ -16,6 +16,7 @@
 package ipvs
 
 import (
+	"os/exec"
 	"sync"
 
 	"github.com/Sirupsen/logrus"
@@ -28,23 +29,26 @@ var mt sync.Mutex
 func initKernel() error {
 	mt.Lock()
 	defer mt.Unlock()
-	logrus.Infof("Initialising gipvs...")
-	if err := gipvs.Init(); err != nil {
-		// TODO(jsing): modprobe ip_vs and try again.
-		logrus.Fatalf("IPVS initialisation failed: %v", err)
+
+	if err := exec.Command("modprobe", "ip_vs").Run(); err != nil {
 		return err
 	}
-	return nil
+
+	logrus.Infof("Initialising IPVS Module...")
+	if err := gipvs.Init(); err != nil {
+		logrus.Fatalf("IPVS Module initialisation failed: %v", err)
+		return err
+	}
+
+	return Flush()
 }
 
-// IPVSFlush flushes all services and destinations from the IPVS table.
-func (k *IpvsKernel) Flush() error {
-	mt.Lock()
-	defer mt.Unlock()
+// Flush flushes all services and destinations from the IPVS table.
+func Flush() error {
 	return gipvs.Flush()
 }
 
-// IPVSGetServices gets the currently configured services from the IPVS table.
+// GetServices gets the currently configured services from the IPVS table.
 func (k *IpvsKernel) GetServices() ([]*gipvs.Service, error) {
 	mt.Lock()
 	defer mt.Unlock()

@@ -1,12 +1,10 @@
 package ipvs
 
-import "github.com/asdine/storm"
-
 var Store *IpvsStore
 var Kernel *IpvsKernel
 
-func Init(s *storm.DB) error {
-	if err := InitStore(s); err != nil {
+func Init() error {
+	if err := InitStore(); err != nil {
 		return err
 	}
 

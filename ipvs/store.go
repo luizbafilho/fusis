@@ -1,29 +1,47 @@
 package ipvs
 
 import (
+	"os"
+	"time"
+
+	log "github.com/Sirupsen/logrus"
 	"github.com/asdine/storm"
-	log "github.com/golang/glog"
+	"github.com/boltdb/bolt"
 	"github.com/pborman/uuid"
 )
 
-func InitStore(s *storm.DB) error {
-	if err := s.Init(&Service{}); err != nil {
+func InitStore() error {
+	log.Info("Initializing IPVS Store")
+	boltPath := "fusis.db"
+
+	// Cleaning up any previous state in case of a failure.
+	// Raft will be responsible to recover the proper state.
+	if err := deleteBoltFile(boltPath); err != nil {
+		return err
+	}
+
+	db, err := newStormDb(boltPath)
+	if err != nil {
+		return err
+	}
+
+	if err := db.Init(&Service{}); err != nil {
 		log.Errorf("Service bucket creation failed: %v", err)
 		return err
 	}
 
-	if err := s.Init(&Destination{}); err != nil {
+	if err := db.Init(&Destination{}); err != nil {
 		log.Errorf("Destination bucket creation failed: %v", err)
 		return err
 	}
 
-	Store = &IpvsStore{s}
+	Store = &IpvsStore{db}
 
 	return nil
 }
 
+// AddService add a new service to bolt
 func (s *IpvsStore) AddService(svc *Service) error {
-	// svc.Id = uuid.New()
 	err := Store.db.Save(svc)
 	if err != nil {
 		log.Errorf("store.AddService failed: %v", err)
@@ -32,6 +50,7 @@ func (s *IpvsStore) AddService(svc *Service) error {
 	return nil
 }
 
+// GetServices get all services stored
 func (s *IpvsStore) GetServices() (*[]Service, error) {
 	svcs := []Service{}
 
@@ -110,4 +129,26 @@ func (s *IpvsStore) getDestinations(svc *Service) error {
 	}
 	svc.Destinations = dsts
 	return nil
+}
+
+func newStormDb(path string) (*storm.DB, error) {
+	db, err := storm.OpenWithOptions(path, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		log.Errorf("Bolt opening file failed: %v", err)
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func deleteBoltFile(name string) error {
+	if fileExists(name) {
+		return os.Remove(name)
+	}
+	return nil
+}
+
+func fileExists(name string) bool {
+	_, err := os.Stat(name)
+	return !os.IsNotExist(err)
 }

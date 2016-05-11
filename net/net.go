@@ -37,6 +37,26 @@ func DelIp(ip, iface string) error {
 	return netlink.AddrDel(link, addr)
 }
 
+func DelVips(iface string) error {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		return err
+	}
+
+	addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+	if err != nil {
+		return err
+	}
+
+	for _, a := range addrs[1:] {
+		if err := netlink.AddrDel(link, &a); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func GetIpByInterface(iface string) (string, error) {
 	link, err := netlink.LinkByName(iface)
 	if err != nil {

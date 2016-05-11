@@ -63,7 +63,7 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 	seq := steps.NewSequence(
 		addServiceStore{svc},
 		addServiceIpvs{svc},
-		// setVip{svc},
+		setVip{svc},
 	)
 
 	return seq.Execute()

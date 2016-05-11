@@ -14,6 +14,7 @@ import (
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
+	fusis_net "github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/provider"
 	_ "github.com/luizbafilho/fusis/provider/none" // to intialize
 
@@ -64,6 +65,11 @@ func NewBalancer() (*Balancer, error) {
 
 	//Initializes ipvs store (boltdb) and ipvs module
 	if err := ipvs.Init(); err != nil {
+		panic(err)
+	}
+
+	// Flushing all VIPs on the network interface
+	if err := fusis_net.DelVips(config.Balancer.Provider.Params["interface"]); err != nil {
 		panic(err)
 	}
 

@@ -8,8 +8,10 @@ import (
 )
 
 type Provider interface {
-	AllocateVip(s *ipvs.Service) error
-	ReleaseVip(s ipvs.Service) error
+	AllocateVIP(s *ipvs.Service) error
+	ReleaseVIP(s ipvs.Service) error
+	AssignVIP(s ipvs.Service) error
+	UnassignVIP(s ipvs.Service) error
 }
 
 type InitializableProvider interface {

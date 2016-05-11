@@ -42,7 +42,7 @@ func (sv setVip) Do(prev steps.Result) (steps.Result, error) {
 		return nil, err
 	}
 
-	return nil, prov.AllocateVip(sv.Service)
+	return nil, prov.AssignVIP(*sv.Service)
 }
 func (sv setVip) Undo() error {
 	prov, err := provider.GetProvider()
@@ -50,7 +50,7 @@ func (sv setVip) Undo() error {
 		return err
 	}
 
-	return prov.ReleaseVip(*sv.Service)
+	return prov.UnassignVIP(*sv.Service)
 }
 
 // Deleting service from store
@@ -88,7 +88,7 @@ func (uv unsetVip) Do(prev steps.Result) (steps.Result, error) {
 		return nil, err
 	}
 
-	return nil, prov.ReleaseVip(*uv.Service)
+	return nil, prov.ReleaseVIP(*uv.Service)
 }
 func (uv unsetVip) Undo() error {
 	prov, err := provider.GetProvider()
@@ -96,5 +96,5 @@ func (uv unsetVip) Undo() error {
 		return err
 	}
 
-	return prov.AllocateVip(uv.Service)
+	return prov.AllocateVIP(uv.Service)
 }

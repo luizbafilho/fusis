@@ -29,21 +29,25 @@ func (n None) Initialize() error {
 	return ipam.Init(n.VipRange)
 }
 
-func (n None) AllocateVip(s *ipvs.Service) error {
+func (n None) AllocateVIP(s *ipvs.Service) error {
 	ip, err := ipam.Allocate()
 	if err != nil {
 		return err
 	}
 	s.Host = ip
 
-	return net.AddIp(ip+"/32", config.Balancer.Provider.Params["interface"])
+	return nil
 }
 
-func (n None) ReleaseVip(s ipvs.Service) error {
-	err := ipam.Release(s.Host)
-	if err != nil {
-		return err
-	}
+func (n None) ReleaseVIP(s ipvs.Service) error {
+	ipam.Release(s.Host)
+	return nil
+}
 
+func (n None) AssignVIP(s ipvs.Service) error {
+	return net.AddIp(s.Host+"/32", config.Balancer.Provider.Params["interface"])
+}
+
+func (n None) UnassignVIP(s ipvs.Service) error {
 	return net.DelIp(s.Host+"/32", config.Balancer.Provider.Params["interface"])
 }

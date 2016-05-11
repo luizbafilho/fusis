@@ -1,11 +1,17 @@
 package ipam
 
 import (
+	"net"
+	"sync"
+	"time"
+
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/mikioh/ipaddr"
 )
 
 var rangeCursor *ipaddr.Cursor
+var allocatedIps []net.IP
+var mutex sync.Mutex
 
 //Init initilizes ipam module
 func Init(iprange string) error {
@@ -21,12 +27,19 @@ func Init(iprange string) error {
 //Allocate allocates a new avaliable ip
 func Allocate() (string, error) {
 	for pos := rangeCursor.Next(); pos != nil; pos = rangeCursor.Next() {
-		contains, err := allocatedContains(pos.IP.String())
+		containsAllocated, err := allocatedContains(pos.IP.String())
 		if err != nil {
 			return "", err
 		}
 
-		if !contains {
+		containsAssigned, err := assignedContains(pos.IP.String())
+		if err != nil {
+			return "", err
+		}
+
+		if !containsAllocated && !containsAssigned {
+			allocateIP(pos.IP)
+
 			rangeCursor.Set(rangeCursor.First())
 			return pos.IP.String(), nil
 		}
@@ -36,11 +49,39 @@ func Allocate() (string, error) {
 }
 
 //Release releases a allocated IP
-func Release(allocIP string) error {
-	return nil
+func Release(allocIP string) {
+	removeAllocatedIP(allocIP)
 }
 
-func allocatedContains(e string) (bool, error) {
+func allocateIP(ip net.IP) {
+	mutex.Lock()
+	allocatedIps = append(allocatedIps, ip)
+	mutex.Unlock()
+
+	go cleanAllocation(ip.String())
+}
+
+func cleanAllocation(ip string) {
+	time.Sleep(time.Second * 30)
+	removeAllocatedIP(ip)
+}
+
+func removeAllocatedIP(ip string) {
+	mutex.Lock()
+	var index int
+
+	for i, a := range allocatedIps {
+		if a.String() == ip {
+			index = i
+		}
+	}
+
+	allocatedIps = append(allocatedIps[:index], allocatedIps[index+1:]...)
+
+	mutex.Unlock()
+}
+
+func assignedContains(e string) (bool, error) {
 	services, err := ipvs.Store.GetServices()
 	if err != nil {
 		return false, err
@@ -52,5 +93,17 @@ func allocatedContains(e string) (bool, error) {
 		}
 
 	}
+	return false, nil
+}
+
+func allocatedContains(e string) (bool, error) {
+	mutex.Lock()
+	for _, a := range allocatedIps {
+		if a.String() == e {
+			return true, nil
+		}
+	}
+	mutex.Unlock()
+
 	return false, nil
 }

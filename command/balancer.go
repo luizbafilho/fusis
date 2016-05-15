@@ -31,8 +31,10 @@ func init() {
 
 func setupBalancerConfig() {
 	balancerCmd.Flags().StringVarP(&config.Balancer.Interface, "interface", "", "eth0", "Network interface")
-	balancerCmd.Flags().StringVarP(&config.Balancer.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
+	balancerCmd.Flags().StringVarP(&config.Balancer.Join, "join", "j", "", "Join balancer pool")
 	balancerCmd.Flags().BoolVarP(&config.Balancer.Single, "single", "s", false, "Configuration directory")
+	balancerCmd.Flags().StringVarP(&config.Balancer.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
+	balancerCmd.Flags().IntVar(&config.Balancer.RaftPort, "raft-port", 4382, "Raft port")
 
 	err := viper.BindPFlags(balancerCmd.Flags())
 	if err != nil {
@@ -49,6 +51,10 @@ func run(cmd *cobra.Command, args []string) {
 	balancer, err := fusis.NewBalancer()
 	if err != nil {
 		panic(err)
+	}
+
+	if config.Balancer.Join != "" {
+		balancer.JoinPool()
 	}
 
 	apiService := api.NewAPI(balancer)

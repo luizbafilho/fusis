@@ -16,7 +16,6 @@
 package ipvs
 
 import (
-	"os/exec"
 	"sync"
 
 	"github.com/Sirupsen/logrus"
@@ -30,9 +29,9 @@ func initKernel() error {
 	mt.Lock()
 	defer mt.Unlock()
 
-	if err := exec.Command("modprobe", "ip_vs").Run(); err != nil {
-		return err
-	}
+	// if err := exec.Command("modprobe", "ip_vs").Run(); err != nil {
+	// 	return err
+	// }
 
 	logrus.Infof("Initialising IPVS Module...")
 	if err := gipvs.Init(); err != nil {

@@ -25,8 +25,10 @@ type BalancerConfig struct {
 	Config
 
 	Single     bool
+	Join       string
 	Provider   Provider
 	ConfigPath string
+	RaftPort   int
 }
 
 type AgentConfig struct {

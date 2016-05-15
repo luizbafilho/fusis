@@ -33,7 +33,7 @@ type Balancer struct {
 	eventCh chan serf.Event
 
 	serf *serf.Serf
-	raft *raft.Raft // The consensus mechanism
+	Raft *raft.Raft // The consensus mechanism
 
 	engine   *engine.Engine
 	provider provider.Provider
@@ -53,13 +53,13 @@ func NewBalancer() (*Balancer, error) {
 		provider: prov,
 	}
 
-	if err = balancer.setupSerf(); err != nil {
-		log.Errorln("Setuping Serf")
+	if err = balancer.setupRaft(); err != nil {
+		log.Errorln("Setuping Raft")
 		panic(err)
 	}
 
-	if err = balancer.setupRaft(); err != nil {
-		log.Errorln("Setuping Raft")
+	if err = balancer.setupSerf(); err != nil {
+		log.Errorln("Setuping Serf")
 		panic(err)
 	}
 
@@ -121,11 +121,8 @@ func (b *Balancer) setupRaft() error {
 	}
 
 	// Setup Raft communication.
-	addr, err := net.ResolveTCPAddr("tcp", ":12000")
-	if err != nil {
-		return err
-	}
-	transport, err := raft.NewTCPTransport(":12000", addr, 3, 10*time.Second, os.Stderr)
+	raftAddr := &net.TCPAddr{Port: config.Balancer.RaftPort}
+	transport, err := raft.NewTCPTransport(raftAddr.String(), raftAddr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err
 	}
@@ -150,7 +147,20 @@ func (b *Balancer) setupRaft() error {
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
-	b.raft = ra
+	b.Raft = ra
+	return nil
+}
+
+// JoinPool joins the Fusis Serf cluster
+func (b *Balancer) JoinPool() error {
+	log.Infof("Balancer: joining: %v ignore: %v", config.Balancer.Join)
+
+	_, err := b.serf.Join([]string{config.Balancer.Join}, true)
+	if err != nil {
+		log.Errorf("Balancer: error joining: %v", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -160,7 +170,8 @@ func (b *Balancer) handleEvents() {
 		case e := <-b.eventCh:
 			switch e.EventType() {
 			case serf.EventMemberJoin:
-				// memberEvent := e.(serf.MemberEvent)
+				me := e.(serf.MemberEvent)
+				b.handleMemberJoin(me)
 			case serf.EventMemberFailed:
 				memberEvent := e.(serf.MemberEvent)
 				b.handleMemberLeave(memberEvent)
@@ -171,14 +182,43 @@ func (b *Balancer) handleEvents() {
 				query := e.(*serf.Query)
 				b.handleQuery(query)
 			default:
-				log.Warnf("Fusis Balancer: unhandled Serf Event: %#v", e)
+				log.Warnf("Balancer: unhandled Serf Event: %#v", e)
 			}
 		}
 	}
 }
 
-func (b *Balancer) handleMemberLeave(memberEvent serf.MemberEvent) {
-	for _, m := range memberEvent.Members {
+func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
+	log.Infof("handleMemberJoin: %s", event)
+
+	if b.Raft.State() != raft.Leader {
+		return
+	}
+
+	for _, m := range event.Members {
+		if memberIsBalancer(m) {
+			b.addMemberToPool(m)
+		}
+	}
+
+}
+
+func (b *Balancer) addMemberToPool(m serf.Member) {
+	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), config.Balancer.RaftPort)
+
+	log.Infof("addMemberToPool, %#v", remoteAddr)
+	f := b.Raft.AddPeer(remoteAddr)
+	if f.Error() != nil {
+		log.Errorf("node at %s joined failure. err: %s", remoteAddr, f.Error())
+	}
+}
+
+func memberIsBalancer(m serf.Member) bool {
+	return m.Tags["role"] == "balancer"
+}
+
+func (b *Balancer) handleMemberLeave(member serf.MemberEvent) {
+	for _, m := range member.Members {
 		DeleteDestination(m.Name)
 	}
 }
@@ -189,7 +229,7 @@ func (b *Balancer) handleQuery(query *serf.Query) {
 	var dst ipvs.Destination
 	err := json.Unmarshal(payload, &dst)
 	if err != nil {
-		log.Errorf("Fusis Balancer: Unable to Unmarshal: %s", payload)
+		log.Errorf("Balancer: Unable to Unmarshal: %s", payload)
 	}
 
 	svc, err := GetService(dst.ServiceId)

@@ -32,7 +32,7 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 		return err
 	}
 
-	f := b.Raft.Apply(bytes, raftTimeout)
+	f := b.raft.Apply(bytes, raftTimeout)
 	if err, ok := f.(error); ok {
 		if err := b.provider.ReleaseVIP(*svc); err != nil {
 			return err

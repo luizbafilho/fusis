@@ -10,6 +10,7 @@ import (
 	"github.com/asdine/storm"
 	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/provider"
 	"github.com/luizbafilho/fusis/steps"
 )
 
@@ -17,6 +18,7 @@ import (
 type Engine struct {
 	Db *storm.DB
 
+	Raft *raft.Raft
 	sync.Mutex
 }
 
@@ -63,10 +65,28 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 	seq := steps.NewSequence(
 		addServiceStore{svc},
 		addServiceIpvs{svc},
-		setVip{svc},
 	)
 
-	return seq.Execute()
+	if err := seq.Execute(); err != nil {
+		return err
+	}
+
+	if e.Raft.State() == raft.Leader {
+		if err := assignVIP(svc); err != nil {
+			return seq.RollbackAll()
+		}
+	}
+
+	return nil
+}
+
+func assignVIP(svc *ipvs.Service) error {
+	prov, err := provider.GetProvider()
+	if err != nil {
+		return err
+	}
+
+	return prov.AssignVIP(*svc)
 }
 
 //Snapshot returns a snapshot of the key-value store.

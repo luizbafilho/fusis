@@ -33,7 +33,7 @@ type Balancer struct {
 	eventCh chan serf.Event
 
 	serf *serf.Serf
-	Raft *raft.Raft // The consensus mechanism
+	raft *raft.Raft // The consensus mechanism
 
 	engine   *engine.Engine
 	provider provider.Provider
@@ -49,7 +49,6 @@ func NewBalancer() (*Balancer, error) {
 
 	balancer := &Balancer{
 		eventCh:  make(chan serf.Event, 64),
-		engine:   engine.New(),
 		provider: prov,
 	}
 
@@ -142,12 +141,15 @@ func (b *Balancer) setupRaft() error {
 		return fmt.Errorf("new bolt store: %s", err)
 	}
 
+	engine := engine.New()
+
 	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(raftConfig, b.engine, logStore, logStore, snapshots, peerStore, transport)
+	ra, err := raft.NewRaft(raftConfig, engine, logStore, logStore, snapshots, peerStore, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
-	b.Raft = ra
+	b.raft = ra
+	engine.Raft = ra
 	return nil
 }
 
@@ -191,7 +193,7 @@ func (b *Balancer) handleEvents() {
 func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
 	log.Infof("handleMemberJoin: %s", event)
 
-	if b.Raft.State() != raft.Leader {
+	if b.raft.State() != raft.Leader {
 		return
 	}
 
@@ -207,7 +209,7 @@ func (b *Balancer) addMemberToPool(m serf.Member) {
 	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), config.Balancer.RaftPort)
 
 	log.Infof("addMemberToPool, %#v", remoteAddr)
-	f := b.Raft.AddPeer(remoteAddr)
+	f := b.raft.AddPeer(remoteAddr)
 	if f.Error() != nil {
 		log.Errorf("node at %s joined failure. err: %s", remoteAddr, f.Error())
 	}

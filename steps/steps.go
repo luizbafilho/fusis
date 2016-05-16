@@ -42,3 +42,12 @@ func (s *Sequence) rollback(point int) {
 		s.Steps[i].Undo()
 	}
 }
+
+func (s *Sequence) RollbackAll() error {
+	for i := len(s.Steps); i >= 0; i-- {
+		if err := s.Steps[i].Undo(); err != nil {
+			return err
+		}
+	}
+	return nil
+}

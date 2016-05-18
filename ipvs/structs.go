@@ -147,6 +147,38 @@ func (s Service) presentInKernel() bool {
 	return false
 }
 
+func (d Destination) ValidateUniqueness(svc *Service) (bool, error) {
+	if d.presentInStore() {
+		return false, errors.New("Destination found in store")
+	}
+
+	if d.presentInKernel(svc) {
+		return false, errors.New("Destination found in kernel")
+	}
+
+	return true, nil
+}
+
+func (d Destination) presentInStore() bool {
+	dst, _ := Store.GetDestination(d.Name)
+	if dst != nil {
+		return true
+	}
+
+	return false
+}
+
+func (d Destination) presentInKernel(svc *Service) bool {
+	dsts, _ := Kernel.GetDestinations(svc.ToIpvsService())
+	for _, dst := range dsts {
+		if dst.Equal(*d.ToIpvsDestination()) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (d Destination) ToIpvsDestination() *gipvs.Destination {
 	return &gipvs.Destination{
 		Address: net.ParseIP(d.Host),

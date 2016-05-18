@@ -92,6 +92,16 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
+	if _, errs := govalidator.ValidateStruct(destination); errs != nil {
+		c.JSON(422, gin.H{"errors": govalidator.ErrorsByField(errs)})
+		return
+	}
+
+	if _, err := destination.ValidateUniqueness(service); err != nil {
+		c.JSON(409, gin.H{"error": err.Error()})
+		return
+	}
+
 	err = fusis.AddDestination(service, destination)
 
 	if err != nil {

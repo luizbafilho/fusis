@@ -93,6 +93,17 @@ func (k *IpvsKernel) AddDestination(svc gipvs.Service, dst gipvs.Destination) er
 	return gipvs.AddDestination(svc, dst)
 }
 
+func (k *IpvsKernel) GetDestinations(svc *gipvs.Service) ([]*gipvs.Destination, error) {
+	mt.Lock()
+	defer mt.Unlock()
+	svc, err := gipvs.GetService(svc)
+	if err != nil {
+		return nil, err
+	}
+
+	return svc.Destinations, nil
+}
+
 //
 // // IPVSUpdateDestination updates the specified destination in the IPVS table.
 // func (k *IpvsKernel) IPVSUpdateDestination(dst *ncctypes.IPVSDestination, out *int) error {

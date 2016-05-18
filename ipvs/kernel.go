@@ -56,16 +56,12 @@ func (k *IpvsKernel) GetServices() ([]*gipvs.Service, error) {
 
 // IPVSGetService gets the currently configured service from the IPVS table,
 // which matches the specified service.
-// func (k *IpvsKernel) IPVSGetService(svc gipvs.Service) (error) {
-// 	mt.Lock()
-// 	defer mt.Unlock()
-// 	so, err := gipvs.GetService(svc)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	s.Services = []*gipvs.Service{so}
-// 	return nil
-// }
+func (k *IpvsKernel) GetService(svc *gipvs.Service) (*gipvs.Service, error) {
+	mt.Lock()
+	defer mt.Unlock()
+	return gipvs.GetService(svc)
+}
+
 //
 // // IPVSAddService adds the specified service to the IPVS table.
 func (k *IpvsKernel) AddService(svc *gipvs.Service) error {

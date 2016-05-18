@@ -2,6 +2,7 @@ package ipvs
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"syscall"
 
@@ -16,7 +17,7 @@ const (
 
 type Service struct {
 	Id           string `storm:"id"`
-	Name         string `storm:"unique"`
+	Name         string `storm:"unique" valid:"required"`
 	Host         string
 	Port         uint16 `valid:"required"`
 	Protocol     string `valid:"required"`
@@ -26,7 +27,7 @@ type Service struct {
 
 type Destination struct {
 	Id        string `storm:"id"`
-	Name      string `storm:"unique"`
+	Name      string `storm:"unique" valid:"required"`
 	Host      string `valid:"required"`
 	Port      uint16 `valid:"required"`
 	Weight    int32
@@ -114,6 +115,36 @@ func (s Service) ToIpvsService() *gipvs.Service {
 		Scheduler:    s.Scheduler,
 		Destinations: destinations,
 	}
+}
+
+func (s Service) ValidateUniqueness() (bool, error) {
+	if s.presentInStore() {
+		return false, errors.New("Service found in store")
+	}
+
+	if s.presentInKernel() {
+		return false, errors.New("Service found in kernel")
+	}
+
+	return true, nil
+}
+
+func (s Service) presentInStore() bool {
+	svc, _ := Store.GetService(s.Name)
+	if svc != nil {
+		return true
+	}
+
+	return false
+}
+
+func (s Service) presentInKernel() bool {
+	svc, _ := Kernel.GetService(s.ToIpvsService())
+	if svc != nil {
+		return true
+	}
+
+	return false
 }
 
 func (d Destination) ToIpvsDestination() *gipvs.Destination {

@@ -52,10 +52,15 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 		return
 	}
 
+	if _, err := newService.ValidateUniqueness(); err != nil {
+		c.JSON(409, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If everthing is ok send it to Raft
 	err := as.balancer.AddService(&newService)
 
 	if err != nil {
-
 		c.JSON(422, gin.H{"error": fmt.Sprintf("UpsertService() failed: %v", err)})
 	} else {
 		c.JSON(http.StatusOK, newService)

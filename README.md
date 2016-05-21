@@ -38,21 +38,11 @@ Get this project into GOPATH:
 go get -v github.com/luizbafilho/fusis
 ```
 
-And it's depencencies:
+And it's dependencies:
 
 ``` bash
-go get -v github.com/hashicorp/errwrap
-go get -v github.com/hashicorp/go-multierror
-go get -v github.com/miekg/dns
+make restore
 ```
-
-Install `govendor` and get the dependencies.
-
-``` bash
-go get github.com/kardianos/govendor
-govendor add +e
-```
-
 You'll need **Go 1.5** or later;
 
 ## Installing IPVS

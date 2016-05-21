@@ -27,10 +27,40 @@
 			"revisionTime": "2016-01-28T11:08:49Z"
 		},
 		{
+			"checksumSHA1": "o1KAp7g7MZFc34ycnmu7gajN5Os=",
+			"path": "github.com/asdine/storm",
+			"revision": "d8dddb265c7e07e17532fc4e24f7bddb39c33d66",
+			"revisionTime": "2016-05-02T19:55:12Z"
+		},
+		{
+			"checksumSHA1": "aQESx3hU/Uxtil7yZ6n1Z52dPWc=",
+			"path": "github.com/asdine/storm/codec",
+			"revision": "d8dddb265c7e07e17532fc4e24f7bddb39c33d66",
+			"revisionTime": "2016-05-02T19:55:12Z"
+		},
+		{
+			"checksumSHA1": "NDoPsw1QijoRziM1HPOksWePhxQ=",
+			"path": "github.com/asdine/storm/codec/gob",
+			"revision": "d8dddb265c7e07e17532fc4e24f7bddb39c33d66",
+			"revisionTime": "2016-05-02T19:55:12Z"
+		},
+		{
 			"checksumSHA1": "U6q1LNcjj+5Q03+WfYM8lR2iOuA=",
 			"path": "github.com/boltdb/bolt",
 			"revision": "0fd4c0547d204c7b1cad6db6f3adad5f2cf453e5",
 			"revisionTime": "2016-03-10T19:43:05Z"
+		},
+		{
+			"checksumSHA1": "5rPfda8jFccr3A6heL+JAmi9K9g=",
+			"path": "github.com/davecgh/go-spew/spew",
+			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d",
+			"revisionTime": "2015-11-05T21:09:06Z"
+		},
+		{
+			"checksumSHA1": "Iei04/3B9IEZDhfMmeAB1K9C69o=",
+			"path": "github.com/fatih/structs",
+			"revision": "3fe2facc32a7fbde4b29c0f85604dc1dd22836d2",
+			"revisionTime": "2016-05-19T13:58:40Z"
 		},
 		{
 			"checksumSHA1": "6tnH76EgqJ23VLqf9QREtnyvPZ8=",
@@ -177,10 +207,22 @@
 			"revisionTime": "2016-01-26T18:01:36Z"
 		},
 		{
+			"checksumSHA1": "0f75z1NeeT20a/J5S9suIVj6Y1M=",
+			"path": "github.com/mikioh/ipaddr",
+			"revision": "35fc614857b73052d3f4f1e57f952c644ec0c8f3",
+			"revisionTime": "2016-04-19T23:58:57Z"
+		},
+		{
 			"checksumSHA1": "KCJhN9Dx329wAN/SeL4CxeypPyk=",
 			"path": "github.com/mitchellh/mapstructure",
 			"revision": "d2dd0262208475919e1a362f675cfc0e7c10e905",
 			"revisionTime": "2016-02-12T03:18:39Z"
+		},
+		{
+			"checksumSHA1": "xN14ZoFcgefABp24aowYtQVMDsc=",
+			"path": "github.com/pborman/uuid",
+			"revision": "c55201b036063326c5b1b89ccfe45a184973d073",
+			"revisionTime": "2016-02-16T16:37:10Z"
 		},
 		{
 			"checksumSHA1": "E1899TNqCHhCtr6+joW4YEldRuE=",
@@ -229,6 +271,12 @@
 			"path": "golang.org/x/net/context",
 			"revision": "b6d7b1396ec874c3b00f6c84cd4301a17c56c8ed",
 			"revisionTime": "2016-02-16T13:16:06Z"
+		},
+		{
+			"checksumSHA1": "oBKY8LJtCoSvmYA4ADFDY02A8NY=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03",
+			"revisionTime": "2016-05-16T12:31:02Z"
 		},
 		{
 			"checksumSHA1": "I2d7Kn572Fz02mnnlcI4MHXCu0c=",

@@ -57,6 +57,11 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 			logrus.Error(err)
 			return err
 		}
+	case DelServiceOp:
+		if err := e.applyDelService(c.Service); err != nil {
+			logrus.Error(err)
+			return err
+		}
 	}
 	return nil
 }
@@ -80,6 +85,25 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 	return nil
 }
 
+func (e *Engine) applyDelService(svc *ipvs.Service) error {
+	seq := steps.NewSequence(
+		deleteServiceIpvs{svc},
+		deleteServiceStore{svc},
+	)
+
+	if err := seq.Execute(); err != nil {
+		return err
+	}
+
+	if e.Raft.State() == raft.Leader {
+		if err := unassignVIP(svc); err != nil {
+			return seq.RollbackAll()
+		}
+	}
+
+	return nil
+}
+
 func assignVIP(svc *ipvs.Service) error {
 	prov, err := provider.GetProvider()
 	if err != nil {
@@ -87,6 +111,15 @@ func assignVIP(svc *ipvs.Service) error {
 	}
 
 	return prov.AssignVIP(*svc)
+}
+
+func unassignVIP(svc *ipvs.Service) error {
+	prov, err := provider.GetProvider()
+	if err != nil {
+		return err
+	}
+
+	return prov.UnassignVIP(*svc)
 }
 
 //Snapshot returns a snapshot of the key-value store.

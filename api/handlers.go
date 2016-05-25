@@ -80,7 +80,7 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 		return
 	}
 
-	err = fusis.DeleteService(serviceId)
+	err = as.balancer.DeleteService(serviceId)
 
 	if err != nil {
 		c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteService() failed: %v\n", err)})

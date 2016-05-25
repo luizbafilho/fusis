@@ -49,22 +49,29 @@ func GetService(id string) (*ipvs.Service, error) {
 	return ipvs.Store.GetService(id)
 }
 
-func DeleteService(id string) error {
+func (b *Balancer) DeleteService(id string) error {
 	log.Infof("Deleting Service: %v", id)
 
-	_, err := ipvs.Store.GetService(id)
+	svc, err := ipvs.Store.GetService(id)
 	if err != nil {
 		return err
 	}
 
-	// log.Info("Starting delete sequence")
-	// seq := steps.NewSequence(
-	// 	deleteServiceIpvs{svc},
-	// 	deleteServiceStore{svc},
-	// 	unsetVip{svc},
-	// )
-	//
-	// return seq.Execute()
+	c := &engine.Command{
+		Op:      engine.DelServiceOp,
+		Service: svc,
+	}
+
+	bytes, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+
+	f := b.raft.Apply(bytes, raftTimeout)
+	if err, ok := f.(error); ok {
+		return err
+	}
+
 	return nil
 }
 

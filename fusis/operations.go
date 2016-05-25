@@ -68,6 +68,10 @@ func DeleteService(id string) error {
 	return nil
 }
 
+func GetDestination(name string) (*ipvs.Destination, error) {
+	return ipvs.Store.GetDestination(name)
+}
+
 func AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
 	log.Infof("Adding Destination: %v", dst.Name)
 	if err := ipvs.Store.AddDestination(dst); err != nil {

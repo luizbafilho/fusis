@@ -157,18 +157,3 @@ func (as ApiService) flush(c *gin.Context) {
 	// 	return
 	// }
 }
-
-// func getDestinationFromId(destinationId string) (*ipvs.Destination, error) {
-// 	destinationAttrs := strings.Split(destinationId, "-")
-//
-// 	port, err := strconv.ParseUint(destinationAttrs[1], 10, 16)
-//
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	return &ipvs.Destination{
-// 		Host: destinationAttrs[0],
-// 		Port: uint16(port),
-// 	}, nil
-// }

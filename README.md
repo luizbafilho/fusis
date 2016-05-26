@@ -3,23 +3,22 @@ Fusis Balancer
 
 Fusis Balancer is a dynamic Layer 4 Load Balancer powered by [IPVS](http://www.linuxvirtualserver.org/) and [Serf](https://www.serfdom.io/).
 
-Running the Fusis Agent in your servers, lets the balancer detect new nodes and add new routes to them.
+Running the Fusis Agent in your servers, lets the load balancer detect new nodes and route traffic to them.
 
-There is also a HTTP API to manages your services dynamically.
+There is also a HTTP API to manage your services dynamically.
 
 ### IPVS
-IPVS (IP Virtual Server) implements transport-layer load balancing directly in the Linux Kernel. It's being aroung since 1999 and its very stable and battle tested. Used by many companies like Google, Facebook, Github, Soundcloud and many others.
+IPVS (IP Virtual Server) implements transport-layer load balancing directly in the Linux Kernel. It has been around since 1999 and is very stable/battle tested. Used by many companies such as Google, Facebook, Github, Soundcloud and so on.
 
-IPVS it is a amazing piece of software that few people really know of it, and that is probably because its not that easy to use. It requires some knowledge about networking and its necessary to do some network configuration in order to make it work correctly.
+IPVS is a amazing piece of software that few people really got to know, probably because its not that easy to use as it requires some some network configuration and a deep knowledge of it in order to make it work correctly.
 
 ### Serf
-Serf is solution for distributed cluster management, message delivery and failure detection. It is one of the bases of [Consul](https://www.consul.io/).
-
+Serf is solution for distributed cluster management, message delivery and failure detection. It's one of the bases of [Consul](https://www.consul.io/).
 
 ## Why?
-The whole goal of this project it is to bring a accessible way to use IPVS.
+The whole goal of this project is to provide an easy way to use IPVS.
 
-Fusis Balancer will be responsible for detecting new/failed nodes and add/remove routes to it. It will automatically configure the network in order to make everything work.
+Fusis Load Balancer will be responsible for detecting new/failed nodes and add/remove routes to them. It will automatically configure the network to do so.
 
 ## State
 This project it's under heavy development, it's not usable yet, but you can **Star** :star: the project and follow the updates.
@@ -27,71 +26,58 @@ This project it's under heavy development, it's not usable yet, but you can **St
 # Installation
 
 There is compilation and runtime dependency on [libnl](https://www.infradead.org/~tgr/libnl/).
-On a Debian/Ubuntu style system, you should be able to prepare for building by running:
+On a Debian based system, you should be able to build it by running:
 
-``
-apt-get install libnl-3-dev libnl-genl-3-dev
-``
+``` bash
+sudo apt-get install libnl-3-dev libnl-genl-3-dev
+```
 
 Get this project into GOPATH:
 
-```
+``` bash
 go get -v github.com/luizbafilho/fusis
 ```
 
-Also, get these projects:
+And it's dependencies:
 
+``` bash
+make restore
 ```
-go get -v github.com/hashicorp/errwrap
-go get -v github.com/hashicorp/go-multierror
-go get -v github.com/miekg/dns
-```
-
-Install `govendor` and get the dependencies.
-
-```
-go get github.com/kardianos/govendor
-govendor add +e
-```
-
-You will need at least **Go 1.5**.
-
+You'll need **Go 1.5** or later;
 
 ## Installing IPVS
 
-IPVS is a Kernel module. Install it using modprobe to enable it on the kernel:
-
-```
-# Enables ipvs on kernel
-$> modprobe ip_vs
-
-# Also install the IPVS command line tool
-$> sudo apt-get install ipvsadm
+IPVS is a Kernel module. So, all you need to do is enable it via modprobe:
+``` bash
+sudo modprobe ip_vs
 ```
 
-To use IPVS, you must enable the IP forwarding parameter for kernel
+While you're at it, install the IPVS command line tool too:
+``` bash
+sudo apt-get install ipvsadm
 ```
-$> sudo sysctl -w net.ipv4.ip_forward=1
+
+And enable ipv4 forwarding with:
+``` bash
+sudo sysctl -w net.ipv4.ip_forward=1
 ```
 
 ## Running the project
 
 Now that you have IPVS and fusis installed, run the project:
 
-```
-# Remenber, fusis binary is at $GOPATH/bin/fusis. Add it to system PATH
-$> sudo fusis balancer --iface eth0
+``` bash
+# Remenber, fusis binary is at $GOPATH/bin/fusis. So, add it to your system PATH
+sudo fusis balancer --iface eth0
 ```
 You should see something like:
-> [GIN-debug] Listening and serving HTTP on :8000
+`[GIN-debug] Listening and serving HTTP on :8000`
 
-
-Now, from another host send a request asking for what services do we have
-available behind the fusis router:
+From another host, send a HTTP request to the API querying for available services available:
+``` bash
+curl -i {IP OF FUSIS HOST}:8000/services
 ```
-$> curl -i {IP OF FUSIS HOST}:8000/services
-```
-You should see an answer like:
+And you should get:
 ```
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8
@@ -101,19 +87,19 @@ Content-Length: 3
 []
 ```
 
-Just for a test, lets add some route to any fake IP. At the fusis host type:
+Just for testing purposes, lets add a route to a fake IPv4 by runnging this on the fusis host:
 
-```
-$> sudo ipvsadm -A -t 10.0.0.1:80 -s rr
+``` bash
+sudo ipvsadm -A -t 10.0.0.1:80 -s rr
 ```
 
 Then, make another request:
 
-```
-$> curl -i {IP OF FUSIS HOST}:8000/services
+``` bash
+curl -i {FUSIS_HOST_IPV4}:8000/services
 ```
 
-You will see that there is a new route on response:
+You will get that same route you just created as a response:
 ```
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8

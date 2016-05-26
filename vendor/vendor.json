@@ -45,6 +45,12 @@
 			"revisionTime": "2016-05-02T19:55:12Z"
 		},
 		{
+			"checksumSHA1": "ckHchy6ZgN2CmidgE3kUHt0l88o=",
+			"path": "github.com/asdine/storm/codec/json",
+			"revision": "aa368eb56bec9675bbf249e55bd8cab6999621df",
+			"revisionTime": "2016-04-16T15:19:19Z"
+		},
+		{
 			"checksumSHA1": "U6q1LNcjj+5Q03+WfYM8lR2iOuA=",
 			"path": "github.com/boltdb/bolt",
 			"revision": "0fd4c0547d204c7b1cad6db6f3adad5f2cf453e5",
@@ -169,6 +175,18 @@
 			"path": "github.com/hashicorp/memberlist",
 			"revision": "cef12ad58224d55cf26caa9e3d239c2fcb3432a2",
 			"revisionTime": "2016-03-07T18:31:29Z"
+		},
+		{
+			"checksumSHA1": "VtTic+v0ztmSJxACa4gd0FRLeu4=",
+			"path": "github.com/hashicorp/raft",
+			"revision": "1c84b7ca86424d341b95457cf6da85fdb367c4f0",
+			"revisionTime": "2016-04-09T17:00:55Z"
+		},
+		{
+			"checksumSHA1": "QAxukkv54/iIvLfsUP6IK4R0m/A=",
+			"path": "github.com/hashicorp/raft-boltdb",
+			"revision": "d1e82c1ec3f15ee991f7cc7ffd5b67ff6f5bbaee",
+			"revisionTime": "2015-02-01T20:08:39Z"
 		},
 		{
 			"checksumSHA1": "oO8c5+ZEFssewIqvHJkGEXHV+i0=",

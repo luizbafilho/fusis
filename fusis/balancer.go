@@ -72,6 +72,8 @@ func NewBalancer() (*Balancer, error) {
 		panic(err)
 	}
 
+	go balancer.watchLeaderChanges()
+
 	return balancer, nil
 }
 
@@ -171,6 +173,17 @@ func (b *Balancer) JoinPool() error {
 	return nil
 }
 
+func (b *Balancer) watchLeaderChanges() {
+	for {
+		if <-b.raft.LeaderCh() {
+			b.flushVips()
+			b.setVips()
+		} else {
+			b.flushVips()
+		}
+	}
+}
+
 func (b *Balancer) handleEvents() {
 	for {
 		select {
@@ -192,6 +205,27 @@ func (b *Balancer) handleEvents() {
 				log.Warnf("Balancer: unhandled Serf Event: %#v", e)
 			}
 		}
+	}
+}
+
+func (b *Balancer) setVips() {
+	//TODO: error handling
+	svcs, err := GetServices()
+	if err != nil {
+		log.Error(err)
+	}
+
+	for _, s := range *svcs {
+		err := engine.AssignVIP(&s)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+}
+
+func (b *Balancer) flushVips() {
+	if err := fusis_net.DelVips(config.Balancer.Provider.Params["interface"]); err != nil {
+		panic(err)
 	}
 }
 

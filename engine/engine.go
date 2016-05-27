@@ -77,7 +77,7 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 	}
 
 	if e.Raft.State() == raft.Leader {
-		if err := assignVIP(svc); err != nil {
+		if err := AssignVIP(svc); err != nil {
 			return seq.RollbackAll()
 		}
 	}
@@ -104,7 +104,7 @@ func (e *Engine) applyDelService(svc *ipvs.Service) error {
 	return nil
 }
 
-func assignVIP(svc *ipvs.Service) error {
+func AssignVIP(svc *ipvs.Service) error {
 	prov, err := provider.GetProvider()
 	if err != nil {
 		return err

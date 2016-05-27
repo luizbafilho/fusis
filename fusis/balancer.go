@@ -119,8 +119,13 @@ func (b *Balancer) setupRaft() error {
 		raftConfig.DisableBootstrapAfterElect = false
 	}
 
+	ip, err := config.Balancer.GetIpByInterface()
+	if err != nil {
+		return err
+	}
+
 	// Setup Raft communication.
-	raftAddr := &net.TCPAddr{Port: config.Balancer.RaftPort}
+	raftAddr := &net.TCPAddr{IP: net.ParseIP(ip), Port: config.Balancer.RaftPort}
 	transport, err := raft.NewTCPTransport(raftAddr.String(), raftAddr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err

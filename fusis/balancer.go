@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -30,6 +31,7 @@ const (
 
 // Balancer represents the Load Balancer
 type Balancer struct {
+	sync.Mutex
 	eventCh chan serf.Event
 
 	serf *serf.Serf
@@ -52,6 +54,11 @@ func NewBalancer() (*Balancer, error) {
 		provider: prov,
 	}
 
+	//Initializes ipvs store (boltdb) and ipvs module
+	if err := ipvs.Init(); err != nil {
+		panic(err)
+	}
+
 	if err = balancer.setupRaft(); err != nil {
 		log.Errorln("Setuping Raft")
 		panic(err)
@@ -59,11 +66,6 @@ func NewBalancer() (*Balancer, error) {
 
 	if err = balancer.setupSerf(); err != nil {
 		log.Errorln("Setuping Serf")
-		panic(err)
-	}
-
-	//Initializes ipvs store (boltdb) and ipvs module
-	if err := ipvs.Init(); err != nil {
 		panic(err)
 	}
 

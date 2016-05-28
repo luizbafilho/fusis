@@ -122,29 +122,72 @@ func unassignVIP(svc *ipvs.Service) error {
 	return prov.UnassignVIP(*svc)
 }
 
-//Snapshot returns a snapshot of the key-value store.
+type fusisSnapshot struct {
+	Services *[]ipvs.Service
+}
+
 func (e *Engine) Snapshot() (raft.FSMSnapshot, error) {
-	logrus.Info("Chamando snapshot")
+	logrus.Info("Snapshotting Fusis State")
 	e.Lock()
 	defer e.Unlock()
 
-	return &fusisSnapshot{}, nil
+	services, err := ipvs.Store.GetServices()
+	if err != nil {
+		return nil, err
+	}
+
+	return &fusisSnapshot{services}, nil
 }
 
 // Restore stores the key-value store to a previous state.
 func (e *Engine) Restore(rc io.ReadCloser) error {
-	logrus.Info("Chamando restore")
+	logrus.Info("Restoring Fusis state")
+	var services []ipvs.Service
+	if err := json.NewDecoder(rc).Decode(&services); err != nil {
+		return err
+	}
+
+	// Set the state from the snapshot, no lock required according to
+	// Hashicorp docs.
+	for _, s := range services {
+		if err := e.applyAddService(&s); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-type fusisSnapshot struct {
-}
-
 func (f *fusisSnapshot) Persist(sink raft.SnapshotSink) error {
-	logrus.Info("Chamando persist")
+	logrus.Infoln("Persisting Fusis state")
+	err := func() error {
+		// Encode data.
+		b, err := json.Marshal(f.Services)
+		if err != nil {
+			return err
+		}
+
+		// Write data to sink.
+		if _, err := sink.Write(b); err != nil {
+			return err
+		}
+
+		// Close the sink.
+		if err := sink.Close(); err != nil {
+			return err
+		}
+
+		return nil
+	}()
+
+	if err != nil {
+		sink.Cancel()
+		return err
+	}
+
 	return nil
 }
 
 func (f *fusisSnapshot) Release() {
-	logrus.Info("Chamando release")
+	logrus.Info("Calling release")
 }

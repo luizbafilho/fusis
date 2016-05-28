@@ -16,6 +16,9 @@ func GetServices() (*[]ipvs.Service, error) {
 
 // AddService ...
 func (b *Balancer) AddService(svc *ipvs.Service) error {
+	b.Lock()
+	defer b.Unlock()
+
 	if err := b.provider.AllocateVIP(svc); err != nil {
 		return err
 	}

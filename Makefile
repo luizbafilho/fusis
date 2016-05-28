@@ -13,3 +13,6 @@ restore:
 	go get -u github.com/kardianos/govendor
 	govendor add +external
 	govendor sync
+
+clean:
+	sudo rm -rf /etc/fusis

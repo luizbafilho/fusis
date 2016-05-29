@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/asdine/storm"
 	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
@@ -16,10 +15,9 @@ import (
 
 // Engine ...
 type Engine struct {
-	Db *storm.DB
-
-	Raft *raft.Raft
 	sync.Mutex
+
+	CommandCh chan Command
 }
 
 // Represents possible actions on engine
@@ -40,7 +38,9 @@ type Command struct {
 
 // New creates a new Engine
 func New() *Engine {
-	return &Engine{}
+	return &Engine{
+		CommandCh: make(chan Command),
+	}
 }
 
 // Apply actions to fsm
@@ -57,11 +57,13 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 			logrus.Error(err)
 			return err
 		}
+		e.CommandCh <- c
 	case DelServiceOp:
 		if err := e.applyDelService(c.Service); err != nil {
 			logrus.Error(err)
 			return err
 		}
+		e.CommandCh <- c
 	}
 	return nil
 }
@@ -74,12 +76,6 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 
 	if err := seq.Execute(); err != nil {
 		return err
-	}
-
-	if e.Raft.State() == raft.Leader {
-		if err := AssignVIP(svc); err != nil {
-			return seq.RollbackAll()
-		}
 	}
 
 	return nil
@@ -95,16 +91,10 @@ func (e *Engine) applyDelService(svc *ipvs.Service) error {
 		return err
 	}
 
-	if e.Raft.State() == raft.Leader {
-		if err := unassignVIP(svc); err != nil {
-			return seq.RollbackAll()
-		}
-	}
-
 	return nil
 }
 
-func AssignVIP(svc *ipvs.Service) error {
+func (e *Engine) AssignVIP(svc *ipvs.Service) error {
 	prov, err := provider.GetProvider()
 	if err != nil {
 		return err
@@ -113,7 +103,7 @@ func AssignVIP(svc *ipvs.Service) error {
 	return prov.AssignVIP(*svc)
 }
 
-func unassignVIP(svc *ipvs.Service) error {
+func (e *Engine) UnassignVIP(svc *ipvs.Service) error {
 	prov, err := provider.GetProvider()
 	if err != nil {
 		return err

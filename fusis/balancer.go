@@ -158,8 +158,45 @@ func (b *Balancer) setupRaft() error {
 		return fmt.Errorf("new raft: %s", err)
 	}
 	b.raft = ra
-	engine.Raft = ra
+	b.engine = engine
+
+	go b.watchCommands()
+
 	return nil
+}
+
+func (b *Balancer) watchCommands() {
+	for {
+		select {
+		case c := <-b.engine.CommandCh:
+			switch c.Op {
+			case engine.AddServiceOp:
+				b.AssignVIP(c.Service)
+			case engine.DelServiceOp:
+				b.UnassignVIP(c.Service)
+			}
+		}
+	}
+}
+
+func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
+	if b.isLeader() {
+		if err := b.engine.UnassignVIP(svc); err != nil {
+			log.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
+		}
+	}
+}
+
+func (b *Balancer) AssignVIP(svc *ipvs.Service) {
+	if b.isLeader() {
+		if err := b.engine.AssignVIP(svc); err != nil {
+			log.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)
+		}
+	}
+}
+
+func (b *Balancer) isLeader() bool {
+	return b.raft.State() == raft.Leader
 }
 
 // JoinPool joins the Fusis Serf cluster
@@ -218,7 +255,7 @@ func (b *Balancer) setVips() {
 	}
 
 	for _, s := range *svcs {
-		err := engine.AssignVIP(&s)
+		err := b.engine.AssignVIP(&s)
 		if err != nil {
 			log.Error(err)
 		}

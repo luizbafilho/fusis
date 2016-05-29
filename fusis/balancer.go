@@ -231,15 +231,15 @@ func (b *Balancer) handleEvents() {
 			case serf.EventMemberJoin:
 				me := e.(serf.MemberEvent)
 				b.handleMemberJoin(me)
-			case serf.EventMemberFailed:
-				memberEvent := e.(serf.MemberEvent)
-				b.handleMemberLeave(memberEvent)
-			case serf.EventMemberLeave:
-				memberEvent := e.(serf.MemberEvent)
-				b.handleMemberLeave(memberEvent)
-			case serf.EventQuery:
-				query := e.(*serf.Query)
-				b.handleQuery(query)
+			// case serf.EventMemberFailed:
+			// 	memberEvent := e.(serf.MemberEvent)
+			// 	b.handleMemberLeave(memberEvent)
+			// case serf.EventMemberLeave:
+			// 	memberEvent := e.(serf.MemberEvent)
+			// 	b.handleMemberLeave(memberEvent)
+			// case serf.EventQuery:
+			// 	query := e.(*serf.Query)
+			// 	b.handleQuery(query)
 			default:
 				log.Warnf("Balancer: unhandled Serf Event: %#v", e)
 			}
@@ -299,7 +299,11 @@ func memberIsBalancer(m serf.Member) bool {
 
 func (b *Balancer) handleMemberLeave(member serf.MemberEvent) {
 	for _, m := range member.Members {
-		DeleteDestination(m.Name)
+		dst, err := GetDestination(m.Name)
+		if err != nil {
+			log.Errorln(err)
+		}
+		b.DeleteDestination(dst)
 	}
 }
 

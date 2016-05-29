@@ -7,7 +7,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/asdine/storm"
 	"github.com/boltdb/bolt"
-	"github.com/pborman/uuid"
 )
 
 func InitStore() error {
@@ -97,7 +96,6 @@ func (s *IpvsStore) DeleteService(svc *Service) error {
 }
 
 func (s *IpvsStore) AddDestination(dst *Destination) error {
-	dst.Id = uuid.New()
 	err := Store.db.Save(dst)
 	if err != nil {
 		log.Errorf("store.AddDestination failed: %v", err)

@@ -103,3 +103,31 @@ func (ad addDestinationIpvs) Do(prev steps.Result) (steps.Result, error) {
 func (ad addDestinationIpvs) Undo() error {
 	return ipvs.Kernel.DeleteDestination(*ad.Service.ToIpvsService(), *ad.Destination.ToIpvsDestination())
 }
+
+// Deleting Destination from store
+type deleteDestinationStore struct {
+	Service     *ipvs.Service
+	Destination *ipvs.Destination
+}
+
+func (dd deleteDestinationStore) Do(prev steps.Result) (steps.Result, error) {
+	err := ipvs.Store.DeleteDestination(dd.Destination)
+	return nil, err
+}
+func (dd deleteDestinationStore) Undo() error {
+	return ipvs.Store.AddDestination(dd.Destination)
+}
+
+// Deleting Destination from ipvs module
+type deleteDestinationIpvs struct {
+	Service     *ipvs.Service
+	Destination *ipvs.Destination
+}
+
+func (dd deleteDestinationIpvs) Do(prev steps.Result) (steps.Result, error) {
+	err := ipvs.Kernel.DeleteDestination(*dd.Service.ToIpvsService(), *dd.Destination.ToIpvsDestination())
+	return nil, err
+}
+func (dd deleteDestinationIpvs) Undo() error {
+	return ipvs.Kernel.AddDestination(*dd.Service.ToIpvsService(), *dd.Destination.ToIpvsDestination())
+}

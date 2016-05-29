@@ -83,6 +83,8 @@ func GetDestination(name string) (*ipvs.Destination, error) {
 }
 
 func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
+	dst.Id = uuid.New()
+
 	c := &engine.Command{
 		Op:          engine.AddDestinationOp,
 		Service:     svc,
@@ -102,22 +104,25 @@ func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) erro
 	return nil
 }
 
-func DeleteDestination(id string) error {
-	log.Infof("Deleting Destination: %v", id)
-	dst, err := ipvs.Store.GetDestination(id)
-	if err != nil {
-		return err
-	}
-
+func (b *Balancer) DeleteDestination(dst *ipvs.Destination) error {
 	svc, err := ipvs.Store.GetService(dst.ServiceId)
 	if err != nil {
 		return err
 	}
 
-	if err := ipvs.Store.DeleteDestination(dst); err != nil {
+	c := &engine.Command{
+		Op:          engine.DelDestinationOp,
+		Service:     svc,
+		Destination: dst,
+	}
+
+	bytes, err := json.Marshal(c)
+	if err != nil {
 		return err
 	}
-	if err := ipvs.Kernel.DeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
+
+	f := b.raft.Apply(bytes, raftTimeout)
+	if err, ok := f.(error); ok {
 		return err
 	}
 

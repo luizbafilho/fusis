@@ -70,6 +70,12 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 			return err
 		}
 		e.CommandCh <- c
+	case DelDestinationOp:
+		if err := e.applyDelDestination(c.Service, c.Destination); err != nil {
+			logrus.Error(err)
+			return err
+		}
+		e.CommandCh <- c
 	}
 	return nil
 }
@@ -107,6 +113,20 @@ func (e *Engine) applyAddDestination(svc *ipvs.Service, dst *ipvs.Destination) e
 	)
 
 	if err := seq.Execute(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *Engine) applyDelDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
+	seq := steps.NewSequence(
+		deleteDestinationStore{svc, dst},
+		deleteDestinationIpvs{svc, dst},
+	)
+
+	if err := seq.Execute(); err != nil {
+		logrus.Errorln("rolling back applyDelDestination()")
 		return err
 	}
 

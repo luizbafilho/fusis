@@ -124,7 +124,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 
 func (as ApiService) destinationDelete(c *gin.Context) {
 	destinationId := c.Param("destination_id")
-	_, err := fusis.GetDestination(destinationId)
+	dst, err := fusis.GetDestination(destinationId)
 
 	if err != nil {
 		if err == storm.ErrNotFound {
@@ -135,7 +135,7 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 		return
 	}
 
-	err = fusis.DeleteDestination(destinationId)
+	err = as.balancer.DeleteDestination(dst)
 
 	if err != nil {
 		c.JSON(422, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v\n", err)})

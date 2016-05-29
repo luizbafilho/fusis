@@ -113,7 +113,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	err = fusis.AddDestination(service, destination)
+	err = as.balancer.AddDestination(service, destination)
 
 	if err != nil {
 		c.JSON(422, gin.H{"error": fmt.Sprintf("UpsertDestination() failed: %v\n", err)})

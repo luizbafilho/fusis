@@ -82,13 +82,20 @@ func GetDestination(name string) (*ipvs.Destination, error) {
 	return ipvs.Store.GetDestination(name)
 }
 
-func AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
-	log.Infof("Adding Destination: %v", dst.Name)
-	if err := ipvs.Store.AddDestination(dst); err != nil {
+func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
+	c := &engine.Command{
+		Op:          engine.AddDestinationOp,
+		Service:     svc,
+		Destination: dst,
+	}
+
+	bytes, err := json.Marshal(c)
+	if err != nil {
 		return err
 	}
 
-	if err := ipvs.Kernel.AddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination()); err != nil {
+	f := b.raft.Apply(bytes, raftTimeout)
+	if err, ok := f.(error); ok {
 		return err
 	}
 

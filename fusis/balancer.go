@@ -304,23 +304,23 @@ func (b *Balancer) handleMemberLeave(member serf.MemberEvent) {
 }
 
 func (b *Balancer) handleQuery(query *serf.Query) {
-	payload := query.Payload
-
-	var dst ipvs.Destination
-	err := json.Unmarshal(payload, &dst)
-	if err != nil {
-		log.Errorf("Balancer: Unable to Unmarshal: %s", payload)
-	}
-
-	svc, err := GetService(dst.ServiceId)
-	if err != nil {
-		panic(err)
-	}
-
-	err = AddDestination(svc, &dst)
-	if err != nil {
-		panic(err)
-	}
+	// payload := query.Payload
+	//
+	// var dst ipvs.Destination
+	// err := json.Unmarshal(payload, &dst)
+	// if err != nil {
+	// 	log.Errorf("Balancer: Unable to Unmarshal: %s", payload)
+	// }
+	//
+	// svc, err := GetService(dst.ServiceId)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//
+	// err = AddDestination(svc, &dst)
+	// if err != nil {
+	// 	panic(err)
+	// }
 }
 
 func readPeersJSON(path string) ([]string, error) {

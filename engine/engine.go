@@ -64,6 +64,12 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 			return err
 		}
 		e.CommandCh <- c
+	case AddDestinationOp:
+		if err := e.applyAddDestination(c.Service, c.Destination); err != nil {
+			logrus.Error(err)
+			return err
+		}
+		e.CommandCh <- c
 	}
 	return nil
 }
@@ -85,6 +91,19 @@ func (e *Engine) applyDelService(svc *ipvs.Service) error {
 	seq := steps.NewSequence(
 		deleteServiceIpvs{svc},
 		deleteServiceStore{svc},
+	)
+
+	if err := seq.Execute(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *Engine) applyAddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
+	seq := steps.NewSequence(
+		addDestinationStore{svc, dst},
+		addDestinationIpvs{svc, dst},
 	)
 
 	if err := seq.Execute(); err != nil {

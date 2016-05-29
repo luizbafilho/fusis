@@ -77,24 +77,29 @@ func (ds deleteServiceIpvs) Undo() error {
 	return ipvs.Kernel.AddService(ds.Service.ToIpvsService())
 }
 
-//Unsetting vip
-type unsetVip struct {
-	Service *ipvs.Service
+type addDestinationStore struct {
+	Service     *ipvs.Service
+	Destination *ipvs.Destination
 }
 
-func (uv unsetVip) Do(prev steps.Result) (steps.Result, error) {
-	prov, err := provider.GetProvider()
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, prov.ReleaseVIP(*uv.Service)
+func (ad addDestinationStore) Do(prev steps.Result) (steps.Result, error) {
+	ad.Destination.ServiceId = ad.Service.GetId()
+	return nil, ipvs.Store.AddDestination(ad.Destination)
 }
-func (uv unsetVip) Undo() error {
-	prov, err := provider.GetProvider()
-	if err != nil {
-		return err
-	}
 
-	return prov.AllocateVIP(uv.Service)
+func (ad addDestinationStore) Undo() error {
+	return ipvs.Store.DeleteDestination(ad.Destination)
+}
+
+type addDestinationIpvs struct {
+	Service     *ipvs.Service
+	Destination *ipvs.Destination
+}
+
+func (ad addDestinationIpvs) Do(prev steps.Result) (steps.Result, error) {
+	return nil, ipvs.Kernel.AddDestination(*ad.Service.ToIpvsService(), *ad.Destination.ToIpvsDestination())
+}
+
+func (ad addDestinationIpvs) Undo() error {
+	return ipvs.Kernel.DeleteDestination(*ad.Service.ToIpvsService(), *ad.Destination.ToIpvsDestination())
 }

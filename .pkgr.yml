@@ -1,0 +1,19 @@
+buildpack: https://github.com/heroku/heroku-buildpack-go#master
+default_dependencies: false
+dependencies:
+- libnl-3-dev
+- libnl-genl-3-dev
+build_dependencies:
+- libnl-3-dev
+- libnl-genl-3-dev
+
+targets:
+  ubuntu-14.04:
+  debian-7:
+  centos-6:
+    build_dependencies:
+    - libnl3
+    - libnl3-devel
+    dependencies:
+    - libnl3
+    - libnl3-devel

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/asdine/storm"
-	"github.com/luizbafilho/fusis/db"
 	"github.com/luizbafilho/fusis/ipvs"
 
 	. "gopkg.in/check.v1"

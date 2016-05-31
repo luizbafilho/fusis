@@ -182,6 +182,12 @@ func (e *Engine) Restore(rc io.ReadCloser) error {
 		if err := e.applyAddService(&s); err != nil {
 			return err
 		}
+
+		for _, d := range s.Destinations {
+			if err := e.applyAddDestination(&s, &d); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

@@ -1,5 +1,11 @@
 package steps
 
+import (
+	"reflect"
+
+	"github.com/Sirupsen/logrus"
+)
+
 // Result is the value returned by Forward. It is used in the call of the next
 // action, and also when rolling back the actions.
 type Result interface{}
@@ -23,12 +29,14 @@ func (s *Sequence) Execute() error {
 	var prevResult Result
 	prevResult, err := s.Steps[0].Do(nil)
 	if err != nil {
+		logrus.Errorf("Error on %v. Err: %v", reflect.TypeOf(s.Steps[0]), err)
 		return err
 	}
 
 	for k, step := range s.Steps[1:] {
 		prevResult, err = step.Do(prevResult)
 		if err != nil {
+			logrus.Errorf("Error on %v. Err: %v", reflect.TypeOf(step), err)
 			s.rollback(k)
 			return err
 		}

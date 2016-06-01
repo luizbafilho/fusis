@@ -10,8 +10,9 @@ import (
 )
 
 // GetServices get all services
-func GetServices() (*[]ipvs.Service, error) {
-	return ipvs.Store.GetServices()
+func (b *Balancer) GetServices() (*[]ipvs.Service, error) {
+	// return ipvs.Store.GetServices()
+	return b.Engine.State.GetServices(), nil
 }
 
 // AddService ...

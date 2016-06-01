@@ -37,7 +37,7 @@ type Balancer struct {
 	serf *serf.Serf
 	raft *raft.Raft // The consensus mechanism
 
-	engine   *engine.Engine
+	Engine   *engine.Engine
 	provider provider.Provider
 }
 
@@ -158,7 +158,7 @@ func (b *Balancer) setupRaft() error {
 		return fmt.Errorf("new raft: %s", err)
 	}
 	b.raft = ra
-	b.engine = engine
+	b.Engine = engine
 
 	go b.watchCommands()
 
@@ -168,7 +168,7 @@ func (b *Balancer) setupRaft() error {
 func (b *Balancer) watchCommands() {
 	for {
 		select {
-		case c := <-b.engine.CommandCh:
+		case c := <-b.Engine.CommandCh:
 			switch c.Op {
 			case engine.AddServiceOp:
 				b.AssignVIP(c.Service)
@@ -181,7 +181,7 @@ func (b *Balancer) watchCommands() {
 
 func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 	if b.isLeader() {
-		if err := b.engine.UnassignVIP(svc); err != nil {
+		if err := b.Engine.UnassignVIP(svc); err != nil {
 			log.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
@@ -189,7 +189,7 @@ func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 
 func (b *Balancer) AssignVIP(svc *ipvs.Service) {
 	if b.isLeader() {
-		if err := b.engine.AssignVIP(svc); err != nil {
+		if err := b.Engine.AssignVIP(svc); err != nil {
 			log.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
@@ -249,13 +249,14 @@ func (b *Balancer) handleEvents() {
 
 func (b *Balancer) setVips() {
 	//TODO: error handling
-	svcs, err := GetServices()
-	if err != nil {
-		log.Error(err)
-	}
+	// svcs, err := b.Engine.State.GetServices()
+	// if err != nil {
+	// 	log.Error(err)
+	// }
+	svcs := b.Engine.State.GetServices()
 
 	for _, s := range *svcs {
-		err := b.engine.AssignVIP(&s)
+		err := b.Engine.AssignVIP(&s)
 		if err != nil {
 			log.Error(err)
 		}

@@ -17,6 +17,7 @@ import (
 type Engine struct {
 	sync.Mutex
 
+	State     ipvs.State
 	CommandCh chan Command
 }
 
@@ -40,6 +41,7 @@ type Command struct {
 func New() *Engine {
 	return &Engine{
 		CommandCh: make(chan Command),
+		State:     ipvs.NewFusisState(),
 	}
 }
 
@@ -81,14 +83,11 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 }
 
 func (e *Engine) applyAddService(svc *ipvs.Service) error {
-	seq := steps.NewSequence(
-		addServiceStore{svc},
-		addServiceIpvs{svc},
-	)
-
-	if err := seq.Execute(); err != nil {
+	if err := ipvs.Kernel.AddService(svc.ToIpvsService()); err != nil {
 		return err
 	}
+
+	e.State.AddService(svc)
 
 	return nil
 }

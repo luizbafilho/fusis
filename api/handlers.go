@@ -12,12 +12,12 @@ import (
 )
 
 func (as ApiService) serviceList(c *gin.Context) {
-	services, err := fusis.GetServices()
+	services := as.balancer.Engine.State.GetServices()
 
-	if err != nil {
-		c.JSON(422, gin.H{"error": fmt.Sprintf("GetServices() failed: %v", err)})
-		return
-	}
+	// if err != nil {
+	// 	c.JSON(422, gin.H{"error": fmt.Sprintf("GetServices() failed: %v", err)})
+	// 	return
+	// }
 
 	c.JSON(http.StatusOK, services)
 }

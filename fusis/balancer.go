@@ -295,7 +295,7 @@ func memberIsBalancer(m serf.Member) bool {
 
 func (b *Balancer) handleMemberLeave(member serf.MemberEvent) {
 	for _, m := range member.Members {
-		dst, err := GetDestination(m.Name)
+		dst, err := b.GetDestination(m.Name)
 		if err != nil {
 			log.Errorln(err)
 		}

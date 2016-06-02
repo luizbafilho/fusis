@@ -12,10 +12,10 @@ type State interface {
 	GetService(name string) (*Service, error)
 	AddService(svc *Service)
 	DeleteService(svc *Service)
-	//
-	// GetDestination(name string) *Destination
-	// AddDestination(dst *Destination) error
-	// DeleteDestination(dst *Destination) error
+
+	GetDestination(name string) (*Destination, error)
+	AddDestination(dst *Destination)
+	DeleteDestination(dst *Destination)
 }
 
 type FusisState struct {
@@ -34,6 +34,7 @@ func NewFusisState() *FusisState {
 func (s *FusisState) GetServices() *[]Service {
 	services := []Service{}
 	for _, v := range s.Services {
+		s.getDestinations(&v)
 		services = append(services, v)
 	}
 
@@ -41,13 +42,27 @@ func (s *FusisState) GetServices() *[]Service {
 }
 
 func (s *FusisState) GetService(name string) (*Service, error) {
-	srv := s.Services[name]
+	svc := s.Services[name]
 
-	if srv.Name == "" {
+	if svc.Name == "" {
 		return nil, ErrNotFound
 	}
 
-	return &srv, nil
+	s.getDestinations(&svc)
+
+	return &svc, nil
+}
+
+func (s *FusisState) getDestinations(svc *Service) {
+	dsts := []Destination{}
+
+	for _, d := range s.Destinations {
+		if d.ServiceId == svc.GetId() {
+			dsts = append(dsts, d)
+		}
+	}
+
+	svc.Destinations = dsts
 }
 
 func (s *FusisState) AddService(svc *Service) {
@@ -62,4 +77,28 @@ func (s *FusisState) DeleteService(svc *Service) {
 	defer s.Unlock()
 
 	delete(s.Services, svc.GetId())
+}
+
+func (s *FusisState) GetDestination(name string) (*Destination, error) {
+	dst := s.Destinations[name]
+
+	if dst.Name == "" {
+		return nil, ErrNotFound
+	}
+
+	return &dst, nil
+}
+
+func (s *FusisState) AddDestination(dst *Destination) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.Destinations[dst.GetId()] = *dst
+}
+
+func (s *FusisState) DeleteDestination(dst *Destination) {
+	s.Lock()
+	defer s.Unlock()
+
+	delete(s.Destinations, dst.GetId())
 }

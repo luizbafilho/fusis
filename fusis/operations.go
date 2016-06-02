@@ -78,8 +78,8 @@ func (b *Balancer) DeleteService(name string) error {
 	return nil
 }
 
-func GetDestination(name string) (*ipvs.Destination, error) {
-	return ipvs.Store.GetDestination(name)
+func (b *Balancer) GetDestination(name string) (*ipvs.Destination, error) {
+	return b.engine.State.GetDestination(name)
 }
 
 func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {

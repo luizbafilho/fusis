@@ -5,9 +5,7 @@ import (
 	"net/http"
 
 	"github.com/asaskevich/govalidator"
-	"github.com/asdine/storm"
 	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/fusis/fusis"
 	"github.com/luizbafilho/fusis/ipvs"
 )
 
@@ -119,10 +117,10 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 
 func (as ApiService) destinationDelete(c *gin.Context) {
 	destinationId := c.Param("destination_id")
-	dst, err := fusis.GetDestination(destinationId)
+	dst, err := as.balancer.GetDestination(destinationId)
 
 	if err != nil {
-		if err == storm.ErrNotFound {
+		if err == ipvs.ErrNotFound {
 			c.JSON(404, gin.H{"error": fmt.Sprint("Destination not found")})
 		} else {
 			c.JSON(422, gin.H{"error": fmt.Sprintf("GetDestination() failed: %v", err)})

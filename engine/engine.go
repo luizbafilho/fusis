@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
-	"github.com/luizbafilho/fusis/steps"
 )
 
 // Engine ...
@@ -111,28 +110,23 @@ func (e *Engine) applyDelService(svc *ipvs.Service) error {
 }
 
 func (e *Engine) applyAddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
-	seq := steps.NewSequence(
-		addDestinationStore{svc, dst},
-		addDestinationIpvs{svc, dst},
-	)
-
-	if err := seq.Execute(); err != nil {
-		return err
+	err := ipvs.Kernel.AddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
+	if err != nil {
+		return nil
 	}
+
+	e.State.AddDestination(dst)
 
 	return nil
 }
 
 func (e *Engine) applyDelDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
-	seq := steps.NewSequence(
-		deleteDestinationStore{svc, dst},
-		deleteDestinationIpvs{svc, dst},
-	)
-
-	if err := seq.Execute(); err != nil {
-		logrus.Errorln("rolling back applyDelDestination()")
-		return err
+	err := ipvs.Kernel.DeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
+	if err != nil {
+		return nil
 	}
+
+	e.State.DeleteDestination(dst)
 
 	return nil
 }

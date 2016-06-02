@@ -12,22 +12,17 @@ import (
 )
 
 func (as ApiService) serviceList(c *gin.Context) {
-	services := as.balancer.Engine.State.GetServices()
-
-	// if err != nil {
-	// 	c.JSON(422, gin.H{"error": fmt.Sprintf("GetServices() failed: %v", err)})
-	// 	return
-	// }
+	services := as.balancer.GetServices()
 
 	c.JSON(http.StatusOK, services)
 }
 
 func (as ApiService) serviceGet(c *gin.Context) {
 	serviceId := c.Param("service_id")
-	service, err := fusis.GetService(serviceId)
+	service, err := as.balancer.GetService(serviceId)
 
 	if err != nil {
-		if err == storm.ErrNotFound {
+		if err == ipvs.ErrNotFound {
 			c.JSON(404, gin.H{"error": fmt.Sprintf("GetService(): %v", err)})
 		} else {
 			c.JSON(422, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
@@ -69,10 +64,10 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 
 func (as ApiService) serviceDelete(c *gin.Context) {
 	serviceId := c.Param("service_id")
-	_, err := fusis.GetService(serviceId)
+	_, err := as.balancer.GetService(serviceId)
 
 	if err != nil {
-		if err == storm.ErrNotFound {
+		if err == ipvs.ErrNotFound {
 			c.JSON(404, gin.H{"error": fmt.Sprint("Service not found")})
 		} else {
 			c.JSON(422, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
@@ -91,7 +86,7 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 
 func (as ApiService) destinationCreate(c *gin.Context) {
 	serviceId := c.Param("service_id")
-	service, err := fusis.GetService(serviceId)
+	service, err := as.balancer.GetService(serviceId)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return

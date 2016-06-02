@@ -16,7 +16,6 @@ import (
 	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
 	fusis_net "github.com/luizbafilho/fusis/net"
-	"github.com/luizbafilho/fusis/provider"
 	_ "github.com/luizbafilho/fusis/provider/none" // to intialize
 
 	"github.com/hashicorp/raft"
@@ -37,21 +36,20 @@ type Balancer struct {
 	serf *serf.Serf
 	raft *raft.Raft // The consensus mechanism
 
-	Engine   *engine.Engine
-	provider provider.Provider
+	engine *engine.Engine
 }
 
 // NewBalancer initializes a new balancer
 //TODO: Graceful shutdown on initialization errors
 func NewBalancer() (*Balancer, error) {
-	prov, err := provider.GetProvider()
+	engine, err := engine.New()
 	if err != nil {
 		return nil, err
 	}
 
 	balancer := &Balancer{
-		eventCh:  make(chan serf.Event, 64),
-		provider: prov,
+		eventCh: make(chan serf.Event, 64),
+		engine:  engine,
 	}
 
 	//Initializes ipvs store (boltdb) and ipvs module
@@ -150,15 +148,12 @@ func (b *Balancer) setupRaft() error {
 		return fmt.Errorf("new bolt store: %s", err)
 	}
 
-	engine := engine.New()
-
 	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(raftConfig, engine, logStore, logStore, snapshots, peerStore, transport)
+	ra, err := raft.NewRaft(raftConfig, b.engine, logStore, logStore, snapshots, peerStore, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
 	b.raft = ra
-	b.Engine = engine
 
 	go b.watchCommands()
 
@@ -168,7 +163,7 @@ func (b *Balancer) setupRaft() error {
 func (b *Balancer) watchCommands() {
 	for {
 		select {
-		case c := <-b.Engine.CommandCh:
+		case c := <-b.engine.CommandCh:
 			switch c.Op {
 			case engine.AddServiceOp:
 				b.AssignVIP(c.Service)
@@ -181,7 +176,7 @@ func (b *Balancer) watchCommands() {
 
 func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 	if b.isLeader() {
-		if err := b.Engine.UnassignVIP(svc); err != nil {
+		if err := b.engine.UnassignVIP(svc); err != nil {
 			log.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
@@ -189,7 +184,7 @@ func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 
 func (b *Balancer) AssignVIP(svc *ipvs.Service) {
 	if b.isLeader() {
-		if err := b.Engine.AssignVIP(svc); err != nil {
+		if err := b.engine.AssignVIP(svc); err != nil {
 			log.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
@@ -249,14 +244,14 @@ func (b *Balancer) handleEvents() {
 
 func (b *Balancer) setVips() {
 	//TODO: error handling
-	// svcs, err := b.Engine.State.GetServices()
+	// svcs, err := b.engine.State.GetServices()
 	// if err != nil {
 	// 	log.Error(err)
 	// }
-	svcs := b.Engine.State.GetServices()
+	svcs := b.engine.State.GetServices()
 
 	for _, s := range *svcs {
-		err := b.Engine.AssignVIP(&s)
+		err := b.engine.AssignVIP(&s)
 		if err != nil {
 			log.Error(err)
 		}

@@ -10,9 +10,8 @@ import (
 )
 
 // GetServices get all services
-func (b *Balancer) GetServices() (*[]ipvs.Service, error) {
-	// return ipvs.Store.GetServices()
-	return b.Engine.State.GetServices(), nil
+func (b *Balancer) GetServices() *[]ipvs.Service {
+	return b.engine.State.GetServices()
 }
 
 // AddService ...
@@ -20,7 +19,7 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 	b.Lock()
 	defer b.Unlock()
 
-	if err := b.provider.AllocateVIP(svc); err != nil {
+	if err := b.engine.Provider.AllocateVIP(svc); err != nil {
 		return err
 	}
 
@@ -38,7 +37,7 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 
 	f := b.raft.Apply(bytes, raftTimeout)
 	if err, ok := f.(error); ok {
-		if err := b.provider.ReleaseVIP(*svc); err != nil {
+		if err := b.engine.Provider.ReleaseVIP(*svc); err != nil {
 			return err
 		}
 
@@ -49,14 +48,14 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 }
 
 //GetService get a service
-func GetService(id string) (*ipvs.Service, error) {
-	return ipvs.Store.GetService(id)
+func (b *Balancer) GetService(name string) (*ipvs.Service, error) {
+	return b.engine.State.GetService(name)
 }
 
-func (b *Balancer) DeleteService(id string) error {
-	log.Infof("Deleting Service: %v", id)
+func (b *Balancer) DeleteService(name string) error {
+	log.Infof("Deleting Service: %v", name)
 
-	svc, err := ipvs.Store.GetService(id)
+	svc, err := b.GetService(name)
 	if err != nil {
 		return err
 	}
@@ -106,7 +105,7 @@ func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) erro
 }
 
 func (b *Balancer) DeleteDestination(dst *ipvs.Destination) error {
-	svc, err := ipvs.Store.GetService(dst.ServiceId)
+	svc, err := b.GetService(dst.ServiceId)
 	if err != nil {
 		return err
 	}

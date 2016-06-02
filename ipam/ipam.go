@@ -5,29 +5,32 @@ import (
 	"github.com/mikioh/ipaddr"
 )
 
-var rangeCursor *ipaddr.Cursor
+type Ipam struct {
+	rangeCursor *ipaddr.Cursor
+	state       ipvs.State
+}
 
 //Init initilizes ipam module
-func Init(iprange string) error {
-	var err error
-	rangeCursor, err = ipaddr.Parse(iprange)
+func New(iprange string, state ipvs.State) (*Ipam, error) {
+	// var err error
+	rangeCursor, err := ipaddr.Parse(iprange)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &Ipam{rangeCursor, state}, nil
 }
 
 //Allocate allocates a new avaliable ip
-func Allocate() (string, error) {
-	for pos := rangeCursor.Next(); pos != nil; pos = rangeCursor.Next() {
-		assigned, err := ipIsAssigned(pos.IP.String())
+func (i *Ipam) Allocate() (string, error) {
+	for pos := i.rangeCursor.Next(); pos != nil; pos = i.rangeCursor.Next() {
+		assigned, err := i.ipIsAssigned(pos.IP.String())
 		if err != nil {
 			return "", err
 		}
 
 		if !assigned {
-			rangeCursor.Set(rangeCursor.First())
+			i.rangeCursor.Set(i.rangeCursor.First())
 			return pos.IP.String(), nil
 		}
 	}
@@ -36,13 +39,10 @@ func Allocate() (string, error) {
 }
 
 //Release releases a allocated IP
-func Release(allocIP string) {}
+func (i *Ipam) Release(allocIP string) {}
 
-func ipIsAssigned(e string) (bool, error) {
-	services, err := ipvs.Store.GetServices()
-	if err != nil {
-		return false, err
-	}
+func (i *Ipam) ipIsAssigned(e string) (bool, error) {
+	services := i.state.GetServices()
 
 	for _, a := range *services {
 		if a.Host == e {

@@ -18,6 +18,7 @@ type Engine struct {
 	sync.Mutex
 
 	State     ipvs.State
+	Provider  provider.Provider
 	CommandCh chan Command
 }
 
@@ -38,11 +39,19 @@ type Command struct {
 }
 
 // New creates a new Engine
-func New() *Engine {
+func New() (*Engine, error) {
+	state := ipvs.NewFusisState()
+
+	provider, err := provider.New(state)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Engine{
 		CommandCh: make(chan Command),
-		State:     ipvs.NewFusisState(),
-	}
+		State:     state,
+		Provider:  provider,
+	}, nil
 }
 
 // Apply actions to fsm
@@ -93,15 +102,11 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 }
 
 func (e *Engine) applyDelService(svc *ipvs.Service) error {
-	seq := steps.NewSequence(
-		deleteServiceIpvs{svc},
-		deleteServiceStore{svc},
-	)
-
-	if err := seq.Execute(); err != nil {
+	if err := ipvs.Kernel.DeleteService(svc.ToIpvsService()); err != nil {
 		return err
 	}
 
+	e.State.DeleteService(svc)
 	return nil
 }
 
@@ -133,21 +138,11 @@ func (e *Engine) applyDelDestination(svc *ipvs.Service, dst *ipvs.Destination) e
 }
 
 func (e *Engine) AssignVIP(svc *ipvs.Service) error {
-	prov, err := provider.GetProvider()
-	if err != nil {
-		return err
-	}
-
-	return prov.AssignVIP(*svc)
+	return e.Provider.AssignVIP(*svc)
 }
 
 func (e *Engine) UnassignVIP(svc *ipvs.Service) error {
-	prov, err := provider.GetProvider()
-	if err != nil {
-		return err
-	}
-
-	return prov.UnassignVIP(*svc)
+	return e.Provider.UnassignVIP(*svc)
 }
 
 type fusisSnapshot struct {

@@ -11,6 +11,7 @@ import (
 type None struct {
 	Interface string
 	VipRange  string
+	Ipam      *ipam.Ipam
 }
 
 func init() {
@@ -25,12 +26,19 @@ func new() provider.Provider {
 	}
 }
 
-func (n None) Initialize() error {
-	return ipam.Init(n.VipRange)
+func (n *None) Initialize(state ipvs.State) error {
+	i, err := ipam.New(n.VipRange, state)
+	if err != nil {
+		return err
+	}
+
+	n.Ipam = i
+
+	return nil
 }
 
 func (n None) AllocateVIP(s *ipvs.Service) error {
-	ip, err := ipam.Allocate()
+	ip, err := n.Ipam.Allocate()
 	if err != nil {
 		return err
 	}
@@ -40,7 +48,7 @@ func (n None) AllocateVIP(s *ipvs.Service) error {
 }
 
 func (n None) ReleaseVIP(s ipvs.Service) error {
-	ipam.Release(s.Host)
+	n.Ipam.Release(s.Host)
 	return nil
 }
 

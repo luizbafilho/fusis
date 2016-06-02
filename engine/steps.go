@@ -2,7 +2,6 @@ package engine
 
 import (
 	"github.com/luizbafilho/fusis/ipvs"
-	"github.com/luizbafilho/fusis/provider"
 	"github.com/luizbafilho/fusis/steps"
 )
 
@@ -29,28 +28,6 @@ func (as addServiceIpvs) Do(prev steps.Result) (steps.Result, error) {
 
 func (as addServiceIpvs) Undo() error {
 	return ipvs.Kernel.DeleteService(as.Service.ToIpvsService())
-}
-
-//Allocating a VIP and setting it to the network interface
-type setVip struct {
-	Service *ipvs.Service
-}
-
-func (sv setVip) Do(prev steps.Result) (steps.Result, error) {
-	prov, err := provider.GetProvider()
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, prov.AssignVIP(*sv.Service)
-}
-func (sv setVip) Undo() error {
-	prov, err := provider.GetProvider()
-	if err != nil {
-		return err
-	}
-
-	return prov.UnassignVIP(*sv.Service)
 }
 
 // Deleting service from store

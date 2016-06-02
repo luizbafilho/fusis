@@ -15,7 +15,7 @@ type Provider interface {
 }
 
 type InitializableProvider interface {
-	Initialize() error
+	Initialize(state ipvs.State) error
 }
 
 var ErrProviderNotRegistered = errors.New("Provider not registered")
@@ -29,7 +29,7 @@ func RegisterProviderFactory(ptype string, fac providerFactory) {
 	providerFactories[ptype] = fac
 }
 
-func GetProvider() (Provider, error) {
+func New(state ipvs.State) (Provider, error) {
 	providerName := config.Balancer.Provider.Type
 
 	instance, ok := providerInstances[providerName]
@@ -41,7 +41,7 @@ func GetProvider() (Provider, error) {
 
 		instance = factory()
 		if init, ok := instance.(InitializableProvider); ok {
-			if err := init.Initialize(); err != nil {
+			if err := init.Initialize(state); err != nil {
 				return nil, err
 			}
 		}

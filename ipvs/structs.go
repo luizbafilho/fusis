@@ -126,10 +126,10 @@ func (s Service) ValidateUniqueness() (bool, error) {
 }
 
 func (s Service) presentInStore() bool {
-	svc, _ := Store.GetService(s.Name)
-	if svc != nil {
-		return true
-	}
+	// svc, _ := Store.GetService(s.Name)
+	// if svc != nil {
+	// 	return true
+	// }
 
 	return false
 }
@@ -156,10 +156,10 @@ func (d Destination) ValidateUniqueness(svc *Service) (bool, error) {
 }
 
 func (d Destination) presentInStore() bool {
-	dst, _ := Store.GetDestination(d.Name)
-	if dst != nil {
-		return true
-	}
+	// dst, _ := Store.GetDestination(d.Name)
+	// if dst != nil {
+	// 	return true
+	// }
 
 	return false
 }

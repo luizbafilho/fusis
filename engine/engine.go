@@ -148,10 +148,7 @@ func (e *Engine) Snapshot() (raft.FSMSnapshot, error) {
 	e.Lock()
 	defer e.Unlock()
 
-	services, err := ipvs.Store.GetServices()
-	if err != nil {
-		return nil, err
-	}
+	services := e.State.GetServices()
 
 	return &fusisSnapshot{services}, nil
 }

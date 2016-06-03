@@ -135,10 +135,10 @@ func (s Service) presentInStore() bool {
 }
 
 func (s Service) presentInKernel() bool {
-	svc, _ := Kernel.GetService(s.ToIpvsService())
-	if svc != nil {
-		return true
-	}
+	// svc, _ := Kernel.GetService(s.ToIpvsService())
+	// if svc != nil {
+	// 	return true
+	// }
 
 	return false
 }
@@ -165,13 +165,13 @@ func (d Destination) presentInStore() bool {
 }
 
 func (d Destination) presentInKernel(svc *Service) bool {
-	dsts, _ := Kernel.GetDestinations(svc.ToIpvsService())
-	for _, dst := range dsts {
-		if dst.Equal(*d.ToIpvsDestination()) {
-			return true
-		}
-	}
-
+	// dsts, _ := Kernel.GetDestinations(svc.ToIpvsService())
+	// for _, dst := range dsts {
+	// 	if dst.Equal(*d.ToIpvsDestination()) {
+	// 		return true
+	// 	}
+	// }
+	//
 	return false
 }
 

@@ -16,6 +16,7 @@ import (
 type Engine struct {
 	sync.Mutex
 
+	Ipvs      *ipvs.Ipvs
 	State     ipvs.State
 	Provider  provider.Provider
 	CommandCh chan Command
@@ -50,6 +51,7 @@ func New() (*Engine, error) {
 		CommandCh: make(chan Command),
 		State:     state,
 		Provider:  provider,
+		Ipvs:      ipvs.New(),
 	}, nil
 }
 
@@ -91,7 +93,7 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 }
 
 func (e *Engine) applyAddService(svc *ipvs.Service) error {
-	if err := ipvs.Kernel.AddService(svc.ToIpvsService()); err != nil {
+	if err := e.Ipvs.AddService(svc.ToIpvsService()); err != nil {
 		return err
 	}
 
@@ -101,7 +103,7 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 }
 
 func (e *Engine) applyDelService(svc *ipvs.Service) error {
-	if err := ipvs.Kernel.DeleteService(svc.ToIpvsService()); err != nil {
+	if err := e.Ipvs.DeleteService(svc.ToIpvsService()); err != nil {
 		return err
 	}
 
@@ -110,7 +112,7 @@ func (e *Engine) applyDelService(svc *ipvs.Service) error {
 }
 
 func (e *Engine) applyAddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
-	err := ipvs.Kernel.AddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
+	err := e.Ipvs.AddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
 	if err != nil {
 		return nil
 	}
@@ -121,7 +123,7 @@ func (e *Engine) applyAddDestination(svc *ipvs.Service, dst *ipvs.Destination) e
 }
 
 func (e *Engine) applyDelDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
-	err := ipvs.Kernel.DeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
+	err := e.Ipvs.DeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
 	if err != nil {
 		return nil
 	}

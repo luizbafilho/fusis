@@ -52,24 +52,17 @@ func NewBalancer() (*Balancer, error) {
 		engine:  engine,
 	}
 
-	//Initializes ipvs store (boltdb) and ipvs module
-	if err := ipvs.Init(); err != nil {
-		panic(err)
-	}
-
 	if err = balancer.setupRaft(); err != nil {
-		log.Errorln("Setuping Raft")
-		panic(err)
+		log.Fatalf("Setuping Raft", err)
 	}
 
 	if err = balancer.setupSerf(); err != nil {
-		log.Errorln("Setuping Serf")
-		panic(err)
+		log.Fatalf("Setuping Serf", err)
 	}
 
 	// Flushing all VIPs on the network interface
 	if err := fusis_net.DelVips(config.Balancer.Provider.Params["interface"]); err != nil {
-		panic(err)
+		log.Fatalf("Fusis wasn't capable of cleanup network vips. Err: %v", err)
 	}
 
 	go balancer.watchLeaderChanges()
@@ -208,6 +201,8 @@ func (b *Balancer) JoinPool() error {
 }
 
 func (b *Balancer) watchLeaderChanges() {
+	log.Infof("Watching to Leader changes")
+
 	for {
 		if <-b.raft.LeaderCh() {
 			b.flushVips()

@@ -2,7 +2,6 @@ package none
 
 import (
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/provider"
@@ -11,7 +10,7 @@ import (
 type None struct {
 	Interface string
 	VipRange  string
-	Ipam      *ipam.Ipam
+	ipam      *Ipam
 }
 
 func init() {
@@ -27,18 +26,18 @@ func new() provider.Provider {
 }
 
 func (n *None) Initialize(state ipvs.State) error {
-	i, err := ipam.New(n.VipRange, state)
+	i, err := NewIpam(n.VipRange, state)
 	if err != nil {
 		return err
 	}
 
-	n.Ipam = i
+	n.ipam = i
 
 	return nil
 }
 
 func (n None) AllocateVIP(s *ipvs.Service) error {
-	ip, err := n.Ipam.Allocate()
+	ip, err := n.ipam.Allocate()
 	if err != nil {
 		return err
 	}
@@ -48,7 +47,7 @@ func (n None) AllocateVIP(s *ipvs.Service) error {
 }
 
 func (n None) ReleaseVIP(s ipvs.Service) error {
-	n.Ipam.Release(s.Host)
+	n.ipam.Release(s.Host)
 	return nil
 }
 

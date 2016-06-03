@@ -1,4 +1,4 @@
-package ipam
+package none
 
 import (
 	"github.com/luizbafilho/fusis/ipvs"
@@ -11,7 +11,7 @@ type Ipam struct {
 }
 
 //Init initilizes ipam module
-func New(iprange string, state ipvs.State) (*Ipam, error) {
+func NewIpam(iprange string, state ipvs.State) (*Ipam, error) {
 	// var err error
 	rangeCursor, err := ipaddr.Parse(iprange)
 	if err != nil {

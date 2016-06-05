@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -24,8 +25,9 @@ import (
 )
 
 const (
-	retainSnapshotCount = 2
-	raftTimeout         = 10 * time.Second
+	retainSnapshotCount   = 2
+	raftTimeout           = 10 * time.Second
+	raftRemoveGracePeriod = 5 * time.Second
 )
 
 // Balancer represents the Load Balancer
@@ -33,10 +35,14 @@ type Balancer struct {
 	sync.Mutex
 	eventCh chan serf.Event
 
-	serf *serf.Serf
-	raft *raft.Raft // The consensus mechanism
+	serf          *serf.Serf
+	raft          *raft.Raft // The consensus mechanism
+	raftPeers     raft.PeerStore
+	raftStore     *raftboltdb.BoltStore
+	raftTransport *raft.NetworkTransport
 
-	engine *engine.Engine
+	engine     *engine.Engine
+	shutdownCh chan bool
 }
 
 // NewBalancer initializes a new balancer
@@ -75,6 +81,7 @@ func (b *Balancer) setupSerf() error {
 	conf := serf.DefaultConfig()
 	conf.Init()
 	conf.Tags["role"] = "balancer"
+	conf.Tags["raft-port"] = strconv.Itoa(config.Balancer.RaftPort)
 
 	bindAddr, err := config.Balancer.GetIpByInterface()
 	if err != nil {
@@ -100,6 +107,7 @@ func (b *Balancer) setupRaft() error {
 	// Setup Raft configuration.
 	raftConfig := raft.DefaultConfig()
 
+	raftConfig.ShutdownOnRemove = false
 	// Check for any existing peers.
 	peers, err := readPeersJSON(filepath.Join(config.Balancer.ConfigPath, "peers.json"))
 	if err != nil {
@@ -125,9 +133,11 @@ func (b *Balancer) setupRaft() error {
 	if err != nil {
 		return err
 	}
+	b.raftTransport = transport
 
 	// Create peer storage.
 	peerStore := raft.NewJSONPeers(config.Balancer.ConfigPath, transport)
+	b.raftPeers = peerStore
 
 	// Create the snapshot store. This allows the Raft to truncate the log.
 	snapshots, err := raft.NewFileSnapshotStore(config.Balancer.ConfigPath, retainSnapshotCount, os.Stderr)
@@ -140,6 +150,7 @@ func (b *Balancer) setupRaft() error {
 	if err != nil {
 		return fmt.Errorf("new bolt store: %s", err)
 	}
+	b.raftStore = logStore
 
 	// Instantiate the Raft systems.
 	ra, err := raft.NewRaft(raftConfig, b.engine, logStore, logStore, snapshots, peerStore, transport)
@@ -221,12 +232,12 @@ func (b *Balancer) handleEvents() {
 			case serf.EventMemberJoin:
 				me := e.(serf.MemberEvent)
 				b.handleMemberJoin(me)
-			// case serf.EventMemberFailed:
-			// 	memberEvent := e.(serf.MemberEvent)
-			// 	b.handleMemberLeave(memberEvent)
-			// case serf.EventMemberLeave:
-			// 	memberEvent := e.(serf.MemberEvent)
-			// 	b.handleMemberLeave(memberEvent)
+			case serf.EventMemberFailed:
+				memberEvent := e.(serf.MemberEvent)
+				b.handleMemberLeave(memberEvent)
+			case serf.EventMemberLeave:
+				memberEvent := e.(serf.MemberEvent)
+				b.handleMemberLeave(memberEvent)
 			// case serf.EventQuery:
 			// 	query := e.(*serf.Query)
 			// 	b.handleQuery(query)
@@ -238,16 +249,12 @@ func (b *Balancer) handleEvents() {
 }
 
 func (b *Balancer) setVips() {
-	//TODO: error handling
-	// svcs, err := b.engine.State.GetServices()
-	// if err != nil {
-	// 	log.Error(err)
-	// }
 	svcs := b.engine.State.GetServices()
 
 	for _, s := range *svcs {
 		err := b.engine.AssignVIP(&s)
 		if err != nil {
+			//TODO: Remove balancer from cluster when error occurs
 			log.Error(err)
 		}
 	}
@@ -262,60 +269,156 @@ func (b *Balancer) flushVips() {
 func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
 	log.Infof("handleMemberJoin: %s", event)
 
-	if b.raft.State() != raft.Leader {
+	if !b.isLeader() {
 		return
 	}
 
 	for _, m := range event.Members {
-		if memberIsBalancer(m) {
+		if isBalancer(m) {
 			b.addMemberToPool(m)
 		}
 	}
-
 }
 
 func (b *Balancer) addMemberToPool(m serf.Member) {
 	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), config.Balancer.RaftPort)
 
-	log.Infof("addMemberToPool, %#v", remoteAddr)
+	log.Infof("Adding Balancer to Pool", remoteAddr)
 	f := b.raft.AddPeer(remoteAddr)
 	if f.Error() != nil {
 		log.Errorf("node at %s joined failure. err: %s", remoteAddr, f.Error())
 	}
 }
 
-func memberIsBalancer(m serf.Member) bool {
+func isBalancer(m serf.Member) bool {
 	return m.Tags["role"] == "balancer"
 }
 
-func (b *Balancer) handleMemberLeave(member serf.MemberEvent) {
-	for _, m := range member.Members {
-		dst, err := b.GetDestination(m.Name)
-		if err != nil {
-			log.Errorln(err)
+func (b *Balancer) handleMemberLeave(memberEvent serf.MemberEvent) {
+	log.Infof("handleMemberLeave: %s", memberEvent)
+	for _, m := range memberEvent.Members {
+		if isBalancer(m) {
+			b.handleBalancerLeave(m)
+		} else {
+			b.handleAgentLeave(m)
 		}
-		b.DeleteDestination(dst)
 	}
 }
 
-func (b *Balancer) handleQuery(query *serf.Query) {
-	// payload := query.Payload
-	//
-	// var dst ipvs.Destination
-	// err := json.Unmarshal(payload, &dst)
-	// if err != nil {
-	// 	log.Errorf("Balancer: Unable to Unmarshal: %s", payload)
+func (b *Balancer) handleBalancerLeave(m serf.Member) {
+	log.Info("Removing left balancer from raft")
+	if !b.isLeader() {
+		log.Info("Member is not leader")
+		return
+	}
+
+	raftPort, err := strconv.Atoi(m.Tags["raft-port"])
+	if err != nil {
+		log.Errorln("handle balancer leaver failed", err)
+	}
+
+	peer := &net.TCPAddr{IP: m.Addr, Port: raftPort}
+	log.Infof("Removing %v peer from raft", peer)
+	future := b.raft.RemovePeer(peer.String())
+	if err := future.Error(); err != nil && err != raft.ErrUnknownPeer {
+		log.Errorf("balancer: failed to remove raft peer '%v': %v", peer, err)
+	} else if err == nil {
+		log.Infof("balancer: removed balancer '%s' as peer", m.Name)
+	}
+}
+
+func (b *Balancer) Leave() {
+	log.Info("balancer: server starting leave")
+	// s.left = true
+
+	// Check the number of known peers
+	numPeers, err := b.numOtherPeers()
+	if err != nil {
+		log.Errorf("balancer: failed to check raft peers: %v", err)
+		return
+	}
+
+	// If we are the current leader, and we have any other peers (cluster has multiple
+	// servers), we should do a RemovePeer to safely reduce the quorum size. If we are
+	// not the leader, then we should issue our leave intention and wait to be removed
+	// for some sane period of time.
+	isLeader := b.isLeader()
+	// if isLeader && numPeers > 0 {
+	// 	future := b.raft.RemovePeer(b.raftTransport.LocalAddr())
+	// 	if err := future.Error(); err != nil && err != raft.ErrUnknownPeer {
+	// 		log.Errorf("balancer: failed to remove ourself as raft peer: %v", err)
+	// 	}
 	// }
-	//
-	// svc, err := GetService(dst.ServiceId)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	//
-	// err = AddDestination(svc, &dst)
-	// if err != nil {
-	// 	panic(err)
-	// }
+
+	// Leave the LAN pool
+	if b.serf != nil {
+		if err := b.serf.Leave(); err != nil {
+			log.Errorf("balancer: failed to leave LAN Serf cluster: %v", err)
+		}
+	}
+
+	// If we were not leader, wait to be safely removed from the cluster.
+	// We must wait to allow the raft replication to take place, otherwise
+	// an immediate shutdown could cause a loss of quorum.
+	if !isLeader {
+		limit := time.Now().Add(raftRemoveGracePeriod)
+		for numPeers > 0 && time.Now().Before(limit) {
+			// Update the number of peers
+			numPeers, err = b.numOtherPeers()
+			if err != nil {
+				log.Errorf("balancer: failed to check raft peers: %v", err)
+				break
+			}
+
+			// Avoid the sleep if we are done
+			if numPeers == 0 {
+				break
+			}
+
+			// Sleep a while and check again
+			time.Sleep(50 * time.Millisecond)
+		}
+		if numPeers != 0 {
+			log.Warnln("balancer: failed to leave raft peer set gracefully, timeout")
+		}
+	}
+}
+
+// numOtherPeers is used to check on the number of known peers
+// excluding the local node
+func (b *Balancer) numOtherPeers() (int, error) {
+	peers, err := b.raftPeers.Peers()
+	if err != nil {
+		return 0, err
+	}
+	otherPeers := raft.ExcludePeer(peers, b.raftTransport.LocalAddr())
+	return len(otherPeers), nil
+}
+
+func (b *Balancer) Shutdown() {
+	b.Leave()
+	b.serf.Shutdown()
+
+	future := b.raft.Shutdown()
+	if err := future.Error(); err != nil {
+		log.Errorf("balancer: Error shutting down raft: %s", err)
+	}
+
+	if b.raftStore != nil {
+		b.raftStore.Close()
+	}
+
+	b.raftPeers.SetPeers(nil)
+}
+
+func (b *Balancer) handleAgentLeave(m serf.Member) {
+	dst, err := b.GetDestination(m.Name)
+	if err != nil {
+		log.Errorln("handleAgenteLeave failed", err)
+		return
+	}
+
+	b.DeleteDestination(dst)
 }
 
 func readPeersJSON(path string) ([]string, error) {

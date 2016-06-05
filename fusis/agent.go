@@ -24,6 +24,12 @@ func NewAgent(config *config.AgentConfig) (*Agent, error) {
 	return agent, nil
 }
 
+func (a *Agent) Shutdown() {
+	if err := a.serf.Leave(); err != nil {
+		log.Fatalf("Graceful shutdown failed", err)
+	}
+}
+
 func (a *Agent) Join(existing []string, ignoreOld bool) (n int, err error) {
 	log.Infof("Fusis Agent: joining: %v ignore: %v", existing, ignoreOld)
 	n, err = a.serf.Join(existing, ignoreOld)

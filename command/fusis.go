@@ -53,8 +53,14 @@ func initConfig() {
 	}
 }
 
-func waitSignals() {
+type Node interface {
+	Shutdown()
+}
+
+func waitSignals(node Node) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
+
+	node.Shutdown()
 }

@@ -60,5 +60,5 @@ func run(cmd *cobra.Command, args []string) {
 	apiService := api.NewAPI(balancer)
 	go apiService.Serve()
 
-	waitSignals()
+	waitSignals(balancer)
 }

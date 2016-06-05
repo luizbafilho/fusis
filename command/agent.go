@@ -55,7 +55,7 @@ func runAgentCmd(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	waitSignals()
+	waitSignals(agent)
 }
 
 func init() {

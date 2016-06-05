@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
@@ -40,6 +41,7 @@ type Balancer struct {
 	raftPeers     raft.PeerStore
 	raftStore     *raftboltdb.BoltStore
 	raftTransport *raft.NetworkTransport
+	logger        *logrus.Logger
 
 	engine     *engine.Engine
 	shutdownCh chan bool
@@ -56,6 +58,7 @@ func NewBalancer() (*Balancer, error) {
 	balancer := &Balancer{
 		eventCh: make(chan serf.Event, 64),
 		engine:  engine,
+		logger:  logrus.New(),
 	}
 
 	if err = balancer.setupRaft(); err != nil {
@@ -103,9 +106,14 @@ func (b *Balancer) setupSerf() error {
 	return nil
 }
 
+func (b *Balancer) newStdLogger() *log.Logger {
+	return log.New(b.logger.Writer(), "", 0)
+}
+
 func (b *Balancer) setupRaft() error {
 	// Setup Raft configuration.
 	raftConfig := raft.DefaultConfig()
+	raftConfig.Logger = b.newStdLogger()
 
 	raftConfig.ShutdownOnRemove = false
 	// Check for any existing peers.
@@ -117,7 +125,7 @@ func (b *Balancer) setupRaft() error {
 	// Allow the node to entry single-mode, potentially electing itself, if
 	// explicitly enabled and there is only 1 node in the cluster already.
 	if config.Balancer.Single && len(peers) <= 1 {
-		log.Info("enabling single-node mode")
+		b.logger.Infof("enabling single-node mode")
 		raftConfig.EnableSingleNode = true
 		raftConfig.DisableBootstrapAfterElect = false
 	}
@@ -181,7 +189,7 @@ func (b *Balancer) watchCommands() {
 func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 	if b.isLeader() {
 		if err := b.engine.UnassignVIP(svc); err != nil {
-			log.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
+			b.logger.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
 }
@@ -189,7 +197,7 @@ func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 func (b *Balancer) AssignVIP(svc *ipvs.Service) {
 	if b.isLeader() {
 		if err := b.engine.AssignVIP(svc); err != nil {
-			log.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)
+			b.logger.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
 }
@@ -200,11 +208,11 @@ func (b *Balancer) isLeader() bool {
 
 // JoinPool joins the Fusis Serf cluster
 func (b *Balancer) JoinPool() error {
-	log.Infof("Balancer: joining: %v ignore: %v", config.Balancer.Join)
+	b.logger.Infof("Balancer: joining: %v ignore: %v", config.Balancer.Join)
 
 	_, err := b.serf.Join([]string{config.Balancer.Join}, true)
 	if err != nil {
-		log.Errorf("Balancer: error joining: %v", err)
+		b.logger.Errorf("Balancer: error joining: %v", err)
 		return err
 	}
 
@@ -212,7 +220,7 @@ func (b *Balancer) JoinPool() error {
 }
 
 func (b *Balancer) watchLeaderChanges() {
-	log.Infof("Watching to Leader changes")
+	b.logger.Infof("Watching to Leader changes")
 
 	for {
 		if <-b.raft.LeaderCh() {
@@ -242,7 +250,7 @@ func (b *Balancer) handleEvents() {
 			// 	query := e.(*serf.Query)
 			// 	b.handleQuery(query)
 			default:
-				log.Warnf("Balancer: unhandled Serf Event: %#v", e)
+				b.logger.Warnf("Balancer: unhandled Serf Event: %#v", e)
 			}
 		}
 	}
@@ -255,7 +263,7 @@ func (b *Balancer) setVips() {
 		err := b.engine.AssignVIP(&s)
 		if err != nil {
 			//TODO: Remove balancer from cluster when error occurs
-			log.Error(err)
+			b.logger.Error(err)
 		}
 	}
 }
@@ -267,7 +275,7 @@ func (b *Balancer) flushVips() {
 }
 
 func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
-	log.Infof("handleMemberJoin: %s", event)
+	b.logger.Infof("handleMemberJoin: %s", event)
 
 	if !b.isLeader() {
 		return
@@ -283,10 +291,10 @@ func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
 func (b *Balancer) addMemberToPool(m serf.Member) {
 	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), config.Balancer.RaftPort)
 
-	log.Infof("Adding Balancer to Pool", remoteAddr)
+	b.logger.Infof("Adding Balancer to Pool", remoteAddr)
 	f := b.raft.AddPeer(remoteAddr)
 	if f.Error() != nil {
-		log.Errorf("node at %s joined failure. err: %s", remoteAddr, f.Error())
+		b.logger.Errorf("node at %s joined failure. err: %s", remoteAddr, f.Error())
 	}
 }
 
@@ -295,7 +303,7 @@ func isBalancer(m serf.Member) bool {
 }
 
 func (b *Balancer) handleMemberLeave(memberEvent serf.MemberEvent) {
-	log.Infof("handleMemberLeave: %s", memberEvent)
+	b.logger.Infof("handleMemberLeave: %s", memberEvent)
 	for _, m := range memberEvent.Members {
 		if isBalancer(m) {
 			b.handleBalancerLeave(m)
@@ -306,35 +314,35 @@ func (b *Balancer) handleMemberLeave(memberEvent serf.MemberEvent) {
 }
 
 func (b *Balancer) handleBalancerLeave(m serf.Member) {
-	log.Info("Removing left balancer from raft")
+	b.logger.Info("Removing left balancer from raft")
 	if !b.isLeader() {
-		log.Info("Member is not leader")
+		b.logger.Info("Member is not leader")
 		return
 	}
 
 	raftPort, err := strconv.Atoi(m.Tags["raft-port"])
 	if err != nil {
-		log.Errorln("handle balancer leaver failed", err)
+		b.logger.Errorln("handle balancer leaver failed", err)
 	}
 
 	peer := &net.TCPAddr{IP: m.Addr, Port: raftPort}
-	log.Infof("Removing %v peer from raft", peer)
+	b.logger.Infof("Removing %v peer from raft", peer)
 	future := b.raft.RemovePeer(peer.String())
 	if err := future.Error(); err != nil && err != raft.ErrUnknownPeer {
-		log.Errorf("balancer: failed to remove raft peer '%v': %v", peer, err)
+		b.logger.Errorf("balancer: failed to remove raft peer '%v': %v", peer, err)
 	} else if err == nil {
-		log.Infof("balancer: removed balancer '%s' as peer", m.Name)
+		b.logger.Infof("balancer: removed balancer '%s' as peer", m.Name)
 	}
 }
 
 func (b *Balancer) Leave() {
-	log.Info("balancer: server starting leave")
+	b.logger.Info("balancer: server starting leave")
 	// s.left = true
 
 	// Check the number of known peers
 	numPeers, err := b.numOtherPeers()
 	if err != nil {
-		log.Errorf("balancer: failed to check raft peers: %v", err)
+		b.logger.Errorf("balancer: failed to check raft peers: %v", err)
 		return
 	}
 
@@ -346,14 +354,14 @@ func (b *Balancer) Leave() {
 	// if isLeader && numPeers > 0 {
 	// 	future := b.raft.RemovePeer(b.raftTransport.LocalAddr())
 	// 	if err := future.Error(); err != nil && err != raft.ErrUnknownPeer {
-	// 		log.Errorf("balancer: failed to remove ourself as raft peer: %v", err)
+	// 		b.logger.Errorf("balancer: failed to remove ourself as raft peer: %v", err)
 	// 	}
 	// }
 
 	// Leave the LAN pool
 	if b.serf != nil {
 		if err := b.serf.Leave(); err != nil {
-			log.Errorf("balancer: failed to leave LAN Serf cluster: %v", err)
+			b.logger.Errorf("balancer: failed to leave LAN Serf cluster: %v", err)
 		}
 	}
 
@@ -366,7 +374,7 @@ func (b *Balancer) Leave() {
 			// Update the number of peers
 			numPeers, err = b.numOtherPeers()
 			if err != nil {
-				log.Errorf("balancer: failed to check raft peers: %v", err)
+				b.logger.Errorf("balancer: failed to check raft peers: %v", err)
 				break
 			}
 
@@ -379,7 +387,7 @@ func (b *Balancer) Leave() {
 			time.Sleep(50 * time.Millisecond)
 		}
 		if numPeers != 0 {
-			log.Warnln("balancer: failed to leave raft peer set gracefully, timeout")
+			b.logger.Warnln("balancer: failed to leave raft peer set gracefully, timeout")
 		}
 	}
 }
@@ -401,7 +409,7 @@ func (b *Balancer) Shutdown() {
 
 	future := b.raft.Shutdown()
 	if err := future.Error(); err != nil {
-		log.Errorf("balancer: Error shutting down raft: %s", err)
+		b.logger.Errorf("balancer: Error shutting down raft: %s", err)
 	}
 
 	if b.raftStore != nil {
@@ -414,7 +422,7 @@ func (b *Balancer) Shutdown() {
 func (b *Balancer) handleAgentLeave(m serf.Member) {
 	dst, err := b.GetDestination(m.Name)
 	if err != nil {
-		log.Errorln("handleAgenteLeave failed", err)
+		b.logger.Errorln("handleAgenteLeave failed", err)
 		return
 	}
 

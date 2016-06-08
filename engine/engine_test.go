@@ -3,6 +3,7 @@ package engine_test
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"testing"
 
 	"github.com/hashicorp/raft"
@@ -22,19 +23,49 @@ type EngineSuite struct {
 	ipvs        *ipvs.Ipvs
 	service     *ipvs.Service
 	destination *ipvs.Destination
+	engine      *engine.Engine
 }
 
 var _ = Suite(&EngineSuite{})
 
 func (s *EngineSuite) SetUpSuite(c *C) {
 	s.readConfig()
+
+	s.service = &ipvs.Service{
+		Name:         "test",
+		Host:         "10.0.1.1",
+		Port:         80,
+		Scheduler:    "lc",
+		Protocol:     "tcp",
+		Destinations: []ipvs.Destination{},
+	}
+
+	s.destination = &ipvs.Destination{
+		Name:      "test",
+		Host:      "192.168.1.1",
+		Port:      80,
+		Mode:      "nat",
+		Weight:    1,
+		ServiceId: "test",
+	}
+}
+
+func (s *EngineSuite) SetUpTest(c *C) {
+	eng, err := engine.New()
+	c.Assert(err, IsNil)
+
+	s.engine = eng
+
+	go watchCommandCh(eng)
+}
+
+func (s *EngineSuite) TearDownTest(c *C) {
+	s.ipvs.Flush()
 }
 
 func (s *EngineSuite) readConfig() {
+	viper.SetConfigType("json")
 
-	viper.SetConfigType("json") // or viper.SetConfigType("YAML")
-
-	// any approach to require this configuration into your program.
 	var sampleConfig = []byte(`
 	{
 		"provider":{
@@ -54,7 +85,7 @@ func (s *EngineSuite) readConfig() {
 func makeLog(cmd *engine.Command) *raft.Log {
 	bytes, err := json.Marshal(cmd)
 	if err != nil {
-		// fmt.Fatalf("err: %v", err)
+		log.Fatalf("err: %v", err)
 	}
 
 	return &raft.Log{
@@ -65,50 +96,103 @@ func makeLog(cmd *engine.Command) *raft.Log {
 	}
 }
 
-func (s *EngineSuite) SetUpTest(c *C) {
-	s.service = &ipvs.Service{
-		Name:         "test",
-		Host:         "10.0.1.1",
-		Port:         80,
-		Scheduler:    "lc",
-		Protocol:     "tcp",
-		Destinations: []ipvs.Destination{},
-	}
-
-	s.destination = &ipvs.Destination{
-		Host:   "192.168.1.1",
-		Port:   80,
-		Mode:   "nat",
-		Weight: 1,
-	}
-}
-
-func (s *EngineSuite) TearDownTest(c *C) {
-	s.ipvs.Flush()
-}
-
 func watchCommandCh(engine *engine.Engine) {
-	<-engine.CommandCh
+	for {
+		<-engine.CommandCh
+	}
 }
 
-func (s *EngineSuite) TestApplyAddService(c *C) {
+func (s *EngineSuite) addService(c *C) {
 	cmd := &engine.Command{
 		Op:      engine.AddServiceOp,
 		Service: s.service,
 	}
 
-	eng, err := engine.New()
-	c.Assert(err, IsNil)
-	go watchCommandCh(eng)
+	resp := s.engine.Apply(makeLog(cmd))
+	if resp != nil {
+		c.Fatalf("resp: %v", resp)
+	}
+}
 
-	resp := eng.Apply(makeLog(cmd))
+func (s *EngineSuite) delService(c *C) {
+	cmd := &engine.Command{
+		Op:      engine.DelServiceOp,
+		Service: s.service,
+	}
+
+	resp := s.engine.Apply(makeLog(cmd))
+	if resp != nil {
+		c.Fatalf("resp: %v", resp)
+	}
+}
+
+func (s *EngineSuite) addDestination(c *C) {
+	cmd := &engine.Command{
+		Op:          engine.AddDestinationOp,
+		Service:     s.service,
+		Destination: s.destination,
+	}
+
+	resp := s.engine.Apply(makeLog(cmd))
+	if resp != nil {
+		c.Fatalf("resp: %v", resp)
+	}
+}
+
+func (s *EngineSuite) TestApplyAddService(c *C) {
+	s.addService(c)
+
+	c.Assert(s.engine.State.GetServices(), DeepEquals, &[]ipvs.Service{*s.service})
+	svcs, err := s.engine.Ipvs.GetServices()
+	c.Assert(err, IsNil)
+
+	c.Assert(len(svcs), Equals, 1)
+	c.Assert(svcs[0].Address.String(), DeepEquals, s.service.Host)
+}
+
+func (s *EngineSuite) TestApplyDelService(c *C) {
+	s.addService(c)
+	s.delService(c)
+
+	c.Assert(s.engine.State.GetServices(), DeepEquals, &[]ipvs.Service{})
+	svcs, err := s.engine.Ipvs.GetServices()
+	c.Assert(err, IsNil)
+
+	c.Assert(len(svcs), Equals, 0)
+}
+
+func (s *EngineSuite) TestApplyAddDestination(c *C) {
+	s.addService(c)
+	s.addDestination(c)
+
+	dst, err := s.engine.State.GetDestination(s.destination.Name)
+	c.Assert(err, IsNil)
+
+	c.Assert(dst, DeepEquals, s.destination)
+	dests, err := s.engine.Ipvs.GetDestinations(s.service.ToIpvsService())
+	c.Assert(err, IsNil)
+
+	c.Assert(len(dests), Equals, 1)
+	c.Assert(dests[0].Address.String(), DeepEquals, s.destination.Host)
+}
+
+func (s *EngineSuite) TestApplyDelDestination(c *C) {
+	s.addService(c)
+	s.addDestination(c)
+
+	cmd := &engine.Command{
+		Op:          engine.DelDestinationOp,
+		Service:     s.service,
+		Destination: s.destination,
+	}
+
+	resp := s.engine.Apply(makeLog(cmd))
 	if resp != nil {
 		c.Fatalf("resp: %v", resp)
 	}
 
-	c.Assert(eng.State.GetServices(), DeepEquals, &[]ipvs.Service{*s.service})
-	svcs, err := eng.Ipvs.GetServices()
+	dests, err := s.engine.Ipvs.GetDestinations(s.service.ToIpvsService())
 	c.Assert(err, IsNil)
 
-	c.Assert(svcs[0].Address.String(), DeepEquals, s.service.Host)
+	c.Assert(len(dests), Equals, 0)
 }

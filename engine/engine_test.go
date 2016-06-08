@@ -3,9 +3,11 @@ package engine_test
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"testing"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
@@ -29,6 +31,7 @@ type EngineSuite struct {
 var _ = Suite(&EngineSuite{})
 
 func (s *EngineSuite) SetUpSuite(c *C) {
+	logrus.SetOutput(ioutil.Discard)
 	s.readConfig()
 
 	s.service = &ipvs.Service{

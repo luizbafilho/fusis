@@ -3,102 +3,145 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
+	"time"
 
-	. "github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/ipvs"
 )
 
 type Client struct {
-	Addr string
+	Addr       string
+	HttpClient *http.Client
 }
+
+var (
+	ErrNoSuchService = errors.New("no such service")
+)
 
 func NewClient(addr string) *Client {
-	return &Client{Addr: addr}
+	baseTimeout := 30 * time.Second
+	fullTimeout := time.Minute
+	return &Client{
+		Addr: addr,
+		HttpClient: &http.Client{
+			Transport: &http.Transport{
+				Dial: (&net.Dialer{
+					Timeout:   baseTimeout,
+					KeepAlive: baseTimeout,
+				}).Dial,
+				TLSHandshakeTimeout: baseTimeout,
+				// Disabled http keep alive for more reliable dial timeouts.
+				MaxIdleConnsPerHost: -1,
+				DisableKeepAlives:   true,
+			},
+			Timeout: fullTimeout,
+		},
+	}
 }
 
-func (c *Client) GetServices() ([]*Service, error) {
-	resp, err := http.Get(c.path("services"))
-	if err != nil || resp.StatusCode != 200 {
-		return nil, err
-	}
-
-	services := []*Service{}
-	err = decode(resp.Body, &services)
+func (c *Client) GetServices() ([]*ipvs.Service, error) {
+	resp, err := c.HttpClient.Get(c.path("services"))
 	if err != nil {
 		return nil, err
 	}
-
-	return services, nil
+	defer resp.Body.Close()
+	var services []*ipvs.Service
+	switch resp.StatusCode {
+	case http.StatusOK:
+		err = decode(resp.Body, &services)
+	case http.StatusNoContent:
+		services = []*ipvs.Service{}
+	default:
+		return nil, formatError(resp)
+	}
+	return services, err
 }
 
-func (c *Client) GetService(id string) (*Service, error) {
-	resp, err := http.Get(c.path("services", id))
-	if err != nil || resp.StatusCode != 200 {
-		return nil, err
-	}
-
-	var svc Service
-	err = decode(resp.Body, &svc)
+func (c *Client) GetService(id string) (*ipvs.Service, error) {
+	resp, err := c.HttpClient.Get(c.path("services", id))
 	if err != nil {
 		return nil, err
 	}
-
-	return &svc, nil
+	defer resp.Body.Close()
+	var svc *ipvs.Service
+	switch resp.StatusCode {
+	case http.StatusOK:
+		err = decode(resp.Body, &svc)
+	case http.StatusNotFound:
+		return nil, ErrNoSuchService
+	default:
+		return nil, formatError(resp)
+	}
+	return svc, err
 }
 
-func (c *Client) CreateService(svc Service) error {
+func (c *Client) CreateService(svc ipvs.Service) (string, error) {
 	json, err := encode(svc)
 	if err != nil {
-		return err
+		return "", err
 	}
-
-	resp, err := http.Post(c.path("services"), "application/json", json)
-
-	if err != nil || resp.StatusCode != 200 {
-		return formatError(resp)
+	resp, err := c.HttpClient.Post(c.path("services"), "application/json", json)
+	if err != nil {
+		return "", err
 	}
-
-	return nil
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		return "", formatError(resp)
+	}
+	return idFromLocation(resp), nil
 }
 
 func (c *Client) DeleteService(id string) error {
-	client := &http.Client{}
 	req, err := http.NewRequest("DELETE", c.path("services", id), nil)
-	resp, err := client.Do(req)
-
-	if err != nil || resp.StatusCode != 200 {
-		return formatError(resp)
-	}
-
-	return nil
-}
-
-func (c *Client) AddDestination(dst Destination) error {
-	json, err := encode(dst)
 	if err != nil {
 		return err
 	}
-
-	resp, err := http.Post(c.path("services", dst.ServiceId, "destinations"), "application/json", json)
-	if err != nil || resp.StatusCode != 200 {
+	resp, err := c.HttpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
 		return formatError(resp)
 	}
 	return nil
 }
 
-func (c *Client) DeleteDestination(dst Destination) error {
-	client := &http.Client{}
-	req, err := http.NewRequest("DELETE", c.path("services", dst.ServiceId, "destinations", dst.GetId()), nil)
-	resp, err := client.Do(req)
+func (c *Client) AddDestination(dst ipvs.Destination) (string, error) {
+	json, err := encode(dst)
+	if err != nil {
+		return "", err
+	}
+	resp, err := c.HttpClient.Post(c.path("services", dst.ServiceId, "destinations"), "application/json", json)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		return "", formatError(resp)
+	}
+	return idFromLocation(resp), nil
+}
 
-	if err != nil || resp.StatusCode != 200 {
+func (c *Client) DeleteDestination(serviceId, destinationId string) error {
+	req, err := http.NewRequest("DELETE", c.path("services", serviceId, "destinations", destinationId), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.HttpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
 		return formatError(resp)
 	}
-
 	return nil
 }
 
@@ -111,22 +154,27 @@ func encode(obj interface{}) (io.Reader, error) {
 }
 
 func decode(body io.Reader, obj interface{}) error {
-	decoder := json.NewDecoder(body)
-	err := decoder.Decode(obj)
+	data, err := ioutil.ReadAll(body)
 	if err != nil {
 		return err
+	}
+	err = json.Unmarshal(data, obj)
+	if err != nil {
+		return fmt.Errorf("unable to unmarshal body %q: %s", string(data), err)
 	}
 	return nil
 }
 
 func formatError(resp *http.Response) error {
-	var body string
-	if b, err := ioutil.ReadAll(resp.Body); err == nil {
-		body = string(b)
-	}
-	return fmt.Errorf("Request failed. Status Code: %v. Body: %v", resp.StatusCode, body)
+	body, _ := ioutil.ReadAll(resp.Body)
+	return fmt.Errorf("Request failed. Status Code: %v. Body: %q", resp.StatusCode, string(body))
 }
 
 func (c Client) path(paths ...string) string {
-	return strings.Join(append([]string{c.Addr}, paths...), "/")
+	return strings.Join(append([]string{strings.TrimRight(c.Addr, "/")}, paths...), "/")
+}
+
+func idFromLocation(resp *http.Response) string {
+	parts := strings.Split(resp.Header.Get("Location"), "/")
+	return parts[len(parts)-1]
 }

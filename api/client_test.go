@@ -5,17 +5,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"testing"
 
 	"github.com/luizbafilho/fusis/ipvs"
 	"gopkg.in/check.v1"
 )
-
-type S struct{}
-
-var _ = check.Suite(&S{})
-
-func Test(t *testing.T) { check.TestingT(t) }
 
 func (s *S) TestNewClient(c *check.C) {
 	cli := NewClient("myaddr")

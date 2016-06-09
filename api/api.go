@@ -27,15 +27,16 @@ type Balancer interface {
 //NewAPI ...
 func NewAPI(balancer Balancer) ApiService {
 	gin.SetMode(gin.ReleaseMode)
-
-	return ApiService{
+	as := ApiService{
 		balancer: balancer,
 		router:   gin.Default(),
 		env:      getEnv(),
 	}
+	as.registerRoutes()
+	return as
 }
 
-func (as ApiService) Serve() {
+func (as ApiService) registerRoutes() {
 	as.router.GET("/services", as.serviceList)
 	as.router.GET("/services/:service_id", as.serviceGet)
 	as.router.POST("/services", as.serviceCreate)
@@ -45,6 +46,9 @@ func (as ApiService) Serve() {
 	if as.env == "test" {
 		as.router.POST("/flush", as.flush)
 	}
+}
+
+func (as ApiService) Serve() {
 	as.router.Run("0.0.0.0:8000")
 }
 

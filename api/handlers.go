@@ -34,7 +34,8 @@ func (as ApiService) serviceGet(c *gin.Context) {
 
 func (as ApiService) serviceCreate(c *gin.Context) {
 	var newService ipvs.Service
-	if c.BindJSON(&newService) != nil {
+	if err := c.BindJSON(&newService); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	//Guarantees that no one tries to create a destination together with a service
@@ -95,7 +96,8 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 	}
 
 	destination := &ipvs.Destination{Weight: 1, Mode: "route", ServiceId: serviceId}
-	if c.BindJSON(destination) != nil {
+	if err := c.BindJSON(destination); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

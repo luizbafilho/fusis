@@ -18,4 +18,4 @@ clean:
 	sudo rm -rf /etc/fusis
 
 test:
-	govendor test +local
+	sudo -E govendor test +local

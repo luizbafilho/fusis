@@ -1,11 +1,10 @@
-package none
+package none_test
 
 import (
-	"os"
 	"testing"
 
-	"github.com/asdine/storm"
 	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/provider/none"
 
 	. "gopkg.in/check.v1"
 )
@@ -13,49 +12,43 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type IpamSuite struct {
-	db *storm.DB
+	state *ipvs.FusisState
+	ipam  *none.Ipam
 }
 
 var _ = Suite(&IpamSuite{})
 
 func (s *IpamSuite) SetUpSuite(c *C) {
-	s.db, _ = db.New("fusis_test.db")
+	state := ipvs.NewFusisState()
 
-	ipvs.InitStore(s.db)
+	ipam, err := none.NewIpam("192.168.0.0/28", state)
+	c.Assert(err, IsNil)
 
-	if err := Init("192.168.0.0/28"); err != nil {
-		panic(err)
-	}
+	s.ipam = ipam
+	s.state = state
 }
 
 func (s *IpamSuite) TearDownSuite(c *C) {
-	os.Remove("fusis_test.db")
 }
 
 func (s *IpamSuite) TestIpAllocation(c *C) {
 	service := &ipvs.Service{
-		Id:   "test",
-		Host: "192.168.0.1",
-	}
-	s.db.Save(service)
-
-	ip, err := Allocate()
-	c.Assert(err, IsNil)
-	c.Assert(ip, DeepEquals, "192.168.0.2")
-
-	service = &ipvs.Service{
-		Id:   "test2",
+		Name: "test",
 		Host: "192.168.0.2",
 	}
-	s.db.Save(service)
+	s.state.AddService(service)
 
-	ip, err = Allocate()
+	ip, err := s.ipam.Allocate()
 	c.Assert(err, IsNil)
-	c.Assert(ip, DeepEquals, "192.168.0.3")
+	c.Assert(ip, Equals, "192.168.0.1")
 
-	s.db.Remove(service)
+	service = &ipvs.Service{
+		Name: "test2",
+		Host: "192.168.0.1",
+	}
+	s.state.AddService(service)
 
-	ip, err = Allocate()
+	ip, err = s.ipam.Allocate()
 	c.Assert(err, IsNil)
-	c.Assert(ip, DeepEquals, "192.168.0.2")
+	c.Assert(ip, Equals, "192.168.0.3")
 }

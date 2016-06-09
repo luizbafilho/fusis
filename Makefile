@@ -9,10 +9,13 @@ run:
 docker:
 	docker build -t fusis .
 
-restore:
+deps:
 	go get -u github.com/kardianos/govendor
 	govendor add +external
 	govendor sync
 
 clean:
 	sudo rm -rf /etc/fusis
+
+test:
+	govendor test +local

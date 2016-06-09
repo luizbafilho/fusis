@@ -142,7 +142,7 @@ func (e *Engine) UnassignVIP(svc *ipvs.Service) error {
 }
 
 type fusisSnapshot struct {
-	Services *[]ipvs.Service
+	Services []ipvs.Service
 }
 
 func (e *Engine) Snapshot() (raft.FSMSnapshot, error) {

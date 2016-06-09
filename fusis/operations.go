@@ -10,7 +10,7 @@ import (
 )
 
 // GetServices get all services
-func (b *Balancer) GetServices() *[]ipvs.Service {
+func (b *Balancer) GetServices() []ipvs.Service {
 	return b.engine.State.GetServices()
 }
 

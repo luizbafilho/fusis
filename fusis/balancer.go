@@ -259,7 +259,7 @@ func (b *Balancer) handleEvents() {
 func (b *Balancer) setVips() {
 	svcs := b.engine.State.GetServices()
 
-	for _, s := range *svcs {
+	for _, s := range svcs {
 		err := b.engine.AssignVIP(&s)
 		if err != nil {
 			//TODO: Remove balancer from cluster when error occurs

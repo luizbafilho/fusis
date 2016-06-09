@@ -44,7 +44,7 @@ func (i *Ipam) Release(allocIP string) {}
 func (i *Ipam) ipIsAssigned(e string) (bool, error) {
 	services := i.state.GetServices()
 
-	for _, a := range *services {
+	for _, a := range services {
 		if a.Host == e {
 			return true, nil
 		}

@@ -30,10 +30,8 @@ func (as ApiService) Serve() {
 	as.router.GET("/services/:service_id", as.serviceGet)
 	as.router.POST("/services", as.serviceCreate)
 	as.router.DELETE("/services/:service_id", as.serviceDelete)
-
 	as.router.POST("/services/:service_id/destinations", as.destinationCreate)
 	as.router.DELETE("/services/:service_id/destinations/:destination_id", as.destinationDelete)
-
 	if as.env == "test" {
 		as.router.POST("/flush", as.flush)
 	}

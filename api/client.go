@@ -21,7 +21,8 @@ type Client struct {
 }
 
 var (
-	ErrNoSuchService = errors.New("no such service")
+	ErrNoSuchService     = errors.New("no such service")
+	ErrNoSuchDestination = errors.New("no such destination")
 )
 
 func NewClient(addr string) *Client {
@@ -107,10 +108,14 @@ func (c *Client) DeleteService(id string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return formatError(resp)
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		err = ErrNoSuchService
+	case http.StatusNoContent:
+	default:
+		err = formatError(resp)
 	}
-	return nil
+	return err
 }
 
 func (c *Client) AddDestination(dst ipvs.Destination) (string, error) {
@@ -123,10 +128,16 @@ func (c *Client) AddDestination(dst ipvs.Destination) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		return "", formatError(resp)
+	var id string
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		err = ErrNoSuchService
+	case http.StatusCreated:
+		id = idFromLocation(resp)
+	default:
+		err = formatError(resp)
 	}
-	return idFromLocation(resp), nil
+	return id, err
 }
 
 func (c *Client) DeleteDestination(serviceId, destinationId string) error {
@@ -139,10 +150,14 @@ func (c *Client) DeleteDestination(serviceId, destinationId string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return formatError(resp)
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		err = ErrNoSuchDestination
+	case http.StatusNoContent:
+	default:
+		err = formatError(resp)
 	}
-	return nil
+	return err
 }
 
 func encode(obj interface{}) (io.Reader, error) {

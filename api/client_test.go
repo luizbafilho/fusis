@@ -169,7 +169,7 @@ func (s *S) TestClientDeleteService(c *check.C) {
 	var req *http.Request
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req = r
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
@@ -187,6 +187,16 @@ func (s *S) TestClientDeleteServiceInvalidStatus(c *check.C) {
 	cli := NewClient(srv.URL)
 	err := cli.DeleteService("id1")
 	c.Assert(err, check.ErrorMatches, "Request failed. Status Code: 500. Body: \"\"")
+}
+
+func (s *S) TestClientDeleteServiceNotFound(c *check.C) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	cli := NewClient(srv.URL)
+	err := cli.DeleteService("id1")
+	c.Assert(err, check.Equals, ErrNoSuchService)
 }
 
 func (s *S) TestClientAddDestination(c *check.C) {
@@ -227,11 +237,22 @@ func (s *S) TestClientAddDestinationInvalidStatus(c *check.C) {
 	c.Assert(id, check.Equals, "")
 }
 
+func (s *S) TestClientAddDestinationNotFound(c *check.C) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	cli := NewClient(srv.URL)
+	id, err := cli.AddDestination(ipvs.Destination{ServiceId: "svid1"})
+	c.Assert(err, check.Equals, ErrNoSuchService)
+	c.Assert(id, check.Equals, "")
+}
+
 func (s *S) TestClientDeleteDestination(c *check.C) {
 	var req *http.Request
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req = r
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
@@ -249,4 +270,14 @@ func (s *S) TestClientDeleteDestinationInvalidStatus(c *check.C) {
 	cli := NewClient(srv.URL)
 	err := cli.DeleteDestination("svid1", "dstid1")
 	c.Assert(err, check.ErrorMatches, "Request failed. Status Code: 500. Body: \"\"")
+}
+
+func (s *S) TestClientDeleteDestinationNotFound(c *check.C) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	cli := NewClient(srv.URL)
+	err := cli.DeleteDestination("svid1", "dstid1")
+	c.Assert(err, check.Equals, ErrNoSuchDestination)
 }

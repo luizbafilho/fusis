@@ -4,18 +4,28 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/fusis/fusis"
+	"github.com/luizbafilho/fusis/ipvs"
 )
 
 // ApiService ...
 type ApiService struct {
-	balancer *fusis.Balancer
+	balancer Balancer
 	router   *gin.Engine
 	env      string
 }
 
+type Balancer interface {
+	GetServices() []ipvs.Service
+	AddService(*ipvs.Service) error
+	GetService(string) (*ipvs.Service, error)
+	DeleteService(string) error
+	AddDestination(*ipvs.Service, *ipvs.Destination) error
+	GetDestination(string) (*ipvs.Destination, error)
+	DeleteDestination(*ipvs.Destination) error
+}
+
 //NewAPI ...
-func NewAPI(balancer *fusis.Balancer) ApiService {
+func NewAPI(balancer Balancer) ApiService {
 	gin.SetMode(gin.ReleaseMode)
 
 	return ApiService{

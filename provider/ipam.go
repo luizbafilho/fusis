@@ -1,4 +1,4 @@
-package none
+package provider
 
 import (
 	"github.com/luizbafilho/fusis/ipvs"
@@ -7,24 +7,23 @@ import (
 
 type Ipam struct {
 	rangeCursor *ipaddr.Cursor
-	state       ipvs.State
 }
 
 //Init initilizes ipam module
-func NewIpam(iprange string, state ipvs.State) (*Ipam, error) {
+func NewIpam(iprange string) (*Ipam, error) {
 	// var err error
 	rangeCursor, err := ipaddr.Parse(iprange)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Ipam{rangeCursor, state}, nil
+	return &Ipam{rangeCursor}, nil
 }
 
 //Allocate allocates a new avaliable ip
-func (i *Ipam) Allocate() (string, error) {
+func (i *Ipam) Allocate(state ipvs.State) (string, error) {
 	for pos := i.rangeCursor.Next(); pos != nil; pos = i.rangeCursor.Next() {
-		assigned, err := i.ipIsAssigned(pos.IP.String())
+		assigned, err := i.ipIsAssigned(pos.IP.String(), state)
 		if err != nil {
 			return "", err
 		}
@@ -41,8 +40,8 @@ func (i *Ipam) Allocate() (string, error) {
 //Release releases a allocated IP
 func (i *Ipam) Release(allocIP string) {}
 
-func (i *Ipam) ipIsAssigned(e string) (bool, error) {
-	services := i.state.GetServices()
+func (i *Ipam) ipIsAssigned(e string, state ipvs.State) (bool, error) {
+	services := state.GetServices()
 
 	for _, a := range *services {
 		if a.Host == e {

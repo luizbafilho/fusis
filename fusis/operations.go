@@ -19,7 +19,7 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 	b.Lock()
 	defer b.Unlock()
 
-	if err := b.engine.Provider.AllocateVIP(svc); err != nil {
+	if err := b.provider.AllocateVIP(svc, b.engine.State); err != nil {
 		return err
 	}
 

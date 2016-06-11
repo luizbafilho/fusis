@@ -14,7 +14,6 @@ import (
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/spf13/viper"
 
-	_ "github.com/luizbafilho/fusis/provider/none" // to intialize
 	. "gopkg.in/check.v1"
 )
 
@@ -26,6 +25,7 @@ type EngineSuite struct {
 	service     *ipvs.Service
 	destination *ipvs.Destination
 	engine      *engine.Engine
+	config      *config.BalancerConfig
 }
 
 var _ = Suite(&EngineSuite{})
@@ -100,7 +100,7 @@ func (s *EngineSuite) readConfig() {
 	`)
 
 	viper.ReadConfig(bytes.NewBuffer(sampleConfig))
-	viper.Unmarshal(&config.Balancer)
+	viper.Unmarshal(s.config)
 }
 
 func makeLog(cmd *engine.Command) *raft.Log {

@@ -1,18 +1,18 @@
-package cloudstack
+package provider
 
-// const (
-// 	jobInProgress = iota * 2
-// 	jobFailed
-// )
-//
-// type Cloudstack struct {
-// 	ProjectId string
-// 	ApiUrl    string
-// 	ApiKey    string
-// 	SecretKey string
-// 	Hostname  string
-// }
-//
+const (
+	jobInProgress = iota * 2
+	jobFailed
+)
+
+type Cloudstack struct {
+	ProjectId string
+	ApiUrl    string
+	ApiKey    string
+	SecretKey string
+	Hostname  string
+}
+
 // func init() {
 // 	provider.RegisterProviderFactory("cloudstack", newCloudstack)
 // }

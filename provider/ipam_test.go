@@ -1,10 +1,10 @@
-package none_test
+package provider_test
 
 import (
 	"testing"
 
 	"github.com/luizbafilho/fusis/ipvs"
-	"github.com/luizbafilho/fusis/provider/none"
+	"github.com/luizbafilho/fusis/provider"
 
 	. "gopkg.in/check.v1"
 )
@@ -13,19 +13,18 @@ func Test(t *testing.T) { TestingT(t) }
 
 type IpamSuite struct {
 	state *ipvs.FusisState
-	ipam  *none.Ipam
+	ipam  *provider.Ipam
 }
 
 var _ = Suite(&IpamSuite{})
 
 func (s *IpamSuite) SetUpSuite(c *C) {
-	state := ipvs.NewFusisState()
+	s.state = ipvs.NewFusisState()
 
-	ipam, err := none.NewIpam("192.168.0.0/28", state)
+	ipam, err := provider.NewIpam("192.168.0.0/28")
 	c.Assert(err, IsNil)
 
 	s.ipam = ipam
-	s.state = state
 }
 
 func (s *IpamSuite) TearDownSuite(c *C) {
@@ -38,7 +37,7 @@ func (s *IpamSuite) TestIpAllocation(c *C) {
 	}
 	s.state.AddService(service)
 
-	ip, err := s.ipam.Allocate()
+	ip, err := s.ipam.Allocate(s.state)
 	c.Assert(err, IsNil)
 	c.Assert(ip, Equals, "192.168.0.1")
 
@@ -48,7 +47,7 @@ func (s *IpamSuite) TestIpAllocation(c *C) {
 	}
 	s.state.AddService(service)
 
-	ip, err = s.ipam.Allocate()
+	ip, err = s.ipam.Allocate(s.state)
 	c.Assert(err, IsNil)
 	c.Assert(ip, Equals, "192.168.0.3")
 }

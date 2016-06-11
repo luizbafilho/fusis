@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+var conf config.BalancerConfig
+
 var balancerCmd = &cobra.Command{
 	Use:   "balancer",
 	Short: "Fusis Balancer",
@@ -18,23 +20,23 @@ var balancerCmd = &cobra.Command{
 
 It's responsible for creating new Services and watching for Agents joining the cluster,
 and add routes to them in the Load Balancer.`,
-	Run: run,
+	RunE: run,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		viper.Unmarshal(&config.Balancer)
+		viper.Unmarshal(&conf)
 	},
 }
 
 func init() {
 	FusisCmd.AddCommand(balancerCmd)
-	setupBalancerConfig()
+	balancerConfig()
 }
 
-func setupBalancerConfig() {
-	balancerCmd.Flags().StringVarP(&config.Balancer.Interface, "interface", "", "eth0", "Network interface")
-	balancerCmd.Flags().StringVarP(&config.Balancer.Join, "join", "j", "", "Join balancer pool")
-	balancerCmd.Flags().BoolVarP(&config.Balancer.Single, "single", "s", false, "Configuration directory")
-	balancerCmd.Flags().StringVarP(&config.Balancer.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
-	balancerCmd.Flags().IntVar(&config.Balancer.RaftPort, "raft-port", 4382, "Raft port")
+func balancerConfig() {
+	balancerCmd.Flags().StringVarP(&conf.Interface, "interface", "", "eth0", "Network interface")
+	balancerCmd.Flags().StringVarP(&conf.Join, "join", "j", "", "Join balancer pool")
+	balancerCmd.Flags().BoolVarP(&conf.Single, "single", "s", false, "Configuration directory")
+	balancerCmd.Flags().StringVarP(&conf.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
+	balancerCmd.Flags().IntVar(&conf.RaftPort, "raft-port", 4382, "Raft port")
 
 	err := viper.BindPFlags(balancerCmd.Flags())
 	if err != nil {
@@ -42,18 +44,18 @@ func setupBalancerConfig() {
 	}
 }
 
-func run(cmd *cobra.Command, args []string) {
+func run(cmd *cobra.Command, args []string) error {
 	if err := net.SetIpForwarding(); err != nil {
 		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")
 		log.Fatal(err)
 	}
 
-	balancer, err := fusis.NewBalancer()
+	balancer, err := fusis.NewBalancer(&conf)
 	if err != nil {
 		panic(err)
 	}
 
-	if config.Balancer.Join != "" {
+	if conf.Join != "" {
 		balancer.JoinPool()
 	}
 
@@ -61,4 +63,6 @@ func run(cmd *cobra.Command, args []string) {
 	go apiService.Serve()
 
 	waitSignals(balancer)
+
+	return nil
 }

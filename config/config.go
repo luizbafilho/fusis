@@ -46,5 +46,3 @@ type AgentConfig struct {
 func (c *Config) GetIpByInterface() (string, error) {
 	return net.GetIpByInterface(c.Interface)
 }
-
-var Balancer BalancerConfig

@@ -30,15 +30,9 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 		Service: svc,
 	}
 
-	bytes, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-
-	f := b.raft.Apply(bytes, raftTimeout)
-	if err, ok := f.(error); ok {
-		if err := b.engine.Provider.ReleaseVIP(*svc); err != nil {
-			return err
+	if err := b.ApplyToRaft(c); err != nil {
+		if e := b.engine.Provider.ReleaseVIP(*svc); e != nil {
+			return e
 		}
 
 		return err
@@ -65,17 +59,7 @@ func (b *Balancer) DeleteService(name string) error {
 		Service: svc,
 	}
 
-	bytes, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-
-	f := b.raft.Apply(bytes, raftTimeout)
-	if err, ok := f.(error); ok {
-		return err
-	}
-
-	return nil
+	return b.ApplyToRaft(c)
 }
 
 func (b *Balancer) GetDestination(name string) (*ipvs.Destination, error) {
@@ -91,17 +75,7 @@ func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) erro
 		Destination: dst,
 	}
 
-	bytes, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-
-	f := b.raft.Apply(bytes, raftTimeout)
-	if err, ok := f.(error); ok {
-		return err
-	}
-
-	return nil
+	return b.ApplyToRaft(c)
 }
 
 func (b *Balancer) DeleteDestination(dst *ipvs.Destination) error {
@@ -116,7 +90,11 @@ func (b *Balancer) DeleteDestination(dst *ipvs.Destination) error {
 		Destination: dst,
 	}
 
-	bytes, err := json.Marshal(c)
+	return b.ApplyToRaft(c)
+}
+
+func (b *Balancer) ApplyToRaft(cmd *engine.Command) error {
+	bytes, err := json.Marshal(cmd)
 	if err != nil {
 		return err
 	}

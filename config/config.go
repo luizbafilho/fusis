@@ -17,22 +17,22 @@ type Provider struct {
 	Params map[string]string
 }
 
-type Config struct {
-	Interface string
-}
-
 type BalancerConfig struct {
-	Config
+	Interface string
 
-	Single     bool
-	Join       string
+	Name       string
+	Bootstrap  bool
+	Join       []string
 	Provider   Provider
 	ConfigPath string
-	RaftPort   int
+	// RaftPort   int
+	// SerfPort   int
+	Ports   map[string]int
+	DevMode bool
 }
 
 type AgentConfig struct {
-	Config
+	Interface string
 
 	Balancer string
 	Name     string
@@ -43,6 +43,10 @@ type AgentConfig struct {
 	Service  string
 }
 
-func (c *Config) GetIpByInterface() (string, error) {
+func (c *BalancerConfig) GetIpByInterface() (string, error) {
+	return net.GetIpByInterface(c.Interface)
+}
+
+func (c *AgentConfig) GetIpByInterface() (string, error) {
 	return net.GetIpByInterface(c.Interface)
 }

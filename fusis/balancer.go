@@ -40,6 +40,7 @@ type Balancer struct {
 	raft          *raft.Raft // The consensus mechanism
 	raftPeers     raft.PeerStore
 	raftStore     *raftboltdb.BoltStore
+	raftInmem     *raft.InmemStore
 	raftTransport *raft.NetworkTransport
 	logger        *logrus.Logger
 	config        *config.BalancerConfig
@@ -93,7 +94,7 @@ func (b *Balancer) setupSerf() error {
 	conf := serf.DefaultConfig()
 	conf.Init()
 	conf.Tags["role"] = "balancer"
-	conf.Tags["raft-port"] = strconv.Itoa(b.config.RaftPort)
+	conf.Tags["raft-port"] = strconv.Itoa(b.config.Ports["raft"])
 
 	bindAddr, err := b.config.GetIpByInterface()
 	if err != nil {
@@ -101,6 +102,9 @@ func (b *Balancer) setupSerf() error {
 	}
 
 	conf.MemberlistConfig.BindAddr = bindAddr
+	conf.MemberlistConfig.BindPort = b.config.Ports["serf"]
+
+	conf.NodeName = b.config.Name
 	conf.EventCh = b.eventCh
 
 	serf, err := serf.Create(conf)
@@ -133,7 +137,7 @@ func (b *Balancer) setupRaft() error {
 
 	// Allow the node to entry single-mode, potentially electing itself, if
 	// explicitly enabled and there is only 1 node in the cluster already.
-	if b.config.Single && len(peers) <= 1 {
+	if b.config.Bootstrap && len(peers) <= 1 {
 		b.logger.Infof("enabling single-node mode")
 		raftConfig.EnableSingleNode = true
 		raftConfig.DisableBootstrapAfterElect = false
@@ -145,32 +149,48 @@ func (b *Balancer) setupRaft() error {
 	}
 
 	// Setup Raft communication.
-	raftAddr := &net.TCPAddr{IP: net.ParseIP(ip), Port: b.config.RaftPort}
+	raftAddr := &net.TCPAddr{IP: net.ParseIP(ip), Port: b.config.Ports["raft"]}
 	transport, err := raft.NewTCPTransport(raftAddr.String(), raftAddr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err
 	}
 	b.raftTransport = transport
 
-	// Create peer storage.
-	peerStore := raft.NewJSONPeers(b.config.ConfigPath, transport)
-	b.raftPeers = peerStore
+	var log raft.LogStore
+	var stable raft.StableStore
+	var snap raft.SnapshotStore
 
-	// Create the snapshot store. This allows the Raft to truncate the log.
-	snapshots, err := raft.NewFileSnapshotStore(b.config.ConfigPath, retainSnapshotCount, os.Stderr)
-	if err != nil {
-		return fmt.Errorf("file snapshot store: %s", err)
-	}
+	if b.config.DevMode {
+		store := raft.NewInmemStore()
+		b.raftInmem = store
+		stable = store
+		log = store
+		snap = raft.NewDiscardSnapshotStore()
+		b.raftPeers = &raft.StaticPeers{}
+	} else {
+		// Create peer storage.
+		peerStore := raft.NewJSONPeers(b.config.ConfigPath, transport)
+		b.raftPeers = peerStore
 
-	// Create the log store and stable store.
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(b.config.ConfigPath, "raft.db"))
-	if err != nil {
-		return fmt.Errorf("new bolt store: %s", err)
+		// Create the snapshot store. This allows the Raft to truncate the log.
+		snapshots, err := raft.NewFileSnapshotStore(b.config.ConfigPath, retainSnapshotCount, os.Stderr)
+		if err != nil {
+			return fmt.Errorf("file snapshot store: %s", err)
+		}
+		snap = snapshots
+
+		// Create the log store and stable store.
+		logStore, err := raftboltdb.NewBoltStore(filepath.Join(b.config.ConfigPath, "raft.db"))
+		if err != nil {
+			return fmt.Errorf("new bolt store: %s", err)
+		}
+		b.raftStore = logStore
+		log = logStore
+		stable = logStore
 	}
-	b.raftStore = logStore
 
 	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(raftConfig, b.engine, logStore, logStore, snapshots, peerStore, transport)
+	ra, err := raft.NewRaft(raftConfig, b.engine, log, stable, snap, b.raftPeers, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
@@ -219,7 +239,7 @@ func (b *Balancer) isLeader() bool {
 func (b *Balancer) JoinPool() error {
 	b.logger.Infof("Balancer: joining: %v ignore: %v", b.config.Join)
 
-	_, err := b.serf.Join([]string{b.config.Join}, true)
+	_, err := b.serf.Join(b.config.Join, true)
 	if err != nil {
 		b.logger.Errorf("Balancer: error joining: %v", err)
 		return err
@@ -298,7 +318,7 @@ func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
 }
 
 func (b *Balancer) addMemberToPool(m serf.Member) {
-	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), b.config.RaftPort)
+	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), b.config.Ports["raft"])
 
 	b.logger.Infof("Adding Balancer to Pool", remoteAddr)
 	f := b.raft.AddPeer(remoteAddr)

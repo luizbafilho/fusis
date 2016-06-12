@@ -1,6 +1,8 @@
 package command
 
 import (
+	"os"
+
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/luizbafilho/fusis/api"
@@ -13,38 +15,46 @@ import (
 
 var conf config.BalancerConfig
 
-var balancerCmd = &cobra.Command{
-	Use:   "balancer",
-	Short: "Fusis Balancer",
-	Long: `fusis balancer is the command used to run the balancer process.
-
-It's responsible for creating new Services and watching for Agents joining the cluster,
-and add routes to them in the Load Balancer.`,
-	RunE: run,
-	PreRun: func(cmd *cobra.Command, args []string) {
-		viper.Unmarshal(&conf)
-	},
-}
-
 func init() {
-	FusisCmd.AddCommand(balancerCmd)
-	balancerConfig()
+	FusisCmd.AddCommand(NewBalancerCommand())
+	// balancerConfig()
 }
 
-func balancerConfig() {
-	balancerCmd.Flags().StringVarP(&conf.Interface, "interface", "", "eth0", "Network interface")
-	balancerCmd.Flags().StringVarP(&conf.Join, "join", "j", "", "Join balancer pool")
-	balancerCmd.Flags().BoolVarP(&conf.Single, "single", "s", false, "Configuration directory")
-	balancerCmd.Flags().StringVarP(&conf.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
-	balancerCmd.Flags().IntVar(&conf.RaftPort, "raft-port", 4382, "Raft port")
+func NewBalancerCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "balancer [options]",
+		Short: "starts a new balancer",
+		Long: `fusis balancer is the command used to run the balancer process.
 
-	err := viper.BindPFlags(balancerCmd.Flags())
+	It's responsible for creating new Services and watching for Agents joining the cluster,
+	and add routes to them in the Load Balancer.`,
+		PreRun: func(cmd *cobra.Command, args []string) {
+			viper.Unmarshal(&conf)
+		},
+		RunE: balancerCommandFunc,
+	}
+
+	setupBalancerCmdFlags(cmd)
+
+	return cmd
+}
+
+func setupBalancerCmdFlags(cmd *cobra.Command) {
+	hostname, _ := os.Hostname()
+	cmd.Flags().StringVarP(&conf.Name, "name", "n", hostname, "node name (unique in the cluster)")
+	cmd.Flags().StringVarP(&conf.Interface, "interface", "", "eth0", "Network interface")
+	cmd.Flags().StringVarP(&conf.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
+	cmd.Flags().BoolVar(&conf.Bootstrap, "bootstrap", false, "starts balancer in boostrap mode")
+	cmd.Flags().BoolVar(&conf.DevMode, "dev", false, "Initialize balancer in dev mode")
+	cmd.Flags().StringSliceVarP(&conf.Join, "join", "j", []string{}, "Join balancer pool")
+
+	err := viper.BindPFlags(cmd.Flags())
 	if err != nil {
 		log.Errorf("error binding pflags: %v", err)
 	}
 }
 
-func run(cmd *cobra.Command, args []string) error {
+func balancerCommandFunc(cmd *cobra.Command, args []string) error {
 	if err := net.SetIpForwarding(); err != nil {
 		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")
 		log.Fatal(err)
@@ -55,7 +65,7 @@ func run(cmd *cobra.Command, args []string) error {
 		panic(err)
 	}
 
-	if conf.Join != "" {
+	if len(conf.Join) > 0 {
 		balancer.JoinPool()
 	}
 

@@ -17,7 +17,6 @@ var conf config.BalancerConfig
 
 func init() {
 	FusisCmd.AddCommand(NewBalancerCommand())
-	// balancerConfig()
 }
 
 func NewBalancerCommand() *cobra.Command {

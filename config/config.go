@@ -25,10 +25,8 @@ type BalancerConfig struct {
 	Join       []string
 	Provider   Provider
 	ConfigPath string
-	// RaftPort   int
-	// SerfPort   int
-	Ports   map[string]int
-	DevMode bool
+	Ports      map[string]int
+	DevMode    bool
 }
 
 type AgentConfig struct {

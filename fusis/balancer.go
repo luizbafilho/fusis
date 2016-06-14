@@ -128,6 +128,10 @@ func (b *Balancer) setupRaft() error {
 	raftConfig := raft.DefaultConfig()
 	raftConfig.Logger = b.newStdLogger()
 
+	// raftConfig.LeaderLeaseTimeout = 20 * time.Millisecond
+	// raftConfig.HeartbeatTimeout = 40 * time.Millisecond
+	// raftConfig.ElectionTimeout = 40 * time.Millisecond
+
 	raftConfig.ShutdownOnRemove = false
 	// Check for any existing peers.
 	peers, err := readPeersJSON(filepath.Join(b.config.ConfigPath, "peers.json"))
@@ -237,7 +241,7 @@ func (b *Balancer) isLeader() bool {
 
 // JoinPool joins the Fusis Serf cluster
 func (b *Balancer) JoinPool() error {
-	b.logger.Infof("Balancer: joining: %v ignore: %v", b.config.Join)
+	b.logger.Infof("Balancer: joining: %v", b.config.Join)
 
 	_, err := b.serf.Join(b.config.Join, true)
 	if err != nil {
@@ -318,7 +322,7 @@ func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
 }
 
 func (b *Balancer) addMemberToPool(m serf.Member) {
-	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), b.config.Ports["raft"])
+	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), m.Tags["raft-port"])
 
 	b.logger.Infof("Adding Balancer to Pool", remoteAddr)
 	f := b.raft.AddPeer(remoteAddr)

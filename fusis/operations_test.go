@@ -2,6 +2,8 @@ package fusis
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -54,6 +56,11 @@ func (s *FusisSuite) SetUpSuite(c *C) {
 func (s *FusisSuite) SetUpTest(c *C) {
 }
 
+func tmpDir() string {
+	dir, _ := ioutil.TempDir("", "fusis")
+	return dir
+}
+
 type testFn func() (bool, error)
 type errorFn func(error)
 
@@ -76,11 +83,12 @@ func WaitForResult(test testFn, error errorFn) {
 }
 
 func defaultConfig() config.BalancerConfig {
+	dir := tmpDir()
 	return config.BalancerConfig{
-		Interface: "eth0",
-		DevMode:   true,
-		Bootstrap: true,
-		Ports:     make(map[string]int),
+		Interface:  "eth0",
+		ConfigPath: dir,
+		Bootstrap:  true,
+		Ports:      make(map[string]int),
 		Provider: config.Provider{
 			Type: "none",
 			Params: map[string]string{
@@ -102,6 +110,7 @@ func (s *FusisSuite) TestAssignVIP(c *C) {
 	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
 
 	WaitForResult(func() (bool, error) {
 		return b.isLeader(), nil
@@ -134,6 +143,7 @@ func (s *FusisSuite) TestUnassignVIP(c *C) {
 	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
 
 	WaitForResult(func() (bool, error) {
 		return b.isLeader(), nil
@@ -159,7 +169,7 @@ func (s *FusisSuite) TestUnassignVIP(c *C) {
 	c.Assert(deleted, Equals, true)
 }
 
-func (s *FusisSuite) TestAddService(c *C) {
+func (s *FusisSuite) TestJoinPool(c *C) {
 	config := defaultConfig()
 	config.Name = "test"
 	config.Ports["raft"] = getPort()
@@ -167,6 +177,13 @@ func (s *FusisSuite) TestAddService(c *C) {
 	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
 
 	join, err := config.GetIpByInterface()
 	c.Assert(err, IsNil)
@@ -181,6 +198,7 @@ func (s *FusisSuite) TestAddService(c *C) {
 	s2, err := NewBalancer(&config2)
 	c.Assert(err, IsNil)
 	defer s2.Shutdown()
+	defer os.RemoveAll(config2.ConfigPath)
 
 	err = s2.JoinPool()
 	c.Assert(err, IsNil)
@@ -189,6 +207,14 @@ func (s *FusisSuite) TestAddService(c *C) {
 	WaitForResult(func() (bool, error) {
 		return len(s2.serf.Members()) == 2, nil
 	}, func(err error) {
-		c.Fatalf("bad len")
+		c.Fatalf("bad serf len")
+	})
+
+	// Check the members
+	WaitForResult(func() (bool, error) {
+		peers, _ := b.raftPeers.Peers()
+		return len(peers) == 2, nil
+	}, func(err error) {
+		c.Fatalf("bad raft len")
 	})
 }

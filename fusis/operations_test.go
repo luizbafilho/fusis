@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/net"
@@ -107,7 +106,7 @@ func (s *FusisSuite) TestAssignVIP(c *C) {
 	WaitForResult(func() (bool, error) {
 		return b.isLeader(), nil
 	}, func(err error) {
-		c.Fatalf("balancer did not became leader")
+		c.Fatalf("balancer did not become leader")
 	})
 
 	s.service.Host = "192.168.85.43"
@@ -117,7 +116,6 @@ func (s *FusisSuite) TestAssignVIP(c *C) {
 	addrs, err := net.GetVips(config.Interface)
 	c.Assert(err, IsNil)
 
-	spew.Dump(addrs)
 	found := false
 	for _, a := range addrs {
 		if a.IPNet.String() == "192.168.85.43/32" {
@@ -126,6 +124,39 @@ func (s *FusisSuite) TestAssignVIP(c *C) {
 	}
 
 	c.Assert(found, Equals, true)
+}
+
+func (s *FusisSuite) TestUnassignVIP(c *C) {
+	config := defaultConfig()
+	config.Name = "test"
+	config.Ports["raft"] = getPort()
+	config.Ports["serf"] = getPort()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+
+	s.service.Host = "192.168.85.43"
+
+	b.AssignVIP(s.service)
+	b.UnassignVIP(s.service)
+
+	addrs, err := net.GetVips(config.Interface)
+	c.Assert(err, IsNil)
+
+	deleted := true
+	for _, a := range addrs {
+		if a.IPNet.String() == "192.168.0.1/32" {
+			deleted = false
+		}
+	}
+
+	c.Assert(deleted, Equals, true)
 }
 
 func (s *FusisSuite) TestAddService(c *C) {

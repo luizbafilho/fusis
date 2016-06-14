@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/net"
 	. "gopkg.in/check.v1"
 )
 
@@ -93,26 +95,61 @@ func defaultConfig() config.BalancerConfig {
 func (s *FusisSuite) TestGetServices(c *C) {
 }
 
+func (s *FusisSuite) TestAssignVIP(c *C) {
+	config := defaultConfig()
+	config.Name = "test"
+	config.Ports["raft"] = getPort()
+	config.Ports["serf"] = getPort()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not became leader")
+	})
+
+	s.service.Host = "192.168.85.43"
+
+	b.AssignVIP(s.service)
+
+	addrs, err := net.GetVips(config.Interface)
+	c.Assert(err, IsNil)
+
+	spew.Dump(addrs)
+	found := false
+	for _, a := range addrs {
+		if a.IPNet.String() == "192.168.85.43/32" {
+			found = true
+		}
+	}
+
+	c.Assert(found, Equals, true)
+}
+
 func (s *FusisSuite) TestAddService(c *C) {
 	config := defaultConfig()
 	config.Name = "test"
-	config.Ports["raft"] = 15000
-	config.Ports["serf"] = 15001
-	_, err := NewBalancer(&config)
+	config.Ports["raft"] = getPort()
+	config.Ports["serf"] = getPort()
+	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
+	defer b.Shutdown()
 
 	join, err := config.GetIpByInterface()
 	c.Assert(err, IsNil)
 
 	config2 := defaultConfig()
 	config2.Name = "test2"
-	config2.Ports["raft"] = 15002
-	config2.Ports["serf"] = 15003
+	config2.Ports["raft"] = getPort()
+	config2.Ports["serf"] = getPort()
 	config2.Join = []string{fmt.Sprintf("%v:%v", join, config.Ports["serf"])}
 	config2.Bootstrap = false
 
 	s2, err := NewBalancer(&config2)
 	c.Assert(err, IsNil)
+	defer s2.Shutdown()
 
 	err = s2.JoinPool()
 	c.Assert(err, IsNil)

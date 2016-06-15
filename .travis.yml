@@ -1,25 +1,22 @@
 language: go
 sudo: false
 go:
-  - 1.5.3
+  - 1.6
 env:
   global:
     - FUSIS_ENV=test
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential ipvsadm
-  - docker run -d -p 127.0.0.1:2379:2379 --name etcd elcolio/etcd:latest
 install:
-  - go get github.com/gin-gonic/gin
-  - go get github.com/coreos/etcd
+  - make deps
   - go get gopkg.in/check.v1
 before_script:
   - sudo modprobe ip_vs
-  - go build
-  - sudo ./fusis&
-  - sleep 3
+  # - go build
+  # - sudo ./fusis&
+  # - sleep 3
 script:
-  - go test -v github.com/luizbafilho/fusis/db/etcd
-  - go test -v github.com/luizbafilho/fusis/api
-services:
-  - docker
+  # - go test -v github.com/luizbafilho/fusis/db/etcd
+  # - go test -v github.com/luizbafilho/fusis/api
+  - make test

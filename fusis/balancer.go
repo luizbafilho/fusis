@@ -128,10 +128,6 @@ func (b *Balancer) setupRaft() error {
 	raftConfig := raft.DefaultConfig()
 	raftConfig.Logger = b.newStdLogger()
 
-	// raftConfig.LeaderLeaseTimeout = 20 * time.Millisecond
-	// raftConfig.HeartbeatTimeout = 40 * time.Millisecond
-	// raftConfig.ElectionTimeout = 40 * time.Millisecond
-
 	raftConfig.ShutdownOnRemove = false
 	// Check for any existing peers.
 	peers, err := readPeersJSON(filepath.Join(b.config.ConfigPath, "peers.json"))

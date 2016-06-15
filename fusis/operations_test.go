@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/net"
 	. "gopkg.in/check.v1"
@@ -86,9 +87,13 @@ func defaultConfig() config.BalancerConfig {
 	dir := tmpDir()
 	return config.BalancerConfig{
 		Interface:  "eth0",
+		Name:       "Test",
 		ConfigPath: dir,
 		Bootstrap:  true,
-		Ports:      make(map[string]int),
+		Ports: map[string]int{
+			"raft": getPort(),
+			"serf": getPort(),
+		},
 		Provider: config.Provider{
 			Type: "none",
 			Params: map[string]string{
@@ -104,9 +109,6 @@ func (s *FusisSuite) TestGetServices(c *C) {
 
 func (s *FusisSuite) TestAssignVIP(c *C) {
 	config := defaultConfig()
-	config.Name = "test"
-	config.Ports["raft"] = getPort()
-	config.Ports["serf"] = getPort()
 	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
@@ -137,9 +139,6 @@ func (s *FusisSuite) TestAssignVIP(c *C) {
 
 func (s *FusisSuite) TestUnassignVIP(c *C) {
 	config := defaultConfig()
-	config.Name = "test"
-	config.Ports["raft"] = getPort()
-	config.Ports["serf"] = getPort()
 	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
@@ -169,11 +168,8 @@ func (s *FusisSuite) TestUnassignVIP(c *C) {
 	c.Assert(deleted, Equals, true)
 }
 
-func (s *FusisSuite) TestJoinPool(c *C) {
+func (s *FusisSuite) TestJoinPoolLeave(c *C) {
 	config := defaultConfig()
-	config.Name = "test"
-	config.Ports["raft"] = getPort()
-	config.Ports["serf"] = getPort()
 	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
@@ -200,6 +196,7 @@ func (s *FusisSuite) TestJoinPool(c *C) {
 	defer s2.Shutdown()
 	defer os.RemoveAll(config2.ConfigPath)
 
+	// Testing JoinPool
 	err = s2.JoinPool()
 	c.Assert(err, IsNil)
 
@@ -207,7 +204,7 @@ func (s *FusisSuite) TestJoinPool(c *C) {
 	WaitForResult(func() (bool, error) {
 		return len(s2.serf.Members()) == 2, nil
 	}, func(err error) {
-		c.Fatalf("bad serf len")
+		c.Fatalf("balancer could not join the serf cluster")
 	})
 
 	// Check the members
@@ -215,6 +212,78 @@ func (s *FusisSuite) TestJoinPool(c *C) {
 		peers, _ := b.raftPeers.Peers()
 		return len(peers) == 2, nil
 	}, func(err error) {
-		c.Fatalf("bad raft len")
+		c.Fatalf("balancer could not join the raft cluster")
+	})
+
+	// Testing Leave Pool
+	s2.Leave()
+
+	WaitForResult(func() (bool, error) {
+		peers, _ := b.raftPeers.Peers()
+		return len(peers) == 1, nil
+	}, func(err error) {
+		c.Fatalf("balancer could not leave the raft cluster")
+	})
+}
+
+func (s *FusisSuite) TestWatchCommands(c *C) {
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+
+	s.service.Host = "192.168.85.43"
+
+	// Sending add service event to balancer assign the VIP
+	cmd := engine.Command{
+		Op:      engine.AddServiceOp,
+		Service: s.service,
+	}
+	b.engine.CommandCh <- cmd
+
+	WaitForResult(func() (bool, error) {
+		addrs, err := net.GetVips(config.Interface)
+		c.Assert(err, IsNil)
+
+		found := false
+		for _, a := range addrs {
+			if a.IPNet.String() == "192.168.85.43/32" {
+				found = true
+			}
+		}
+
+		return found, nil
+	}, func(err error) {
+		c.Fatalf("balancer did not assigned ip")
+	})
+
+	// Sending del service event to balancer unassign the VIP
+	cmd = engine.Command{
+		Op:      engine.DelServiceOp,
+		Service: s.service,
+	}
+	b.engine.CommandCh <- cmd
+
+	WaitForResult(func() (bool, error) {
+		addrs, err := net.GetVips(config.Interface)
+		c.Assert(err, IsNil)
+
+		deleted := true
+		for _, a := range addrs {
+			if a.IPNet.String() == "192.168.85.43/32" {
+				deleted = false
+			}
+		}
+
+		return deleted, nil
+	}, func(err error) {
+		c.Fatalf("balancer did not unassigned ip")
 	})
 }

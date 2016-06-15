@@ -1,119 +1,313 @@
-package api_test
+package api
 
-// import (
-// 	"net/http"
-// 	"testing"
-// 	"time"
-//
-// 	"github.com/luizbafilho/fusis/api"
-// 	. "github.com/luizbafilho/fusis/db"
-// 	"github.com/luizbafilho/fusis/db/etcd"
-//
-// 	. "gopkg.in/check.v1"
-// )
-//
-// // Hook up gocheck into the "go test" runner.
-// func Test(t *testing.T) { TestingT(t) }
-//
-// type EtcdSuite struct {
-// 	store       Store
-// 	apiClient   api.Client
-// 	service     Service
-// 	destination Destination
-// }
-//
-// var _ = Suite(&EtcdSuite{})
-//
-// func (s *EtcdSuite) SetUpSuite(c *C) {
-// 	nodes := []string{"http://127.0.0.1:2379"}
-// 	s.store = etcd.New(nodes, "fusis_test")
-//
-// 	s.apiClient = *api.NewClient("http://localhost:8000")
-// }
-//
-// func (s *EtcdSuite) SetUpTest(c *C) {
-// 	s.service = Service{
-// 		Host:         "10.7.0.1",
-// 		Port:         80,
-// 		Scheduler:    "lc",
-// 		Protocol:     "tcp",
-// 		Destinations: []Destination{},
-// 	}
-//
-// 	s.destination = Destination{
-// 		Host:   "192.168.1.1",
-// 		Port:   80,
-// 		Mode:   "nat",
-// 		Weight: 1,
-// 	}
-//
-// 	flushStoreAndIpvs()
-// }
-//
-// // func (s *EtcdSuite) TearDownTest(c *C) {
-// // 	flushStoreAndIpvs()
-// // }
-//
-// func (s *EtcdSuite) TestGestServices(c *C) {
-// 	err := s.apiClient.UpsertService(s.service)
-// 	c.Assert(err, IsNil)
-// 	time.Sleep(time.Millisecond * 500)
-//
-// 	services, err := s.apiClient.GetServices()
-// 	c.Assert(err, IsNil)
-//
-// 	c.Assert(*services, DeepEquals, []Service{s.service})
-// }
-//
-// func (s *EtcdSuite) TestUpsertService(c *C) {
-// 	err := s.apiClient.UpsertService(s.service)
-// 	c.Assert(err, IsNil)
-//
-// 	svc, err := s.store.GetService(s.service.GetId())
-// 	c.Assert(*svc, DeepEquals, s.service)
-// }
-//
-// func (s *EtcdSuite) TestDeleteService(c *C) {
-// 	err := s.store.UpsertService(s.service)
-// 	c.Assert(err, IsNil)
-//
-// 	err = s.apiClient.DeleteService(s.service)
-// 	c.Assert(err, IsNil)
-//
-// 	_, err = s.store.GetService(s.service.GetId())
-// 	c.Assert(err, NotNil)
-// }
-//
-// func (s *EtcdSuite) TestUpsertDestination(c *C) {
-// 	err := s.store.UpsertService(s.service)
-// 	c.Assert(err, IsNil)
-//
-// 	err = s.apiClient.UpsertDestination(s.service, s.destination)
-// 	c.Assert(err, IsNil)
-//
-// 	destinations, err := s.store.GetDestinations(s.service)
-// 	c.Assert(err, IsNil)
-//
-// 	c.Assert(*destinations, DeepEquals, []Destination{s.destination})
-// }
-//
-// func (s *EtcdSuite) TestDeleteDestination(c *C) {
-// 	err := s.store.UpsertService(s.service)
-// 	c.Assert(err, IsNil)
-//
-// 	err = s.apiClient.UpsertDestination(s.service, s.destination)
-// 	c.Assert(err, IsNil)
-//
-// 	err = s.apiClient.DeleteDestination(s.service, s.destination)
-// 	c.Assert(err, IsNil)
-//
-// 	dsts, err := s.store.GetDestinations(s.service)
-// 	c.Assert(*dsts, DeepEquals, []Destination{})
-// }
-//
-// func flushStoreAndIpvs() {
-// 	resp, err := http.Post("http://localhost:8000/flush", "", nil)
-// 	if err != nil || resp.StatusCode != 200 {
-// 		panic(err)
-// 	}
-// }
+import (
+	"encoding/json"
+	"errors"
+	"io/ioutil"
+	"net/http"
+	"strings"
+
+	"github.com/luizbafilho/fusis/ipvs"
+	"gopkg.in/check.v1"
+)
+
+type testBalancer struct {
+	services []ipvs.Service
+	ids      map[string]int
+	dests    map[string][]int
+}
+
+func newTestBalancer() *testBalancer {
+	return &testBalancer{
+		ids:   make(map[string]int),
+		dests: make(map[string][]int),
+	}
+}
+
+func (b *testBalancer) GetServices() []ipvs.Service {
+	return b.services
+}
+
+func (b *testBalancer) AddService(srv *ipvs.Service) error {
+	_, exists := b.ids[srv.Id]
+	if exists {
+		return errors.New("conflict?")
+	}
+	b.services = append(b.services, *srv)
+	b.ids[srv.Id] = len(b.services) - 1
+	return nil
+}
+
+func (b *testBalancer) GetService(id string) (*ipvs.Service, error) {
+	idx, exists := b.ids[id]
+	if !exists {
+		return nil, ipvs.ErrNotFound
+	}
+	return &b.services[idx], nil
+}
+
+func (b *testBalancer) DeleteService(id string) error {
+	idx, exists := b.ids[id]
+	if !exists {
+		return ipvs.ErrNotFound
+	}
+	delete(b.ids, id)
+	b.services = append(b.services[:idx], b.services[idx+1:]...)
+	return nil
+}
+
+func (b *testBalancer) AddDestination(srv *ipvs.Service, dest *ipvs.Destination) error {
+	idx, exists := b.ids[srv.Id]
+	if !exists {
+		return ipvs.ErrNotFound
+	}
+	_, exists = b.dests[dest.Id]
+	if exists {
+		return errors.New("conflict?")
+	}
+	srv = &b.services[idx]
+	srv.Destinations = append(srv.Destinations, *dest)
+	b.dests[dest.Id] = []int{idx, len(srv.Destinations) - 1}
+	return nil
+}
+
+func (b *testBalancer) GetDestination(id string) (*ipvs.Destination, error) {
+	indexes, exists := b.dests[id]
+	if !exists {
+		return nil, ipvs.ErrNotFound
+	}
+	return &b.services[indexes[0]].Destinations[indexes[1]], nil
+}
+
+func (b *testBalancer) DeleteDestination(dest *ipvs.Destination) error {
+	indexes, exists := b.dests[dest.Id]
+	if !exists {
+		return ipvs.ErrNotFound
+	}
+	srv := &b.services[indexes[0]]
+	srv.Destinations = append(srv.Destinations[:indexes[1]], srv.Destinations[indexes[1]:]...)
+	return nil
+}
+
+func (s *S) TestNewAPI(c *check.C) {
+	b := testBalancer{}
+	api := NewAPI(&b)
+	c.Assert(api.balancer, check.Equals, &b)
+	c.Assert(api.env, check.Equals, "development")
+}
+
+func (s *S) TestServiceList(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	resp, err := http.Get(s.srv.URL + "/services")
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result []ipvs.Service
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, []ipvs.Service{{Id: "myservice"}})
+}
+
+func (s *S) TestServiceListEmpty(c *check.C) {
+	resp, err := http.Get(s.srv.URL + "/services")
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	c.Assert(data, check.DeepEquals, []byte{})
+}
+
+func (s *S) TestServiceGet(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	resp, err := http.Get(s.srv.URL + "/services/myservice")
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result ipvs.Service
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, ipvs.Service{Id: "myservice"})
+}
+
+func (s *S) TestServiceGetNotFound(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	resp, err := http.Get(s.srv.URL + "/services/myservice2")
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result map[string]string
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, map[string]string{"error": "Service not found"})
+}
+
+func (s *S) TestServiceCreate(c *check.C) {
+	body := strings.NewReader(`{"id": "mysrv", "name": "ahoy", "port": 1040, "protocol": "tcp", "scheduler": "rr"}`)
+	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result ipvs.Service
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, ipvs.Service{
+		Id:           "mysrv",
+		Name:         "ahoy",
+		Port:         1040,
+		Protocol:     "tcp",
+		Scheduler:    "rr",
+		Destinations: []ipvs.Destination{},
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
+	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/mysrv`)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestServiceCreateValidationError(c *check.C) {
+	body := strings.NewReader(`{"id": "mysrv"}`)
+	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result map[string]map[string]string
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, map[string]map[string]string{
+		"errors": {
+			"Name":      "non zero value required",
+			"Port":      "non zero value required",
+			"Protocol":  "non zero value required",
+			"Scheduler": "non zero value required",
+		},
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusBadRequest)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestServiceDelete(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice", nil)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
+	_, err = s.bal.GetService("myservice")
+	c.Assert(err, check.Equals, ipvs.ErrNotFound)
+}
+
+func (s *S) TestServiceDeleteNotFound(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice2", nil)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
+}
+
+func (s *S) TestDestinationCreate(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	body := strings.NewReader(`{"id": "mydest", "name": "myname", "host": "myhost", "port": 1234}`)
+	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result ipvs.Destination
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, ipvs.Destination{
+		Id:        "mydest",
+		Name:      "myname",
+		Host:      "myhost",
+		Port:      1234,
+		Weight:    1,
+		Mode:      "route",
+		ServiceId: "myservice",
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
+	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/myservice/destinations/mydest`)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestDestinationCreateValidationError(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	body := strings.NewReader(`{"id": "mydest"}`)
+	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result map[string]map[string]string
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, map[string]map[string]string{
+		"errors": {
+			"Name": "non zero value required",
+			"Port": "non zero value required",
+			"Host": "non zero value required",
+		},
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusBadRequest)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestDestinationCreateServiceNotFound(c *check.C) {
+	body := strings.NewReader(`{"id": "mydest"}`)
+	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result map[string]string
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, map[string]string{
+		"error": "Service not found",
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestDestinationDelete(c *check.C) {
+	srv := &ipvs.Service{Id: "myservice"}
+	err := s.bal.AddService(srv)
+	c.Assert(err, check.IsNil)
+	dst := &ipvs.Destination{
+		Id:        "mydest",
+		ServiceId: "myservice",
+	}
+	err = s.bal.AddDestination(srv, dst)
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
+}
+
+func (s *S) TestDestinationDeleteNotFound(c *check.C) {
+	srv := &ipvs.Service{Id: "myservice"}
+	err := s.bal.AddService(srv)
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
+}

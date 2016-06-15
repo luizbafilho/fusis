@@ -8,7 +8,7 @@ import (
 var ErrNotFound = errors.New("Not found")
 
 type State interface {
-	GetServices() *[]Service
+	GetServices() []Service
 	GetService(name string) (*Service, error)
 	AddService(svc *Service)
 	DeleteService(svc *Service)
@@ -31,14 +31,14 @@ func NewFusisState() *FusisState {
 	}
 }
 
-func (s *FusisState) GetServices() *[]Service {
+func (s *FusisState) GetServices() []Service {
 	services := []Service{}
 	for _, v := range s.Services {
 		s.getDestinations(&v)
 		services = append(services, v)
 	}
 
-	return &services
+	return services
 }
 
 func (s *FusisState) GetService(name string) (*Service, error) {

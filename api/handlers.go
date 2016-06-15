@@ -138,7 +138,7 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v\n", err)})
 	}
 
-	c.Data(http.StatusOK, gin.MIMEHTML, nil)
+	c.Status(http.StatusNoContent)
 }
 
 func (as ApiService) flush(c *gin.Context) {

@@ -214,3 +214,100 @@ func (s *S) TestServiceDeleteNotFound(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
 }
+
+func (s *S) TestDestinationCreate(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	body := strings.NewReader(`{"id": "mydest", "name": "myname", "host": "myhost", "port": 1234}`)
+	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result ipvs.Destination
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, ipvs.Destination{
+		Id:        "mydest",
+		Name:      "myname",
+		Host:      "myhost",
+		Port:      1234,
+		Weight:    1,
+		Mode:      "route",
+		ServiceId: "myservice",
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
+	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/myservice/destinations/mydest`)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestDestinationCreateValidationError(c *check.C) {
+	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	c.Assert(err, check.IsNil)
+	body := strings.NewReader(`{"id": "mydest"}`)
+	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result map[string]map[string]string
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, map[string]map[string]string{
+		"errors": {
+			"Name": "non zero value required",
+			"Port": "non zero value required",
+			"Host": "non zero value required",
+		},
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusBadRequest)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestDestinationCreateServiceNotFound(c *check.C) {
+	body := strings.NewReader(`{"id": "mydest"}`)
+	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result map[string]string
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, map[string]string{
+		"error": "Service not found",
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestDestinationDelete(c *check.C) {
+	srv := &ipvs.Service{Id: "myservice"}
+	err := s.bal.AddService(srv)
+	c.Assert(err, check.IsNil)
+	dst := &ipvs.Destination{
+		Id:        "mydest",
+		ServiceId: "myservice",
+	}
+	err = s.bal.AddDestination(srv, dst)
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
+}
+
+func (s *S) TestDestinationDeleteNotFound(c *check.C) {
+	srv := &ipvs.Service{Id: "myservice"}
+	err := s.bal.AddService(srv)
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
+}

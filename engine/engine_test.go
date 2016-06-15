@@ -163,7 +163,7 @@ func (s *EngineSuite) addDestination(c *C) {
 func (s *EngineSuite) TestApplyAddService(c *C) {
 	s.addService(c)
 
-	c.Assert(s.engine.State.GetServices(), DeepEquals, &[]ipvs.Service{*s.service})
+	c.Assert(s.engine.State.GetServices(), DeepEquals, []ipvs.Service{*s.service})
 	svcs, err := s.engine.Ipvs.GetServices()
 	c.Assert(err, IsNil)
 
@@ -175,7 +175,7 @@ func (s *EngineSuite) TestApplyDelService(c *C) {
 	s.addService(c)
 	s.delService(c)
 
-	c.Assert(s.engine.State.GetServices(), DeepEquals, &[]ipvs.Service{})
+	c.Assert(s.engine.State.GetServices(), DeepEquals, []ipvs.Service{})
 	svcs, err := s.engine.Ipvs.GetServices()
 	c.Assert(err, IsNil)
 
@@ -241,7 +241,7 @@ func (s *EngineSuite) TestSnapshotRestore(c *C) {
 
 	s.service.Destinations = []ipvs.Destination{*s.destination}
 
-	c.Assert(eng.State.GetServices(), DeepEquals, &[]ipvs.Service{*s.service})
+	c.Assert(eng.State.GetServices(), DeepEquals, []ipvs.Service{*s.service})
 
 	svcs, err := s.engine.Ipvs.GetServices()
 	c.Assert(err, IsNil)

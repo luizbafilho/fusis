@@ -2,21 +2,11 @@ language: go
 sudo: true
 go:
   - 1.6
-env:
-  global:
-    - FUSIS_ENV=test
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential ipvsadm
-install:
-  - make deps
-  - go get gopkg.in/check.v1
+  - sudo ln -s $(which go) /usr/bin/go
 before_script:
   - sudo modprobe ip_vs
-  # - go build
-  # - sudo ./fusis&
-  # - sleep 3
 script:
-  # - go test -v github.com/luizbafilho/fusis/db/etcd
-  # - go test -v github.com/luizbafilho/fusis/api
-  - make test
+  - sudo -E go test $(go list ./... | grep -v /vendor)

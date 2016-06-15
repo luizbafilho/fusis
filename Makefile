@@ -4,7 +4,7 @@ build:
 	go build -o bin/fusis
 
 run:
-	sudo bin/fusis balancer --single
+	sudo bin/fusis balancer --bootstrap
 
 docker:
 	docker build -t fusis .

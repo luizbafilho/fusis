@@ -21,15 +21,15 @@ func (s *S) TestClientGetServices(c *check.C) {
 	var req *http.Request
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req = r
-		w.Write([]byte(`[{"id": "id1", "name": "name1"}, {"id": "id2", "name": "name2"}]`))
+		w.Write([]byte(`[{"name": "name1"}, {"name": "name2"}]`))
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
 	result, err := cli.GetServices()
 	c.Assert(err, check.IsNil)
 	c.Assert(result, check.DeepEquals, []*ipvs.Service{
-		{Id: "id1", Name: "name1"},
-		{Id: "id2", Name: "name2"},
+		{Name: "name1"},
+		{Name: "name2"},
 	})
 	c.Assert(req.Method, check.Equals, "GET")
 	c.Assert(req.URL.Path, check.Equals, "/services")
@@ -73,17 +73,17 @@ func (s *S) TestClientGetService(c *check.C) {
 	var req *http.Request
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req = r
-		w.Write([]byte(`{"id": "id1", "name": "name1"}`))
+		w.Write([]byte(`{"name": "name1"}`))
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
-	result, err := cli.GetService("id1")
+	result, err := cli.GetService("name1")
 	c.Assert(err, check.IsNil)
 	c.Assert(result, check.DeepEquals, &ipvs.Service{
-		Id: "id1", Name: "name1",
+		Name: "name1",
 	})
 	c.Assert(req.Method, check.Equals, "GET")
-	c.Assert(req.URL.Path, check.Equals, "/services/id1")
+	c.Assert(req.URL.Path, check.Equals, "/services/name1")
 }
 
 func (s *S) TestClientGetServiceNotFound(c *check.C) {

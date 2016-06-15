@@ -29,12 +29,12 @@ func (b *testBalancer) GetServices() []ipvs.Service {
 }
 
 func (b *testBalancer) AddService(srv *ipvs.Service) error {
-	_, exists := b.ids[srv.Id]
+	_, exists := b.ids[srv.Name]
 	if exists {
 		return errors.New("conflict?")
 	}
 	b.services = append(b.services, *srv)
-	b.ids[srv.Id] = len(b.services) - 1
+	b.ids[srv.Name] = len(b.services) - 1
 	return nil
 }
 
@@ -57,17 +57,17 @@ func (b *testBalancer) DeleteService(id string) error {
 }
 
 func (b *testBalancer) AddDestination(srv *ipvs.Service, dest *ipvs.Destination) error {
-	idx, exists := b.ids[srv.Id]
+	idx, exists := b.ids[srv.Name]
 	if !exists {
 		return ipvs.ErrNotFound
 	}
-	_, exists = b.dests[dest.Id]
+	_, exists = b.dests[dest.Name]
 	if exists {
 		return errors.New("conflict?")
 	}
 	srv = &b.services[idx]
 	srv.Destinations = append(srv.Destinations, *dest)
-	b.dests[dest.Id] = []int{idx, len(srv.Destinations) - 1}
+	b.dests[dest.Name] = []int{idx, len(srv.Destinations) - 1}
 	return nil
 }
 
@@ -80,7 +80,7 @@ func (b *testBalancer) GetDestination(id string) (*ipvs.Destination, error) {
 }
 
 func (b *testBalancer) DeleteDestination(dest *ipvs.Destination) error {
-	indexes, exists := b.dests[dest.Id]
+	indexes, exists := b.dests[dest.Name]
 	if !exists {
 		return ipvs.ErrNotFound
 	}
@@ -97,7 +97,7 @@ func (s *S) TestNewAPI(c *check.C) {
 }
 
 func (s *S) TestServiceList(c *check.C) {
-	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	err := s.bal.AddService(&ipvs.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
 	resp, err := http.Get(s.srv.URL + "/services")
 	c.Assert(err, check.IsNil)
@@ -108,7 +108,7 @@ func (s *S) TestServiceList(c *check.C) {
 	var result []ipvs.Service
 	err = json.Unmarshal(data, &result)
 	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, []ipvs.Service{{Id: "myservice"}})
+	c.Assert(result, check.DeepEquals, []ipvs.Service{{Name: "myservice"}})
 }
 
 func (s *S) TestServiceListEmpty(c *check.C) {
@@ -121,7 +121,7 @@ func (s *S) TestServiceListEmpty(c *check.C) {
 }
 
 func (s *S) TestServiceGet(c *check.C) {
-	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	err := s.bal.AddService(&ipvs.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
 	resp, err := http.Get(s.srv.URL + "/services/myservice")
 	c.Assert(err, check.IsNil)
@@ -132,11 +132,11 @@ func (s *S) TestServiceGet(c *check.C) {
 	var result ipvs.Service
 	err = json.Unmarshal(data, &result)
 	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, ipvs.Service{Id: "myservice"})
+	c.Assert(result, check.DeepEquals, ipvs.Service{Name: "myservice"})
 }
 
 func (s *S) TestServiceGetNotFound(c *check.C) {
-	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	err := s.bal.AddService(&ipvs.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
 	resp, err := http.Get(s.srv.URL + "/services/myservice2")
 	c.Assert(err, check.IsNil)
@@ -151,7 +151,7 @@ func (s *S) TestServiceGetNotFound(c *check.C) {
 }
 
 func (s *S) TestServiceCreate(c *check.C) {
-	body := strings.NewReader(`{"id": "mysrv", "name": "ahoy", "port": 1040, "protocol": "tcp", "scheduler": "rr"}`)
+	body := strings.NewReader(`{"name": "ahoy", "port": 1040, "protocol": "tcp", "scheduler": "rr"}`)
 	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
 	c.Assert(err, check.IsNil)
 	data, err := ioutil.ReadAll(resp.Body)
@@ -160,7 +160,6 @@ func (s *S) TestServiceCreate(c *check.C) {
 	err = json.Unmarshal(data, &result)
 	c.Assert(err, check.IsNil)
 	c.Assert(result, check.DeepEquals, ipvs.Service{
-		Id:           "mysrv",
 		Name:         "ahoy",
 		Port:         1040,
 		Protocol:     "tcp",
@@ -168,7 +167,7 @@ func (s *S) TestServiceCreate(c *check.C) {
 		Destinations: []ipvs.Destination{},
 	})
 	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
-	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/mysrv`)
+	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/ahoy`)
 	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
 }
 
@@ -194,7 +193,7 @@ func (s *S) TestServiceCreateValidationError(c *check.C) {
 }
 
 func (s *S) TestServiceDelete(c *check.C) {
-	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	err := s.bal.AddService(&ipvs.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
 	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice", nil)
 	c.Assert(err, check.IsNil)
@@ -206,7 +205,7 @@ func (s *S) TestServiceDelete(c *check.C) {
 }
 
 func (s *S) TestServiceDeleteNotFound(c *check.C) {
-	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	err := s.bal.AddService(&ipvs.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
 	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice2", nil)
 	c.Assert(err, check.IsNil)
@@ -216,9 +215,9 @@ func (s *S) TestServiceDeleteNotFound(c *check.C) {
 }
 
 func (s *S) TestDestinationCreate(c *check.C) {
-	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	err := s.bal.AddService(&ipvs.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
-	body := strings.NewReader(`{"id": "mydest", "name": "myname", "host": "myhost", "port": 1234}`)
+	body := strings.NewReader(`{"name": "myname", "host": "myhost", "port": 1234}`)
 	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
 	c.Assert(err, check.IsNil)
 	resp, err := http.DefaultClient.Do(req)
@@ -229,7 +228,6 @@ func (s *S) TestDestinationCreate(c *check.C) {
 	err = json.Unmarshal(data, &result)
 	c.Assert(err, check.IsNil)
 	c.Assert(result, check.DeepEquals, ipvs.Destination{
-		Id:        "mydest",
 		Name:      "myname",
 		Host:      "myhost",
 		Port:      1234,
@@ -238,12 +236,12 @@ func (s *S) TestDestinationCreate(c *check.C) {
 		ServiceId: "myservice",
 	})
 	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
-	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/myservice/destinations/mydest`)
+	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/myservice/destinations/myname`)
 	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
 }
 
 func (s *S) TestDestinationCreateValidationError(c *check.C) {
-	err := s.bal.AddService(&ipvs.Service{Id: "myservice"})
+	err := s.bal.AddService(&ipvs.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
 	body := strings.NewReader(`{"id": "mydest"}`)
 	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
@@ -285,11 +283,11 @@ func (s *S) TestDestinationCreateServiceNotFound(c *check.C) {
 }
 
 func (s *S) TestDestinationDelete(c *check.C) {
-	srv := &ipvs.Service{Id: "myservice"}
+	srv := &ipvs.Service{Name: "myservice"}
 	err := s.bal.AddService(srv)
 	c.Assert(err, check.IsNil)
 	dst := &ipvs.Destination{
-		Id:        "mydest",
+		Name:      "mydest",
 		ServiceId: "myservice",
 	}
 	err = s.bal.AddDestination(srv, dst)
@@ -302,7 +300,7 @@ func (s *S) TestDestinationDelete(c *check.C) {
 }
 
 func (s *S) TestDestinationDeleteNotFound(c *check.C) {
-	srv := &ipvs.Service{Id: "myservice"}
+	srv := &ipvs.Service{Name: "myservice"}
 	err := s.bal.AddService(srv)
 	c.Assert(err, check.IsNil)
 	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)

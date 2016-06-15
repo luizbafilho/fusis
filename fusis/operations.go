@@ -6,7 +6,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
-	"github.com/pborman/uuid"
 )
 
 // GetServices get all services
@@ -22,8 +21,6 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 	if err := b.provider.AllocateVIP(svc, b.engine.State); err != nil {
 		return err
 	}
-
-	svc.Id = uuid.New()
 
 	c := &engine.Command{
 		Op:      engine.AddServiceOp,
@@ -67,8 +64,6 @@ func (b *Balancer) GetDestination(name string) (*ipvs.Destination, error) {
 }
 
 func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
-	dst.Id = uuid.New()
-
 	c := &engine.Command{
 		Op:          engine.AddDestinationOp,
 		Service:     svc,

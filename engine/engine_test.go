@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"testing"
 
 	"github.com/Sirupsen/logrus"
@@ -103,11 +102,9 @@ func (s *EngineSuite) readConfig() {
 	viper.Unmarshal(s.config)
 }
 
-func makeLog(cmd *engine.Command) *raft.Log {
+func makeLog(cmd *engine.Command, c *C) *raft.Log {
 	bytes, err := json.Marshal(cmd)
-	if err != nil {
-		log.Fatalf("err: %v", err)
-	}
+	c.Assert(err, IsNil)
 
 	return &raft.Log{
 		Index: 1,
@@ -129,10 +126,8 @@ func (s *EngineSuite) addService(c *C) {
 		Service: s.service,
 	}
 
-	resp := s.engine.Apply(makeLog(cmd))
-	if resp != nil {
-		c.Fatalf("resp: %v", resp)
-	}
+	resp := s.engine.Apply(makeLog(cmd, c))
+	c.Assert(resp, IsNil)
 }
 
 func (s *EngineSuite) delService(c *C) {
@@ -141,10 +136,8 @@ func (s *EngineSuite) delService(c *C) {
 		Service: s.service,
 	}
 
-	resp := s.engine.Apply(makeLog(cmd))
-	if resp != nil {
-		c.Fatalf("resp: %v", resp)
-	}
+	resp := s.engine.Apply(makeLog(cmd, c))
+	c.Assert(resp, IsNil)
 }
 
 func (s *EngineSuite) addDestination(c *C) {
@@ -154,10 +147,8 @@ func (s *EngineSuite) addDestination(c *C) {
 		Destination: s.destination,
 	}
 
-	resp := s.engine.Apply(makeLog(cmd))
-	if resp != nil {
-		c.Fatalf("resp: %v", resp)
-	}
+	resp := s.engine.Apply(makeLog(cmd, c))
+	c.Assert(resp, IsNil)
 }
 
 func (s *EngineSuite) TestApplyAddService(c *C) {
@@ -207,10 +198,8 @@ func (s *EngineSuite) TestApplyDelDestination(c *C) {
 		Destination: s.destination,
 	}
 
-	resp := s.engine.Apply(makeLog(cmd))
-	if resp != nil {
-		c.Fatalf("resp: %v", resp)
-	}
+	resp := s.engine.Apply(makeLog(cmd, c))
+	c.Assert(resp, IsNil)
 
 	dests, err := s.engine.Ipvs.GetDestinations(s.service.ToIpvsService())
 	c.Assert(err, IsNil)

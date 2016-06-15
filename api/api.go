@@ -38,11 +38,11 @@ func NewAPI(balancer Balancer) ApiService {
 
 func (as ApiService) registerRoutes() {
 	as.router.GET("/services", as.serviceList)
-	as.router.GET("/services/:service_id", as.serviceGet)
+	as.router.GET("/services/:service_name", as.serviceGet)
 	as.router.POST("/services", as.serviceCreate)
-	as.router.DELETE("/services/:service_id", as.serviceDelete)
-	as.router.POST("/services/:service_id/destinations", as.destinationCreate)
-	as.router.DELETE("/services/:service_id/destinations/:destination_id", as.destinationDelete)
+	as.router.DELETE("/services/:service_name", as.serviceDelete)
+	as.router.POST("/services/:service_name/destinations", as.destinationCreate)
+	as.router.DELETE("/services/:service_name/destinations/:destination_name", as.destinationDelete)
 	if as.env == "test" {
 		as.router.POST("/flush", as.flush)
 	}

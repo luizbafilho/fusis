@@ -41,11 +41,15 @@ type Command struct {
 // New creates a new Engine
 func New() (*Engine, error) {
 	state := ipvs.NewFusisState()
+	ipvsInstance, err := ipvs.New()
+	if err != nil {
+		return nil, err
+	}
 
 	return &Engine{
 		CommandCh: make(chan Command),
 		State:     state,
-		Ipvs:      ipvs.New(),
+		Ipvs:      ipvsInstance,
 	}, nil
 }
 

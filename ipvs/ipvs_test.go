@@ -7,13 +7,15 @@ import (
 )
 
 func (s *IpvsSuite) TestNewIpvs(c *C) {
-	i := ipvs.New()
+	i, err := ipvs.New()
+	c.Assert(err, IsNil)
 
-	err := i.AddService(s.service.ToIpvsService())
+	err = i.AddService(s.service.ToIpvsService())
 	c.Assert(err, IsNil)
 
 	// Verifies if a new instance flushes the ipvs table
-	i = ipvs.New()
+	i, err = ipvs.New()
+	c.Assert(err, IsNil)
 	err = i.AddService(s.service.ToIpvsService())
 	c.Assert(err, IsNil)
 }

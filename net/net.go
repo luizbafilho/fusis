@@ -9,6 +9,7 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+//AddIp it receives a CIDR Address and add it to the given interface
 func AddIp(ip, iface string) error {
 	link, err := netlink.LinkByName(iface)
 	if err != nil {
@@ -55,6 +56,15 @@ func DelVips(iface string) error {
 	}
 
 	return nil
+}
+
+func GetVips(iface string) ([]netlink.Addr, error) {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		return []netlink.Addr{}, err
+	}
+
+	return netlink.AddrList(link, netlink.FAMILY_V4)
 }
 
 func GetIpByInterface(iface string) (string, error) {

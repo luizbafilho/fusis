@@ -42,15 +42,9 @@ type Command struct {
 func New() (*Engine, error) {
 	state := ipvs.NewFusisState()
 
-	provider, err := provider.New(state)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Engine{
 		CommandCh: make(chan Command),
 		State:     state,
-		Provider:  provider,
 		Ipvs:      ipvs.New(),
 	}, nil
 }
@@ -131,14 +125,6 @@ func (e *Engine) applyDelDestination(svc *ipvs.Service, dst *ipvs.Destination) e
 	e.State.DeleteDestination(dst)
 
 	return nil
-}
-
-func (e *Engine) AssignVIP(svc *ipvs.Service) error {
-	return e.Provider.AssignVIP(*svc)
-}
-
-func (e *Engine) UnassignVIP(svc *ipvs.Service) error {
-	return e.Provider.UnassignVIP(*svc)
 }
 
 type fusisSnapshot struct {

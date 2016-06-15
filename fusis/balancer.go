@@ -18,7 +18,7 @@ import (
 	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
 	fusis_net "github.com/luizbafilho/fusis/net"
-	_ "github.com/luizbafilho/fusis/provider/none" // to intialize
+	"github.com/luizbafilho/fusis/provider"
 
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/raft-boltdb"
@@ -40,25 +40,35 @@ type Balancer struct {
 	raft          *raft.Raft // The consensus mechanism
 	raftPeers     raft.PeerStore
 	raftStore     *raftboltdb.BoltStore
+	raftInmem     *raft.InmemStore
 	raftTransport *raft.NetworkTransport
 	logger        *logrus.Logger
+	config        *config.BalancerConfig
 
 	engine     *engine.Engine
+	provider   provider.Provider
 	shutdownCh chan bool
 }
 
 // NewBalancer initializes a new balancer
 //TODO: Graceful shutdown on initialization errors
-func NewBalancer() (*Balancer, error) {
+func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
+	provider, err := provider.New(config)
+	if err != nil {
+		return nil, err
+	}
+
 	engine, err := engine.New()
 	if err != nil {
 		return nil, err
 	}
 
 	balancer := &Balancer{
-		eventCh: make(chan serf.Event, 64),
-		engine:  engine,
-		logger:  logrus.New(),
+		eventCh:  make(chan serf.Event, 64),
+		engine:   engine,
+		provider: provider,
+		logger:   logrus.New(),
+		config:   config,
 	}
 
 	if err = balancer.setupRaft(); err != nil {
@@ -70,7 +80,7 @@ func NewBalancer() (*Balancer, error) {
 	}
 
 	// Flushing all VIPs on the network interface
-	if err := fusis_net.DelVips(config.Balancer.Provider.Params["interface"]); err != nil {
+	if err := fusis_net.DelVips(balancer.config.Provider.Params["interface"]); err != nil {
 		log.Fatalf("Fusis wasn't capable of cleanup network vips. Err: %v", err)
 	}
 
@@ -84,14 +94,17 @@ func (b *Balancer) setupSerf() error {
 	conf := serf.DefaultConfig()
 	conf.Init()
 	conf.Tags["role"] = "balancer"
-	conf.Tags["raft-port"] = strconv.Itoa(config.Balancer.RaftPort)
+	conf.Tags["raft-port"] = strconv.Itoa(b.config.Ports["raft"])
 
-	bindAddr, err := config.Balancer.GetIpByInterface()
+	bindAddr, err := b.config.GetIpByInterface()
 	if err != nil {
 		return err
 	}
 
 	conf.MemberlistConfig.BindAddr = bindAddr
+	conf.MemberlistConfig.BindPort = b.config.Ports["serf"]
+
+	conf.NodeName = b.config.Name
 	conf.EventCh = b.eventCh
 
 	serf, err := serf.Create(conf)
@@ -117,51 +130,67 @@ func (b *Balancer) setupRaft() error {
 
 	raftConfig.ShutdownOnRemove = false
 	// Check for any existing peers.
-	peers, err := readPeersJSON(filepath.Join(config.Balancer.ConfigPath, "peers.json"))
+	peers, err := readPeersJSON(filepath.Join(b.config.ConfigPath, "peers.json"))
 	if err != nil {
 		return err
 	}
 
 	// Allow the node to entry single-mode, potentially electing itself, if
 	// explicitly enabled and there is only 1 node in the cluster already.
-	if config.Balancer.Single && len(peers) <= 1 {
+	if b.config.Bootstrap && len(peers) <= 1 {
 		b.logger.Infof("enabling single-node mode")
 		raftConfig.EnableSingleNode = true
 		raftConfig.DisableBootstrapAfterElect = false
 	}
 
-	ip, err := config.Balancer.GetIpByInterface()
+	ip, err := b.config.GetIpByInterface()
 	if err != nil {
 		return err
 	}
 
 	// Setup Raft communication.
-	raftAddr := &net.TCPAddr{IP: net.ParseIP(ip), Port: config.Balancer.RaftPort}
+	raftAddr := &net.TCPAddr{IP: net.ParseIP(ip), Port: b.config.Ports["raft"]}
 	transport, err := raft.NewTCPTransport(raftAddr.String(), raftAddr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err
 	}
 	b.raftTransport = transport
 
-	// Create peer storage.
-	peerStore := raft.NewJSONPeers(config.Balancer.ConfigPath, transport)
-	b.raftPeers = peerStore
+	var log raft.LogStore
+	var stable raft.StableStore
+	var snap raft.SnapshotStore
 
-	// Create the snapshot store. This allows the Raft to truncate the log.
-	snapshots, err := raft.NewFileSnapshotStore(config.Balancer.ConfigPath, retainSnapshotCount, os.Stderr)
-	if err != nil {
-		return fmt.Errorf("file snapshot store: %s", err)
-	}
+	if b.config.DevMode {
+		store := raft.NewInmemStore()
+		b.raftInmem = store
+		stable = store
+		log = store
+		snap = raft.NewDiscardSnapshotStore()
+		b.raftPeers = &raft.StaticPeers{}
+	} else {
+		// Create peer storage.
+		peerStore := raft.NewJSONPeers(b.config.ConfigPath, transport)
+		b.raftPeers = peerStore
 
-	// Create the log store and stable store.
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(config.Balancer.ConfigPath, "raft.db"))
-	if err != nil {
-		return fmt.Errorf("new bolt store: %s", err)
+		// Create the snapshot store. This allows the Raft to truncate the log.
+		snapshots, err := raft.NewFileSnapshotStore(b.config.ConfigPath, retainSnapshotCount, os.Stderr)
+		if err != nil {
+			return fmt.Errorf("file snapshot store: %s", err)
+		}
+		snap = snapshots
+
+		// Create the log store and stable store.
+		logStore, err := raftboltdb.NewBoltStore(filepath.Join(b.config.ConfigPath, "raft.db"))
+		if err != nil {
+			return fmt.Errorf("new bolt store: %s", err)
+		}
+		b.raftStore = logStore
+		log = logStore
+		stable = logStore
 	}
-	b.raftStore = logStore
 
 	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(raftConfig, b.engine, logStore, logStore, snapshots, peerStore, transport)
+	ra, err := raft.NewRaft(raftConfig, b.engine, log, stable, snap, b.raftPeers, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
@@ -188,7 +217,7 @@ func (b *Balancer) watchCommands() {
 
 func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 	if b.isLeader() {
-		if err := b.engine.UnassignVIP(svc); err != nil {
+		if err := b.provider.UnassignVIP(svc); err != nil {
 			b.logger.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
@@ -196,7 +225,7 @@ func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 
 func (b *Balancer) AssignVIP(svc *ipvs.Service) {
 	if b.isLeader() {
-		if err := b.engine.AssignVIP(svc); err != nil {
+		if err := b.provider.AssignVIP(svc); err != nil {
 			b.logger.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
@@ -208,9 +237,9 @@ func (b *Balancer) isLeader() bool {
 
 // JoinPool joins the Fusis Serf cluster
 func (b *Balancer) JoinPool() error {
-	b.logger.Infof("Balancer: joining: %v ignore: %v", config.Balancer.Join)
+	b.logger.Infof("Balancer: joining: %v", b.config.Join)
 
-	_, err := b.serf.Join([]string{config.Balancer.Join}, true)
+	_, err := b.serf.Join(b.config.Join, true)
 	if err != nil {
 		b.logger.Errorf("Balancer: error joining: %v", err)
 		return err
@@ -260,7 +289,7 @@ func (b *Balancer) setVips() {
 	svcs := b.engine.State.GetServices()
 
 	for _, s := range svcs {
-		err := b.engine.AssignVIP(&s)
+		err := b.provider.AssignVIP(&s)
 		if err != nil {
 			//TODO: Remove balancer from cluster when error occurs
 			b.logger.Error(err)
@@ -269,7 +298,7 @@ func (b *Balancer) setVips() {
 }
 
 func (b *Balancer) flushVips() {
-	if err := fusis_net.DelVips(config.Balancer.Provider.Params["interface"]); err != nil {
+	if err := fusis_net.DelVips(b.config.Provider.Params["interface"]); err != nil {
 		panic(err)
 	}
 }
@@ -289,7 +318,7 @@ func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
 }
 
 func (b *Balancer) addMemberToPool(m serf.Member) {
-	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), config.Balancer.RaftPort)
+	remoteAddr := fmt.Sprintf("%s:%v", m.Addr.String(), m.Tags["raft-port"])
 
 	b.logger.Infof("Adding Balancer to Pool", remoteAddr)
 	f := b.raft.AddPeer(remoteAddr)
@@ -327,6 +356,7 @@ func (b *Balancer) handleBalancerLeave(m serf.Member) {
 
 	peer := &net.TCPAddr{IP: m.Addr, Port: raftPort}
 	b.logger.Infof("Removing %v peer from raft", peer)
+
 	future := b.raft.RemovePeer(peer.String())
 	if err := future.Error(); err != nil && err != raft.ErrUnknownPeer {
 		b.logger.Errorf("balancer: failed to remove raft peer '%v': %v", peer, err)

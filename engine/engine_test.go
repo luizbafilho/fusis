@@ -14,7 +14,6 @@ import (
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/spf13/viper"
 
-	_ "github.com/luizbafilho/fusis/provider/none" // to intialize
 	. "gopkg.in/check.v1"
 )
 
@@ -26,6 +25,7 @@ type EngineSuite struct {
 	service     *ipvs.Service
 	destination *ipvs.Destination
 	engine      *engine.Engine
+	config      *config.BalancerConfig
 }
 
 var _ = Suite(&EngineSuite{})
@@ -66,6 +66,24 @@ func (s *EngineSuite) TearDownTest(c *C) {
 	s.ipvs.Flush()
 }
 
+type MockSink struct {
+	*bytes.Buffer
+	cancel bool
+}
+
+func (m *MockSink) ID() string {
+	return "Mock"
+}
+
+func (m *MockSink) Cancel() error {
+	m.cancel = true
+	return nil
+}
+
+func (m *MockSink) Close() error {
+	return nil
+}
+
 func (s *EngineSuite) readConfig() {
 	viper.SetConfigType("json")
 
@@ -82,7 +100,7 @@ func (s *EngineSuite) readConfig() {
 	`)
 
 	viper.ReadConfig(bytes.NewBuffer(sampleConfig))
-	viper.Unmarshal(&config.Balancer)
+	viper.Unmarshal(s.config)
 }
 
 func makeLog(cmd *engine.Command) *raft.Log {
@@ -198,4 +216,37 @@ func (s *EngineSuite) TestApplyDelDestination(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(len(dests), Equals, 0)
+}
+
+func (s *EngineSuite) TestSnapshotRestore(c *C) {
+	s.addService(c)
+	s.addDestination(c)
+
+	snap, err := s.engine.Snapshot()
+	c.Assert(err, IsNil)
+	defer snap.Release()
+
+	buf := bytes.NewBuffer(nil)
+	sink := &MockSink{buf, false}
+	err = snap.Persist(sink)
+	c.Assert(err, IsNil)
+
+	s.engine.Ipvs.Flush()
+
+	eng, err := engine.New()
+	c.Assert(err, IsNil)
+
+	err = eng.Restore(sink)
+	c.Assert(err, IsNil)
+
+	s.service.Destinations = []ipvs.Destination{*s.destination}
+
+	c.Assert(eng.State.GetServices(), DeepEquals, &[]ipvs.Service{*s.service})
+
+	svcs, err := s.engine.Ipvs.GetServices()
+	c.Assert(err, IsNil)
+
+	c.Assert(len(svcs), Equals, 1)
+	c.Assert(svcs[0].Address.String(), DeepEquals, s.service.Host)
+	c.Assert(svcs[0].Destinations[0].Address.String(), Equals, s.destination.Host)
 }

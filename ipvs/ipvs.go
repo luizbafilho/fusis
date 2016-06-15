@@ -11,6 +11,7 @@ type Ipvs struct {
 	sync.Mutex
 }
 
+//New creates a new ipvs struct and flushes the IPVS Table
 func New() *Ipvs {
 	log.Infof("Initialising IPVS Module...")
 	if err := ip_vs.Init(); err != nil {

@@ -7,47 +7,23 @@ import (
 	"github.com/luizbafilho/fusis/ipvs"
 )
 
-type Provider interface {
-	AllocateVIP(s *ipvs.Service) error
-	ReleaseVIP(s ipvs.Service) error
-	AssignVIP(s ipvs.Service) error
-	UnassignVIP(s ipvs.Service) error
-}
-
-type InitializableProvider interface {
-	Initialize(state ipvs.State) error
-}
-
 var ErrProviderNotRegistered = errors.New("Provider not registered")
 
-type providerFactory func() Provider
-
-var providerFactories = make(map[string]providerFactory)
-var providerInstances = make(map[string]Provider)
-
-func RegisterProviderFactory(ptype string, fac providerFactory) {
-	providerFactories[ptype] = fac
+type Provider interface {
+	AllocateVIP(s *ipvs.Service, state ipvs.State) error
+	ReleaseVIP(s ipvs.Service) error
+	AssignVIP(s *ipvs.Service) error
+	UnassignVIP(s *ipvs.Service) error
 }
 
-func New(state ipvs.State) (Provider, error) {
-	providerName := config.Balancer.Provider.Type
+func New(config *config.BalancerConfig) (Provider, error) {
+	var provider Provider
+	var err error
 
-	instance, ok := providerInstances[providerName]
-	if !ok {
-		factory, ok := providerFactories[providerName]
-		if !ok {
-			return nil, ErrProviderNotRegistered
-		}
-
-		instance = factory()
-		if init, ok := instance.(InitializableProvider); ok {
-			if err := init.Initialize(state); err != nil {
-				return nil, err
-			}
-		}
-
-		providerInstances[providerName] = instance
+	switch config.Provider.Type {
+	case "none":
+		provider, err = NewNone(config)
 	}
 
-	return instance, nil
+	return provider, err
 }

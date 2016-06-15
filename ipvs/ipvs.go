@@ -1,6 +1,7 @@
 package ipvs
 
 import (
+	"fmt"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
@@ -12,18 +13,18 @@ type Ipvs struct {
 }
 
 //New creates a new ipvs struct and flushes the IPVS Table
-func New() *Ipvs {
+func New() (*Ipvs, error) {
 	log.Infof("Initialising IPVS Module...")
 	if err := ip_vs.Init(); err != nil {
-		log.Fatalf("IPVS initialisation failed: %v", err)
+		return nil, fmt.Errorf("IPVS initialisation failed: %v", err)
 	}
 
 	ipvs := &Ipvs{}
 	if err := ipvs.Flush(); err != nil {
-		log.Fatalf("IPVS flushing table failed: %v", err)
+		return nil, fmt.Errorf("IPVS flushing table failed: %v", err)
 	}
 
-	return ipvs
+	return ipvs, nil
 }
 
 // Flush flushes all services and destinations from the IPVS table.

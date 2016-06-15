@@ -61,7 +61,7 @@ func balancerCommandFunc(cmd *cobra.Command, args []string) error {
 
 	balancer, err := fusis.NewBalancer(&conf)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	if len(conf.Join) > 0 {

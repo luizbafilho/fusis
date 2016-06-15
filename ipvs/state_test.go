@@ -9,7 +9,7 @@ func (s *IpvsSuite) TestGetService(c *C) {
 	s.state.AddService(s.service)
 	s.state.AddDestination(s.destination)
 
-	svcs := *s.state.GetServices()
+	svcs := s.state.GetServices()
 	s.service.Destinations = []ipvs.Destination{*s.destination}
 	c.Assert(svcs[0], DeepEquals, *s.service)
 
@@ -33,7 +33,7 @@ func (s *IpvsSuite) TestDelService(c *C) {
 	s.state.AddService(s.service)
 	s.state.DeleteService(s.service)
 
-	services := *s.state.GetServices()
+	services := s.state.GetServices()
 	c.Assert(len(services), Equals, 0)
 
 	_, err := s.state.GetService(s.service.Name)

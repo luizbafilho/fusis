@@ -8,6 +8,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/hashicorp/raft"
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/ipvs"
@@ -21,8 +22,8 @@ func Test(t *testing.T) { TestingT(t) }
 
 type EngineSuite struct {
 	ipvs        *ipvs.Ipvs
-	service     *ipvs.Service
-	destination *ipvs.Destination
+	service     *types.Service
+	destination *types.Destination
 	engine      *engine.Engine
 	config      *config.BalancerConfig
 }
@@ -33,16 +34,16 @@ func (s *EngineSuite) SetUpSuite(c *C) {
 	logrus.SetOutput(ioutil.Discard)
 	s.readConfig()
 
-	s.service = &ipvs.Service{
+	s.service = &types.Service{
 		Name:         "test",
 		Host:         "10.0.1.1",
 		Port:         80,
 		Scheduler:    "lc",
 		Protocol:     "tcp",
-		Destinations: []ipvs.Destination{},
+		Destinations: []types.Destination{},
 	}
 
-	s.destination = &ipvs.Destination{
+	s.destination = &types.Destination{
 		Name:      "test",
 		Host:      "192.168.1.1",
 		Port:      80,
@@ -154,7 +155,7 @@ func (s *EngineSuite) addDestination(c *C) {
 func (s *EngineSuite) TestApplyAddService(c *C) {
 	s.addService(c)
 
-	c.Assert(s.engine.State.GetServices(), DeepEquals, []ipvs.Service{*s.service})
+	c.Assert(s.engine.State.GetServices(), DeepEquals, []types.Service{*s.service})
 	svcs, err := s.engine.Ipvs.GetServices()
 	c.Assert(err, IsNil)
 
@@ -166,7 +167,7 @@ func (s *EngineSuite) TestApplyDelService(c *C) {
 	s.addService(c)
 	s.delService(c)
 
-	c.Assert(s.engine.State.GetServices(), DeepEquals, []ipvs.Service{})
+	c.Assert(s.engine.State.GetServices(), DeepEquals, []types.Service{})
 	svcs, err := s.engine.Ipvs.GetServices()
 	c.Assert(err, IsNil)
 
@@ -181,7 +182,7 @@ func (s *EngineSuite) TestApplyAddDestination(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(dst, DeepEquals, s.destination)
-	dests, err := s.engine.Ipvs.GetDestinations(s.service.ToIpvsService())
+	dests, err := s.engine.Ipvs.GetDestinations(ipvs.ToIpvsService(s.service))
 	c.Assert(err, IsNil)
 
 	c.Assert(len(dests), Equals, 1)
@@ -201,7 +202,7 @@ func (s *EngineSuite) TestApplyDelDestination(c *C) {
 	resp := s.engine.Apply(makeLog(cmd, c))
 	c.Assert(resp, IsNil)
 
-	dests, err := s.engine.Ipvs.GetDestinations(s.service.ToIpvsService())
+	dests, err := s.engine.Ipvs.GetDestinations(ipvs.ToIpvsService(s.service))
 	c.Assert(err, IsNil)
 
 	c.Assert(len(dests), Equals, 0)
@@ -228,9 +229,9 @@ func (s *EngineSuite) TestSnapshotRestore(c *C) {
 	err = eng.Restore(sink)
 	c.Assert(err, IsNil)
 
-	s.service.Destinations = []ipvs.Destination{*s.destination}
+	s.service.Destinations = []types.Destination{*s.destination}
 
-	c.Assert(eng.State.GetServices(), DeepEquals, []ipvs.Service{*s.service})
+	c.Assert(eng.State.GetServices(), DeepEquals, []types.Service{*s.service})
 
 	svcs, err := s.engine.Ipvs.GetServices()
 	c.Assert(err, IsNil)

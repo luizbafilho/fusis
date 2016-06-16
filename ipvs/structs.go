@@ -1,11 +1,11 @@
 package ipvs
 
 import (
-	"encoding/json"
 	"net"
 	"syscall"
 
 	gipvs "github.com/google/seesaw/ipvs"
+	"github.com/luizbafilho/fusis/api/types"
 )
 
 const (
@@ -13,32 +13,6 @@ const (
 	TunnelMode = gipvs.DFForwardTunnel
 	RouteMode  = gipvs.DFForwardRoute
 )
-
-type Service struct {
-	Name         string `valid:"required"`
-	Host         string
-	Port         uint16 `valid:"required"`
-	Protocol     string `valid:"required"`
-	Scheduler    string `valid:"required"`
-	Destinations []Destination
-}
-
-type Destination struct {
-	Name      string `valid:"required"`
-	Host      string `valid:"required"`
-	Port      uint16 `valid:"required"`
-	Weight    int32
-	Mode      string `valid:"required"`
-	ServiceId string `valid:"required"`
-}
-
-func (svc Service) GetId() string {
-	return svc.Name
-}
-
-func (dst Destination) GetId() string {
-	return dst.Name
-}
 
 func stringToIPProto(s string) gipvs.IPProto {
 	var value gipvs.IPProto
@@ -98,7 +72,7 @@ func destinationFlagsToString(flags gipvs.DestinationFlags) string {
 	return value
 }
 
-func (s Service) ToIpvsService() *gipvs.Service {
+func ToIpvsService(s *types.Service) *gipvs.Service {
 	destinations := []*gipvs.Destination{}
 
 	return &gipvs.Service{
@@ -110,7 +84,7 @@ func (s Service) ToIpvsService() *gipvs.Service {
 	}
 }
 
-func (d Destination) ToIpvsDestination() *gipvs.Destination {
+func ToIpvsDestination(d *types.Destination) *gipvs.Destination {
 	return &gipvs.Destination{
 		Address: net.ParseIP(d.Host),
 		Port:    d.Port,
@@ -119,22 +93,14 @@ func (d Destination) ToIpvsDestination() *gipvs.Destination {
 	}
 }
 
-func (s Service) ToJson() ([]byte, error) {
-	return json.Marshal(s)
-}
-
-func (d Destination) ToJson() ([]byte, error) {
-	return json.Marshal(d)
-}
-
-func NewService(s *gipvs.Service) Service {
-	destinations := []Destination{}
+func NewService(s *gipvs.Service) types.Service {
+	destinations := []types.Destination{}
 
 	for _, dst := range s.Destinations {
 		destinations = append(destinations, newDestinationRequest(dst))
 	}
 
-	return Service{
+	return types.Service{
 		Host:         s.Address.String(),
 		Port:         s.Port,
 		Protocol:     ipProtoToString(s.Protocol),
@@ -143,8 +109,8 @@ func NewService(s *gipvs.Service) Service {
 	}
 }
 
-func newDestinationRequest(d *gipvs.Destination) Destination {
-	return Destination{
+func newDestinationRequest(d *gipvs.Destination) types.Destination {
+	return types.Destination{
 		Host:   d.Address.String(),
 		Port:   d.Port,
 		Weight: d.Weight,

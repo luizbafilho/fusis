@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/ipvs"
 	. "gopkg.in/check.v1"
 )
@@ -13,8 +14,8 @@ func Test(t *testing.T) { TestingT(t) }
 
 type IpvsSuite struct {
 	state       ipvs.State
-	service     *ipvs.Service
-	destination *ipvs.Destination
+	service     *types.Service
+	destination *types.Destination
 }
 
 var _ = Suite(&IpvsSuite{})
@@ -22,16 +23,16 @@ var _ = Suite(&IpvsSuite{})
 func (s *IpvsSuite) SetUpSuite(c *C) {
 	logrus.SetOutput(ioutil.Discard)
 
-	s.service = &ipvs.Service{
+	s.service = &types.Service{
 		Name:         "test",
 		Host:         "10.0.1.1",
 		Port:         80,
 		Scheduler:    "lc",
 		Protocol:     "tcp",
-		Destinations: []ipvs.Destination{},
+		Destinations: []types.Destination{},
 	}
 
-	s.destination = &ipvs.Destination{
+	s.destination = &types.Destination{
 		Name:      "test",
 		Host:      "192.168.1.1",
 		Port:      80,

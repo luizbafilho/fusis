@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,18 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/api/types"
 )
 
 type Client struct {
 	Addr       string
 	HttpClient *http.Client
 }
-
-var (
-	ErrNoSuchService     = errors.New("no such service")
-	ErrNoSuchDestination = errors.New("no such destination")
-)
 
 func NewClient(addr string) *Client {
 	baseTimeout := 30 * time.Second
@@ -46,43 +40,43 @@ func NewClient(addr string) *Client {
 	}
 }
 
-func (c *Client) GetServices() ([]*ipvs.Service, error) {
+func (c *Client) GetServices() ([]*types.Service, error) {
 	resp, err := c.HttpClient.Get(c.path("services"))
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	var services []*ipvs.Service
+	var services []*types.Service
 	switch resp.StatusCode {
 	case http.StatusOK:
 		err = decode(resp.Body, &services)
 	case http.StatusNoContent:
-		services = []*ipvs.Service{}
+		services = []*types.Service{}
 	default:
 		return nil, formatError(resp)
 	}
 	return services, err
 }
 
-func (c *Client) GetService(id string) (*ipvs.Service, error) {
+func (c *Client) GetService(id string) (*types.Service, error) {
 	resp, err := c.HttpClient.Get(c.path("services", id))
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	var svc *ipvs.Service
+	var svc *types.Service
 	switch resp.StatusCode {
 	case http.StatusOK:
 		err = decode(resp.Body, &svc)
 	case http.StatusNotFound:
-		return nil, ErrNoSuchService
+		return nil, types.ErrServiceNotFound
 	default:
 		return nil, formatError(resp)
 	}
 	return svc, err
 }
 
-func (c *Client) CreateService(svc ipvs.Service) (string, error) {
+func (c *Client) CreateService(svc types.Service) (string, error) {
 	json, err := encode(svc)
 	if err != nil {
 		return "", err
@@ -110,7 +104,7 @@ func (c *Client) DeleteService(id string) error {
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusNotFound:
-		err = ErrNoSuchService
+		err = types.ErrServiceNotFound
 	case http.StatusNoContent:
 	default:
 		err = formatError(resp)
@@ -118,7 +112,7 @@ func (c *Client) DeleteService(id string) error {
 	return err
 }
 
-func (c *Client) AddDestination(dst ipvs.Destination) (string, error) {
+func (c *Client) AddDestination(dst types.Destination) (string, error) {
 	json, err := encode(dst)
 	if err != nil {
 		return "", err
@@ -131,7 +125,7 @@ func (c *Client) AddDestination(dst ipvs.Destination) (string, error) {
 	var id string
 	switch resp.StatusCode {
 	case http.StatusNotFound:
-		err = ErrNoSuchService
+		err = types.ErrServiceNotFound
 	case http.StatusCreated:
 		id = idFromLocation(resp)
 	default:
@@ -152,7 +146,7 @@ func (c *Client) DeleteDestination(serviceId, destinationId string) error {
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusNotFound:
-		err = ErrNoSuchDestination
+		err = types.ErrDestinationNotFound
 	case http.StatusNoContent:
 	default:
 		err = formatError(resp)

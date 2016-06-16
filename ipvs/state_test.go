@@ -1,6 +1,7 @@
 package ipvs_test
 
 import (
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/ipvs"
 	. "gopkg.in/check.v1"
 )
@@ -10,7 +11,7 @@ func (s *IpvsSuite) TestGetService(c *C) {
 	s.state.AddDestination(s.destination)
 
 	svcs := s.state.GetServices()
-	s.service.Destinations = []ipvs.Destination{*s.destination}
+	s.service.Destinations = []types.Destination{*s.destination}
 	c.Assert(svcs[0], DeepEquals, *s.service)
 
 	svc, err := s.state.GetService(s.service.Name)

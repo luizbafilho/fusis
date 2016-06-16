@@ -9,4 +9,6 @@ before_install:
 before_script:
   - sudo modprobe ip_vs
 script:
-  - sudo -E go test $(go list ./... | grep -v /vendor)
+  - make ci
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

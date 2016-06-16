@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/net"
@@ -23,7 +24,7 @@ func NewNone(config *config.BalancerConfig) (Provider, error) {
 	}, nil
 }
 
-func (n None) AllocateVIP(s *ipvs.Service, state ipvs.State) error {
+func (n None) AllocateVIP(s *types.Service, state ipvs.State) error {
 	ip, err := n.ipam.Allocate(state)
 	if err != nil {
 		return err
@@ -33,15 +34,15 @@ func (n None) AllocateVIP(s *ipvs.Service, state ipvs.State) error {
 	return nil
 }
 
-func (n None) ReleaseVIP(s ipvs.Service) error {
+func (n None) ReleaseVIP(s types.Service) error {
 	n.ipam.Release(s.Host)
 	return nil
 }
 
-func (n None) AssignVIP(s *ipvs.Service) error {
+func (n None) AssignVIP(s *types.Service) error {
 	return net.AddIp(s.Host+"/32", n.iface)
 }
 
-func (n None) UnassignVIP(s *ipvs.Service) error {
+func (n None) UnassignVIP(s *types.Service) error {
 	return net.DelIp(s.Host+"/32", n.iface)
 }

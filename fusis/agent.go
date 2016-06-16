@@ -1,10 +1,12 @@
 package fusis
 
 import (
+	"encoding/json"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/serf/serf"
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/ipvs"
 )
 
 type Agent struct {
@@ -98,7 +100,7 @@ func (a *Agent) broadcastToBalancers() {
 		host = a.config.Host
 	}
 
-	dst := ipvs.Destination{
+	dst := types.Destination{
 		Name:      a.config.Name,
 		Host:      host,
 		Port:      a.config.Port,
@@ -111,7 +113,7 @@ func (a *Agent) broadcastToBalancers() {
 		FilterTags: map[string]string{"role": "balancer"},
 	}
 
-	payload, err := dst.ToJson()
+	payload, err := json.Marshal(dst)
 	if err != nil {
 		log.Errorf("Fusis Agent: Destination Marshaling failed: %v", err)
 		return

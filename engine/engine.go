@@ -8,6 +8,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/hashicorp/raft"
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
 )
@@ -34,8 +35,8 @@ const (
 // Command represents a command in raft log
 type Command struct {
 	Op          int
-	Service     *ipvs.Service
-	Destination *ipvs.Destination
+	Service     *types.Service
+	Destination *types.Destination
 }
 
 // New creates a new Engine
@@ -90,8 +91,8 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 	return nil
 }
 
-func (e *Engine) applyAddService(svc *ipvs.Service) error {
-	if err := e.Ipvs.AddService(svc.ToIpvsService()); err != nil {
+func (e *Engine) applyAddService(svc *types.Service) error {
+	if err := e.Ipvs.AddService(ipvs.ToIpvsService(svc)); err != nil {
 		return err
 	}
 
@@ -100,8 +101,8 @@ func (e *Engine) applyAddService(svc *ipvs.Service) error {
 	return nil
 }
 
-func (e *Engine) applyDelService(svc *ipvs.Service) error {
-	if err := e.Ipvs.DeleteService(svc.ToIpvsService()); err != nil {
+func (e *Engine) applyDelService(svc *types.Service) error {
+	if err := e.Ipvs.DeleteService(ipvs.ToIpvsService(svc)); err != nil {
 		return err
 	}
 
@@ -109,8 +110,8 @@ func (e *Engine) applyDelService(svc *ipvs.Service) error {
 	return nil
 }
 
-func (e *Engine) applyAddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
-	err := e.Ipvs.AddDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
+func (e *Engine) applyAddDestination(svc *types.Service, dst *types.Destination) error {
+	err := e.Ipvs.AddDestination(*ipvs.ToIpvsService(svc), *ipvs.ToIpvsDestination(dst))
 	if err != nil {
 		return nil
 	}
@@ -120,8 +121,8 @@ func (e *Engine) applyAddDestination(svc *ipvs.Service, dst *ipvs.Destination) e
 	return nil
 }
 
-func (e *Engine) applyDelDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
-	err := e.Ipvs.DeleteDestination(*svc.ToIpvsService(), *dst.ToIpvsDestination())
+func (e *Engine) applyDelDestination(svc *types.Service, dst *types.Destination) error {
+	err := e.Ipvs.DeleteDestination(*ipvs.ToIpvsService(svc), *ipvs.ToIpvsDestination(dst))
 	if err != nil {
 		return nil
 	}
@@ -132,7 +133,7 @@ func (e *Engine) applyDelDestination(svc *ipvs.Service, dst *ipvs.Destination) e
 }
 
 type fusisSnapshot struct {
-	Services []ipvs.Service
+	Services []types.Service
 }
 
 func (e *Engine) Snapshot() (raft.FSMSnapshot, error) {
@@ -148,7 +149,7 @@ func (e *Engine) Snapshot() (raft.FSMSnapshot, error) {
 // Restore stores the key-value store to a previous state.
 func (e *Engine) Restore(rc io.ReadCloser) error {
 	logrus.Info("Restoring Fusis state")
-	var services []ipvs.Service
+	var services []types.Service
 	if err := json.NewDecoder(rc).Decode(&services); err != nil {
 		return err
 	}

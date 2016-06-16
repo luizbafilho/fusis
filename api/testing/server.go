@@ -9,8 +9,6 @@ import (
 
 type testBalancer struct {
 	services []types.Service
-	ids      map[string]int
-	dests    map[string][]int
 }
 
 type FakeFusisServer struct {
@@ -31,10 +29,7 @@ func NewFakeFusisServer() *FakeFusisServer {
 }
 
 func newTestBalancer() *testBalancer {
-	return &testBalancer{
-		ids:   make(map[string]int),
-		dests: make(map[string][]int),
-	}
+	return &testBalancer{}
 }
 
 func (b *testBalancer) GetServices() []types.Service {
@@ -42,63 +37,75 @@ func (b *testBalancer) GetServices() []types.Service {
 }
 
 func (b *testBalancer) AddService(srv *types.Service) error {
-	_, exists := b.ids[srv.Name]
-	if exists {
-		return types.ErrServiceAlreadyExists
+	for i := range b.services {
+		if b.services[i].Name == srv.Name {
+			return types.ErrServiceAlreadyExists
+		}
 	}
 	b.services = append(b.services, *srv)
-	b.ids[srv.Name] = len(b.services) - 1
 	return nil
 }
 
 func (b *testBalancer) GetService(id string) (*types.Service, error) {
-	idx, exists := b.ids[id]
-	if !exists {
-		return nil, types.ErrServiceNotFound
+	for i := range b.services {
+		if b.services[i].Name == id {
+			return &b.services[i], nil
+		}
 	}
-	return &b.services[idx], nil
+	return nil, types.ErrServiceNotFound
 }
 
 func (b *testBalancer) DeleteService(id string) error {
-	idx, exists := b.ids[id]
-	if !exists {
-		return types.ErrServiceNotFound
+	for i := range b.services {
+		if b.services[i].Name == id {
+			b.services = append(b.services[:i], b.services[i+1:]...)
+			return nil
+		}
 	}
-	delete(b.ids, id)
-	b.services = append(b.services[:idx], b.services[idx+1:]...)
-	return nil
+	return types.ErrServiceNotFound
 }
 
 func (b *testBalancer) AddDestination(srv *types.Service, dest *types.Destination) error {
-	idx, exists := b.ids[srv.Name]
-	if !exists {
+	var foundSrv *types.Service
+	for i := range b.services {
+		curSrv := b.services[i]
+		if b.services[i].Name == srv.Name {
+			foundSrv = &b.services[i]
+		}
+		for j := range curSrv.Destinations {
+			if curSrv.Destinations[j].Name == dest.Name {
+				return types.ErrDestinationAlreadyExists
+			}
+		}
+	}
+	if foundSrv == nil {
 		return types.ErrServiceNotFound
 	}
-	_, exists = b.dests[dest.Name]
-	if exists {
-		return types.ErrDestinationAlreadyExists
-	}
-	srv = &b.services[idx]
-	srv.Destinations = append(srv.Destinations, *dest)
-	b.dests[dest.Name] = []int{idx, len(srv.Destinations) - 1}
+	foundSrv.Destinations = append(foundSrv.Destinations, *dest)
 	return nil
 }
 
 func (b *testBalancer) GetDestination(id string) (*types.Destination, error) {
-	indexes, exists := b.dests[id]
-	if !exists {
-		return nil, types.ErrDestinationNotFound
+	for i := range b.services {
+		srv := &b.services[i]
+		for j := range srv.Destinations {
+			if srv.Destinations[j].Name == id {
+				return &srv.Destinations[j], nil
+			}
+		}
 	}
-	return &b.services[indexes[0]].Destinations[indexes[1]], nil
+	return nil, types.ErrDestinationNotFound
 }
 
 func (b *testBalancer) DeleteDestination(dest *types.Destination) error {
-	indexes, exists := b.dests[dest.Name]
-	if !exists {
-		return types.ErrDestinationNotFound
+	for i := range b.services {
+		srv := &b.services[i]
+		for j := range srv.Destinations {
+			if srv.Destinations[j].Name == dest.Name {
+				srv.Destinations = append(srv.Destinations[:j], srv.Destinations[j+1:]...)
+				return nil
+			}
+		}
 	}
-	srv := &b.services[indexes[0]]
-	srv.Destinations = append(srv.Destinations[:indexes[1]], srv.Destinations[indexes[1]:]...)
-	delete(b.dests, dest.Name)
-	return nil
+	return types.ErrDestinationNotFound
 }

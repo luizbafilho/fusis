@@ -91,10 +91,17 @@ func (s *S) TestTestBalancerAddDestination(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = bal.AddDestination(srv, dst)
 	c.Assert(err, check.Equals, types.ErrDestinationAlreadyExists)
+	dst.Name = "dstX"
 	dst.ServiceId = "srvX"
 	srv.Name = "srvX"
 	err = bal.AddDestination(srv, dst)
 	c.Assert(err, check.Equals, types.ErrServiceNotFound)
+	srv, err = bal.GetService("srv1")
+	c.Assert(err, check.IsNil)
+	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
+		Name:      "dst1",
+		ServiceId: "srv1",
+	}})
 }
 
 func (s *S) TestTestBalancerGetDestination(c *check.C) {
@@ -125,7 +132,14 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 	err := bal.AddService(srv)
 	c.Assert(err, check.IsNil)
 	dst := &types.Destination{
-		Name: "dst1",
+		Name:      "dst1",
+		ServiceId: "srv1",
+	}
+	err = bal.AddDestination(srv, dst)
+	c.Assert(err, check.IsNil)
+	dst = &types.Destination{
+		Name:      "dst2",
+		ServiceId: "srv1",
 	}
 	err = bal.AddDestination(srv, dst)
 	c.Assert(err, check.IsNil)
@@ -133,4 +147,22 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = bal.DeleteDestination(dst)
 	c.Assert(err, check.Equals, types.ErrDestinationNotFound)
+	dst, err = bal.GetDestination("dst1")
+	c.Assert(err, check.IsNil)
+	c.Assert(dst, check.DeepEquals, &types.Destination{
+		Name:      "dst1",
+		ServiceId: "srv1",
+	})
+	srv, err = bal.GetService("srv1")
+	c.Assert(err, check.IsNil)
+	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
+		Name:      "dst1",
+		ServiceId: "srv1",
+	}})
+	dst.Name = "dst1"
+	err = bal.DeleteDestination(dst)
+	c.Assert(err, check.IsNil)
+	srv, err = bal.GetService("srv1")
+	c.Assert(err, check.IsNil)
+	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{})
 }

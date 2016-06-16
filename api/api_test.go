@@ -257,11 +257,28 @@ func (s *S) TestDestinationDelete(c *check.C) {
 	}
 	err = s.bal.AddDestination(srv, dst)
 	c.Assert(err, check.IsNil)
+	dst.Name = "mydest2"
+	err = s.bal.AddDestination(srv, dst)
+	c.Assert(err, check.IsNil)
 	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)
 	c.Assert(err, check.IsNil)
 	resp, err := http.DefaultClient.Do(req)
 	c.Assert(err, check.IsNil)
 	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
+	srv, err = s.bal.GetService("myservice")
+	c.Assert(err, check.IsNil)
+	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
+		Name:      "mydest2",
+		ServiceId: "myservice",
+	}})
+	req, err = http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest2", nil)
+	c.Assert(err, check.IsNil)
+	resp, err = http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
+	srv, err = s.bal.GetService("myservice")
+	c.Assert(err, check.IsNil)
+	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{})
 }
 
 func (s *S) TestDestinationDeleteNotFound(c *check.C) {

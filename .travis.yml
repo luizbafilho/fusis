@@ -10,3 +10,5 @@ before_script:
   - sudo modprobe ip_vs
 script:
   - sudo -E go test $(go list ./... | grep -v /vendor)
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

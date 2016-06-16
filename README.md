@@ -1,4 +1,4 @@
-Fusis Balancer
+Fusis Balancer  [![Build Status](https://travis-ci.org/luizbafilho/fusis.svg?branch=master)](https://travis-ci.org/luizbafilho/fusis)
 ======
 
 Fusis Balancer is a dynamic Layer 4 Load Balancer powered by [IPVS](http://www.linuxvirtualserver.org/) and [Serf](https://www.serfdom.io/).
@@ -41,7 +41,7 @@ go get -v github.com/luizbafilho/fusis
 And it's dependencies:
 
 ``` bash
-make restore
+make deps
 ```
 You'll need **Go 1.5** or later;
 
@@ -68,7 +68,7 @@ Now that you have IPVS and fusis installed, run the project:
 
 ``` bash
 # Remenber, fusis binary is at $GOPATH/bin/fusis. So, add it to your system PATH
-sudo fusis balancer --iface eth0
+sudo fusis balancer --bootstrap
 ```
 You should see something like:
 `[GIN-debug] Listening and serving HTTP on :8000`

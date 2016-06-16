@@ -72,16 +72,16 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	}
 
 	if err = balancer.setupRaft(); err != nil {
-		log.Fatalf("Setuping Raft", err)
+		return nil, fmt.Errorf("error setting up Raft: %v", err)
 	}
 
 	if err = balancer.setupSerf(); err != nil {
-		log.Fatalf("Setuping Serf", err)
+		return nil, fmt.Errorf("error setting up Serf: %v", err)
 	}
 
 	// Flushing all VIPs on the network interface
 	if err := fusis_net.DelVips(balancer.config.Provider.Params["interface"]); err != nil {
-		log.Fatalf("Fusis wasn't capable of cleanup network vips. Err: %v", err)
+		return nil, fmt.Errorf("error cleaning up network vips: %v", err)
 	}
 
 	go balancer.watchLeaderChanges()

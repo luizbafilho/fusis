@@ -19,7 +19,7 @@ func (as ApiService) serviceList(c *gin.Context) {
 }
 
 func (as ApiService) serviceGet(c *gin.Context) {
-	serviceId := c.Param("service_id")
+	serviceId := c.Param("service_name")
 	service, err := as.balancer.GetService(serviceId)
 	if err != nil {
 		if err == ipvs.ErrNotFound {
@@ -46,11 +46,6 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 		return
 	}
 
-	if _, err := newService.ValidateUniqueness(); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		return
-	}
-
 	// If everthing is ok send it to Raft
 	err := as.balancer.AddService(&newService)
 	if err != nil {
@@ -58,12 +53,12 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 		return
 	}
 
-	c.Header("Location", fmt.Sprintf("/services/%s", newService.Id))
+	c.Header("Location", fmt.Sprintf("/services/%s", newService.Name))
 	c.JSON(http.StatusCreated, newService)
 }
 
 func (as ApiService) serviceDelete(c *gin.Context) {
-	serviceId := c.Param("service_id")
+	serviceId := c.Param("service_name")
 	_, err := as.balancer.GetService(serviceId)
 	if err != nil {
 		if err == ipvs.ErrNotFound {
@@ -84,8 +79,8 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 }
 
 func (as ApiService) destinationCreate(c *gin.Context) {
-	serviceId := c.Param("service_id")
-	service, err := as.balancer.GetService(serviceId)
+	serviceName := c.Param("service_name")
+	service, err := as.balancer.GetService(serviceName)
 	if err != nil {
 		if err == ipvs.ErrNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
@@ -95,7 +90,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	destination := &ipvs.Destination{Weight: 1, Mode: "route", ServiceId: serviceId}
+	destination := &ipvs.Destination{Weight: 1, Mode: "route", ServiceId: serviceName}
 	if err := c.BindJSON(destination); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -106,23 +101,18 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	if _, err := destination.ValidateUniqueness(service); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		return
-	}
-
 	err = as.balancer.AddDestination(service, destination)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("UpsertDestination() failed: %v\n", err)})
 		return
 	}
 
-	c.Header("Location", fmt.Sprintf("/services/%s/destinations/%s", serviceId, destination.Id))
+	c.Header("Location", fmt.Sprintf("/services/%s/destinations/%s", serviceName, destination.Name))
 	c.JSON(http.StatusCreated, destination)
 }
 
 func (as ApiService) destinationDelete(c *gin.Context) {
-	destinationId := c.Param("destination_id")
+	destinationId := c.Param("destination_name")
 	dst, err := as.balancer.GetDestination(destinationId)
 	if err != nil {
 		if err == ipvs.ErrNotFound {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/api/types"
 )
 
 func (as ApiService) serviceList(c *gin.Context) {
@@ -22,8 +22,8 @@ func (as ApiService) serviceGet(c *gin.Context) {
 	serviceId := c.Param("service_name")
 	service, err := as.balancer.GetService(serviceId)
 	if err != nil {
-		if err == ipvs.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		if err == types.ErrServiceNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
 		}
@@ -33,13 +33,13 @@ func (as ApiService) serviceGet(c *gin.Context) {
 }
 
 func (as ApiService) serviceCreate(c *gin.Context) {
-	var newService ipvs.Service
+	var newService types.Service
 	if err := c.BindJSON(&newService); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	//Guarantees that no one tries to create a destination together with a service
-	newService.Destinations = []ipvs.Destination{}
+	newService.Destinations = []types.Destination{}
 
 	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"errors": govalidator.ErrorsByField(errs)})
@@ -61,8 +61,8 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 	serviceId := c.Param("service_name")
 	_, err := as.balancer.GetService(serviceId)
 	if err != nil {
-		if err == ipvs.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		if err == types.ErrServiceNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
 		}
@@ -82,15 +82,15 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 	serviceName := c.Param("service_name")
 	service, err := as.balancer.GetService(serviceName)
 	if err != nil {
-		if err == ipvs.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		if err == types.ErrServiceNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
 		}
 		return
 	}
 
-	destination := &ipvs.Destination{Weight: 1, Mode: "route", ServiceId: serviceName}
+	destination := &types.Destination{Weight: 1, Mode: "route", ServiceId: serviceName}
 	if err := c.BindJSON(destination); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -115,8 +115,8 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 	destinationId := c.Param("destination_name")
 	dst, err := as.balancer.GetDestination(destinationId)
 	if err != nil {
-		if err == ipvs.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprint("Destination not found")})
+		if _, ok := err.(types.ErrNotFound); ok {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetDestination() failed: %v", err)})
 		}
@@ -132,13 +132,13 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 }
 
 func (as ApiService) flush(c *gin.Context) {
-	// err := as.ipvs.Flush()
+	// err := as.types.Flush()
 	// if err != nil {
 	// 	c.JSON(400, gin.H{"error": err.Error()})
 	// 	return
 	// }
 	//
-	// err = ipvs.Flush()
+	// err = types.Flush()
 	// if err != nil {
 	// 	c.JSON(400, gin.H{"error": err.Error()})
 	// 	return

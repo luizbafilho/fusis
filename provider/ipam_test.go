@@ -3,6 +3,7 @@ package provider_test
 import (
 	"testing"
 
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
 
@@ -31,7 +32,7 @@ func (s *IpamSuite) TearDownSuite(c *C) {
 }
 
 func (s *IpamSuite) TestIpAllocation(c *C) {
-	service := &ipvs.Service{
+	service := &types.Service{
 		Name: "test",
 		Host: "192.168.0.2",
 	}
@@ -41,7 +42,7 @@ func (s *IpamSuite) TestIpAllocation(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ip, Equals, "192.168.0.1")
 
-	service = &ipvs.Service{
+	service = &types.Service{
 		Name: "test2",
 		Host: "192.168.0.1",
 	}

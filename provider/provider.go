@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipvs"
 )
@@ -10,10 +11,10 @@ import (
 var ErrProviderNotRegistered = errors.New("Provider not registered")
 
 type Provider interface {
-	AllocateVIP(s *ipvs.Service, state ipvs.State) error
-	ReleaseVIP(s ipvs.Service) error
-	AssignVIP(s *ipvs.Service) error
-	UnassignVIP(s *ipvs.Service) error
+	AllocateVIP(s *types.Service, state ipvs.State) error
+	ReleaseVIP(s types.Service) error
+	AssignVIP(s *types.Service) error
+	UnassignVIP(s *types.Service) error
 }
 
 func New(config *config.BalancerConfig) (Provider, error) {

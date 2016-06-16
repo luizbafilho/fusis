@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/api/types"
 	"gopkg.in/check.v1"
 )
 
@@ -27,7 +27,7 @@ func (s *S) TestClientGetServices(c *check.C) {
 	cli := NewClient(srv.URL)
 	result, err := cli.GetServices()
 	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, []*ipvs.Service{
+	c.Assert(result, check.DeepEquals, []*types.Service{
 		{Name: "name1"},
 		{Name: "name2"},
 	})
@@ -43,7 +43,7 @@ func (s *S) TestClientGetServicesEmpty(c *check.C) {
 	cli := NewClient(srv.URL)
 	result, err := cli.GetServices()
 	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, []*ipvs.Service{})
+	c.Assert(result, check.DeepEquals, []*types.Service{})
 }
 
 func (s *S) TestClientGetServicesError(c *check.C) {
@@ -79,7 +79,7 @@ func (s *S) TestClientGetService(c *check.C) {
 	cli := NewClient(srv.URL)
 	result, err := cli.GetService("name1")
 	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, &ipvs.Service{
+	c.Assert(result, check.DeepEquals, &types.Service{
 		Name: "name1",
 	})
 	c.Assert(req.Method, check.Equals, "GET")
@@ -93,7 +93,7 @@ func (s *S) TestClientGetServiceNotFound(c *check.C) {
 	defer srv.Close()
 	cli := NewClient(srv.URL)
 	result, err := cli.GetService("id1")
-	c.Assert(err, check.Equals, ErrNoSuchService)
+	c.Assert(err, check.Equals, types.ErrServiceNotFound)
 	c.Assert(result, check.IsNil)
 }
 
@@ -135,16 +135,16 @@ func (s *S) TestClientCreateService(c *check.C) {
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
-	id, err := cli.CreateService(ipvs.Service{Name: "name1"})
+	id, err := cli.CreateService(types.Service{Name: "name1"})
 	c.Assert(err, check.IsNil)
 	c.Assert(id, check.Equals, "mysvc")
 	c.Assert(req.Method, check.Equals, "POST")
 	c.Assert(req.URL.Path, check.Equals, "/services")
 	c.Assert(req.Header.Get("Content-Type"), check.Equals, "application/json")
-	var result ipvs.Service
+	var result types.Service
 	err = json.Unmarshal(body, &result)
 	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, ipvs.Service{Name: "name1"})
+	c.Assert(result, check.DeepEquals, types.Service{Name: "name1"})
 }
 
 func (s *S) TestClientCreateServiceInvalidStatus(c *check.C) {
@@ -153,7 +153,7 @@ func (s *S) TestClientCreateServiceInvalidStatus(c *check.C) {
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
-	id, err := cli.CreateService(ipvs.Service{Name: "name1"})
+	id, err := cli.CreateService(types.Service{Name: "name1"})
 	c.Assert(err, check.ErrorMatches, "Request failed. Status Code: 200. Body: \"\"")
 	c.Assert(id, check.Equals, "")
 }
@@ -189,7 +189,7 @@ func (s *S) TestClientDeleteServiceNotFound(c *check.C) {
 	defer srv.Close()
 	cli := NewClient(srv.URL)
 	err := cli.DeleteService("id1")
-	c.Assert(err, check.Equals, ErrNoSuchService)
+	c.Assert(err, check.Equals, types.ErrServiceNotFound)
 }
 
 func (s *S) TestClientAddDestination(c *check.C) {
@@ -207,16 +207,16 @@ func (s *S) TestClientAddDestination(c *check.C) {
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
-	id, err := cli.AddDestination(ipvs.Destination{ServiceId: "svid1"})
+	id, err := cli.AddDestination(types.Destination{ServiceId: "svid1"})
 	c.Assert(err, check.IsNil)
 	c.Assert(id, check.Equals, "mydst")
 	c.Assert(req.Method, check.Equals, "POST")
 	c.Assert(req.URL.Path, check.Equals, "/services/svid1/destinations")
 	c.Assert(req.Header.Get("Content-Type"), check.Equals, "application/json")
-	var result ipvs.Destination
+	var result types.Destination
 	err = json.Unmarshal(body, &result)
 	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, ipvs.Destination{ServiceId: "svid1"})
+	c.Assert(result, check.DeepEquals, types.Destination{ServiceId: "svid1"})
 }
 
 func (s *S) TestClientAddDestinationInvalidStatus(c *check.C) {
@@ -225,7 +225,7 @@ func (s *S) TestClientAddDestinationInvalidStatus(c *check.C) {
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
-	id, err := cli.AddDestination(ipvs.Destination{ServiceId: "svid1"})
+	id, err := cli.AddDestination(types.Destination{ServiceId: "svid1"})
 	c.Assert(err, check.ErrorMatches, "Request failed. Status Code: 200. Body: \"\"")
 	c.Assert(id, check.Equals, "")
 }
@@ -236,8 +236,8 @@ func (s *S) TestClientAddDestinationNotFound(c *check.C) {
 	}))
 	defer srv.Close()
 	cli := NewClient(srv.URL)
-	id, err := cli.AddDestination(ipvs.Destination{ServiceId: "svid1"})
-	c.Assert(err, check.Equals, ErrNoSuchService)
+	id, err := cli.AddDestination(types.Destination{ServiceId: "svid1"})
+	c.Assert(err, check.Equals, types.ErrServiceNotFound)
 	c.Assert(id, check.Equals, "")
 }
 
@@ -272,5 +272,5 @@ func (s *S) TestClientDeleteDestinationNotFound(c *check.C) {
 	defer srv.Close()
 	cli := NewClient(srv.URL)
 	err := cli.DeleteDestination("svid1", "dstid1")
-	c.Assert(err, check.Equals, ErrNoSuchDestination)
+	c.Assert(err, check.Equals, types.ErrDestinationNotFound)
 }

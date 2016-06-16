@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/api/types"
 )
 
 // ApiService ...
@@ -15,13 +15,13 @@ type ApiService struct {
 }
 
 type Balancer interface {
-	GetServices() []ipvs.Service
-	AddService(*ipvs.Service) error
-	GetService(string) (*ipvs.Service, error)
+	GetServices() []types.Service
+	AddService(*types.Service) error
+	GetService(string) (*types.Service, error)
 	DeleteService(string) error
-	AddDestination(*ipvs.Service, *ipvs.Destination) error
-	GetDestination(string) (*ipvs.Destination, error)
-	DeleteDestination(*ipvs.Destination) error
+	AddDestination(*types.Service, *types.Destination) error
+	GetDestination(string) (*types.Destination, error)
+	DeleteDestination(*types.Destination) error
 }
 
 //NewAPI ...

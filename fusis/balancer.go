@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
-	"github.com/luizbafilho/fusis/ipvs"
 	fusis_net "github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/provider"
 
@@ -215,7 +215,7 @@ func (b *Balancer) watchCommands() {
 	}
 }
 
-func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
+func (b *Balancer) UnassignVIP(svc *types.Service) {
 	if b.isLeader() {
 		if err := b.provider.UnassignVIP(svc); err != nil {
 			b.logger.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
@@ -223,7 +223,7 @@ func (b *Balancer) UnassignVIP(svc *ipvs.Service) {
 	}
 }
 
-func (b *Balancer) AssignVIP(svc *ipvs.Service) {
+func (b *Balancer) AssignVIP(svc *types.Service) {
 	if b.isLeader() {
 		if err := b.provider.AssignVIP(svc); err != nil {
 			b.logger.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)

@@ -3,36 +3,38 @@ package ipvs
 import (
 	"errors"
 	"sync"
+
+	"github.com/luizbafilho/fusis/api/types"
 )
 
 var ErrNotFound = errors.New("Not found")
 
 type State interface {
-	GetServices() []Service
-	GetService(name string) (*Service, error)
-	AddService(svc *Service)
-	DeleteService(svc *Service)
+	GetServices() []types.Service
+	GetService(name string) (*types.Service, error)
+	AddService(svc *types.Service)
+	DeleteService(svc *types.Service)
 
-	GetDestination(name string) (*Destination, error)
-	AddDestination(dst *Destination)
-	DeleteDestination(dst *Destination)
+	GetDestination(name string) (*types.Destination, error)
+	AddDestination(dst *types.Destination)
+	DeleteDestination(dst *types.Destination)
 }
 
 type FusisState struct {
 	sync.Mutex
-	Services     map[string]Service
-	Destinations map[string]Destination
+	Services     map[string]types.Service
+	Destinations map[string]types.Destination
 }
 
 func NewFusisState() *FusisState {
 	return &FusisState{
-		Services:     make(map[string]Service),
-		Destinations: make(map[string]Destination),
+		Services:     make(map[string]types.Service),
+		Destinations: make(map[string]types.Destination),
 	}
 }
 
-func (s *FusisState) GetServices() []Service {
-	services := []Service{}
+func (s *FusisState) GetServices() []types.Service {
+	services := []types.Service{}
 	for _, v := range s.Services {
 		s.getDestinations(&v)
 		services = append(services, v)
@@ -41,7 +43,7 @@ func (s *FusisState) GetServices() []Service {
 	return services
 }
 
-func (s *FusisState) GetService(name string) (*Service, error) {
+func (s *FusisState) GetService(name string) (*types.Service, error) {
 	svc := s.Services[name]
 
 	if svc.Name == "" {
@@ -53,8 +55,8 @@ func (s *FusisState) GetService(name string) (*Service, error) {
 	return &svc, nil
 }
 
-func (s *FusisState) getDestinations(svc *Service) {
-	dsts := []Destination{}
+func (s *FusisState) getDestinations(svc *types.Service) {
+	dsts := []types.Destination{}
 
 	for _, d := range s.Destinations {
 		if d.ServiceId == svc.GetId() {
@@ -65,21 +67,21 @@ func (s *FusisState) getDestinations(svc *Service) {
 	svc.Destinations = dsts
 }
 
-func (s *FusisState) AddService(svc *Service) {
+func (s *FusisState) AddService(svc *types.Service) {
 	s.Lock()
 	defer s.Unlock()
 
 	s.Services[svc.GetId()] = *svc
 }
 
-func (s *FusisState) DeleteService(svc *Service) {
+func (s *FusisState) DeleteService(svc *types.Service) {
 	s.Lock()
 	defer s.Unlock()
 
 	delete(s.Services, svc.GetId())
 }
 
-func (s *FusisState) GetDestination(name string) (*Destination, error) {
+func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
 	dst := s.Destinations[name]
 
 	if dst.Name == "" {
@@ -89,14 +91,14 @@ func (s *FusisState) GetDestination(name string) (*Destination, error) {
 	return &dst, nil
 }
 
-func (s *FusisState) AddDestination(dst *Destination) {
+func (s *FusisState) AddDestination(dst *types.Destination) {
 	s.Lock()
 	defer s.Unlock()
 
 	s.Destinations[dst.GetId()] = *dst
 }
 
-func (s *FusisState) DeleteDestination(dst *Destination) {
+func (s *FusisState) DeleteDestination(dst *types.Destination) {
 	s.Lock()
 	defer s.Unlock()
 

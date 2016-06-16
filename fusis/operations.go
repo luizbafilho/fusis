@@ -4,17 +4,17 @@ import (
 	"encoding/json"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/engine"
-	"github.com/luizbafilho/fusis/ipvs"
 )
 
 // GetServices get all services
-func (b *Balancer) GetServices() []ipvs.Service {
+func (b *Balancer) GetServices() []types.Service {
 	return b.engine.State.GetServices()
 }
 
 // AddService ...
-func (b *Balancer) AddService(svc *ipvs.Service) error {
+func (b *Balancer) AddService(svc *types.Service) error {
 	b.Lock()
 	defer b.Unlock()
 
@@ -39,7 +39,7 @@ func (b *Balancer) AddService(svc *ipvs.Service) error {
 }
 
 //GetService get a service
-func (b *Balancer) GetService(name string) (*ipvs.Service, error) {
+func (b *Balancer) GetService(name string) (*types.Service, error) {
 	return b.engine.State.GetService(name)
 }
 
@@ -59,11 +59,11 @@ func (b *Balancer) DeleteService(name string) error {
 	return b.ApplyToRaft(c)
 }
 
-func (b *Balancer) GetDestination(name string) (*ipvs.Destination, error) {
+func (b *Balancer) GetDestination(name string) (*types.Destination, error) {
 	return b.engine.State.GetDestination(name)
 }
 
-func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) error {
+func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) error {
 	c := &engine.Command{
 		Op:          engine.AddDestinationOp,
 		Service:     svc,
@@ -73,7 +73,7 @@ func (b *Balancer) AddDestination(svc *ipvs.Service, dst *ipvs.Destination) erro
 	return b.ApplyToRaft(c)
 }
 
-func (b *Balancer) DeleteDestination(dst *ipvs.Destination) error {
+func (b *Balancer) DeleteDestination(dst *types.Destination) error {
 	svc, err := b.GetService(dst.ServiceId)
 	if err != nil {
 		return err

@@ -112,6 +112,24 @@ func (s *S) TestServiceCreateValidationError(c *check.C) {
 	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
 }
 
+func (s *S) TestServiceCreateConflict(c *check.C) {
+	err := s.bal.AddService(&types.Service{Name: "mysrv"})
+	c.Assert(err, check.IsNil)
+	body := strings.NewReader(`{"name": "mysrv", "port": 1040, "protocol": "tcp", "scheduler": "rr"}`)
+	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result map[string]string
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, map[string]string{
+		"error": "service already exists",
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusConflict)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
 func (s *S) TestServiceDelete(c *check.C) {
 	err := s.bal.AddService(&types.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
@@ -199,6 +217,33 @@ func (s *S) TestDestinationCreateServiceNotFound(c *check.C) {
 		"error": "service not found",
 	})
 	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
+func (s *S) TestDestinationCreateConflict(c *check.C) {
+	srv := &types.Service{Name: "myservice"}
+	err := s.bal.AddService(srv)
+	c.Assert(err, check.IsNil)
+	dst := &types.Destination{
+		Name:      "mydest",
+		ServiceId: "myservice",
+	}
+	err = s.bal.AddDestination(srv, dst)
+	c.Assert(err, check.IsNil)
+	body := strings.NewReader(`{"name": "mydest", "host": "myhost", "port": 1234}`)
+	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
+	c.Assert(err, check.IsNil)
+	resp, err := http.DefaultClient.Do(req)
+	c.Assert(err, check.IsNil)
+	data, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil)
+	var result map[string]string
+	err = json.Unmarshal(data, &result)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.DeepEquals, map[string]string{
+		"error": "destination already exists",
+	})
+	c.Assert(resp.StatusCode, check.Equals, http.StatusConflict)
 	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
 }
 

@@ -1,7 +1,7 @@
 gin-bin
 .vagrant
 bin
-coverage.*
+coverage*
 *.db
 tags
 net/net

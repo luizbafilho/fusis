@@ -86,10 +86,16 @@ func (c *Client) CreateService(svc types.Service) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		return "", formatError(resp)
+	var id string
+	switch resp.StatusCode {
+	case http.StatusCreated:
+		id = idFromLocation(resp)
+	case http.StatusConflict:
+		err = types.ErrServiceAlreadyExists
+	default:
+		err = formatError(resp)
 	}
-	return idFromLocation(resp), nil
+	return id, err
 }
 
 func (c *Client) DeleteService(id string) error {
@@ -126,6 +132,8 @@ func (c *Client) AddDestination(dst types.Destination) (string, error) {
 	switch resp.StatusCode {
 	case http.StatusNotFound:
 		err = types.ErrServiceNotFound
+	case http.StatusConflict:
+		err = types.ErrDestinationAlreadyExists
 	case http.StatusCreated:
 		id = idFromLocation(resp)
 	default:

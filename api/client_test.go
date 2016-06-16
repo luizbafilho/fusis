@@ -147,6 +147,17 @@ func (s *S) TestClientCreateService(c *check.C) {
 	c.Assert(result, check.DeepEquals, types.Service{Name: "name1"})
 }
 
+func (s *S) TestClientCreateServiceConflict(c *check.C) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+	}))
+	defer srv.Close()
+	cli := NewClient(srv.URL)
+	id, err := cli.CreateService(types.Service{Name: "name1"})
+	c.Assert(err, check.Equals, types.ErrServiceAlreadyExists)
+	c.Assert(id, check.Equals, "")
+}
+
 func (s *S) TestClientCreateServiceInvalidStatus(c *check.C) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -238,6 +249,17 @@ func (s *S) TestClientAddDestinationNotFound(c *check.C) {
 	cli := NewClient(srv.URL)
 	id, err := cli.AddDestination(types.Destination{ServiceId: "svid1"})
 	c.Assert(err, check.Equals, types.ErrServiceNotFound)
+	c.Assert(id, check.Equals, "")
+}
+
+func (s *S) TestClientAddDestinationConflict(c *check.C) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+	}))
+	defer srv.Close()
+	cli := NewClient(srv.URL)
+	id, err := cli.AddDestination(types.Destination{ServiceId: "svid1"})
+	c.Assert(err, check.Equals, types.ErrDestinationAlreadyExists)
 	c.Assert(id, check.Equals, "")
 }
 

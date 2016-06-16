@@ -1,16 +1,17 @@
-package api
+package api_test
 
 import (
-	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/luizbafilho/fusis/api"
+	apiTesting "github.com/luizbafilho/fusis/api/testing"
 	"gopkg.in/check.v1"
 )
 
 type S struct {
-	srv *httptest.Server
-	bal *testBalancer
+	srv *apiTesting.FakeFusisServer
+	bal api.Balancer
 }
 
 var _ = check.Suite(&S{})
@@ -19,9 +20,8 @@ func Test(t *testing.T) { check.TestingT(t) }
 
 func (s *S) SetUpTest(c *check.C) {
 	os.Unsetenv("FUSIS_ENV")
-	s.bal = newTestBalancer()
-	api := NewAPI(s.bal)
-	s.srv = httptest.NewServer(api.router)
+	s.srv = apiTesting.NewFakeFusisServer()
+	s.bal = s.srv.Balancer
 }
 
 func (s *S) TearDownTest(c *check.C) {

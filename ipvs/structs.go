@@ -25,19 +25,6 @@ func stringToIPProto(s string) gipvs.IPProto {
 	return value
 }
 
-//MarshalJSON ...
-func ipProtoToString(proto gipvs.IPProto) string {
-	var value string
-
-	if proto == syscall.IPPROTO_UDP {
-		value = "udp"
-	} else {
-		value = "tcp"
-	}
-
-	return value
-}
-
 func stringToDestinationFlags(s string) gipvs.DestinationFlags {
 	var flag gipvs.DestinationFlags
 
@@ -52,24 +39,6 @@ func stringToDestinationFlags(s string) gipvs.DestinationFlags {
 	}
 
 	return flag
-}
-
-//MarshalJSON ...
-func destinationFlagsToString(flags gipvs.DestinationFlags) string {
-	var value string
-
-	switch flags {
-	case NatMode:
-		value = "nat"
-		// *flags =
-	case TunnelMode:
-		value = "tunnel"
-	default:
-		// Default is Direct Routing
-		value = "route"
-	}
-
-	return value
 }
 
 func ToIpvsService(s *types.Service) *gipvs.Service {
@@ -90,30 +59,5 @@ func ToIpvsDestination(d *types.Destination) *gipvs.Destination {
 		Port:    d.Port,
 		Weight:  d.Weight,
 		Flags:   stringToDestinationFlags(d.Mode),
-	}
-}
-
-func NewService(s *gipvs.Service) types.Service {
-	destinations := []types.Destination{}
-
-	for _, dst := range s.Destinations {
-		destinations = append(destinations, newDestinationRequest(dst))
-	}
-
-	return types.Service{
-		Host:         s.Address.String(),
-		Port:         s.Port,
-		Protocol:     ipProtoToString(s.Protocol),
-		Scheduler:    s.Scheduler,
-		Destinations: destinations,
-	}
-}
-
-func newDestinationRequest(d *gipvs.Destination) types.Destination {
-	return types.Destination{
-		Host:   d.Address.String(),
-		Port:   d.Port,
-		Weight: d.Weight,
-		Mode:   destinationFlagsToString(d.Flags),
 	}
 }

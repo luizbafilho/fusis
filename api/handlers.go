@@ -49,7 +49,11 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 	// If everthing is ok send it to Raft
 	err := as.balancer.AddService(&newService)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("UpsertService() failed: %v", err)})
+		if err == types.ErrServiceAlreadyExists {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("UpsertService() failed: %v", err)})
+		}
 		return
 	}
 
@@ -103,7 +107,11 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 
 	err = as.balancer.AddDestination(service, destination)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("UpsertDestination() failed: %v\n", err)})
+		if err == types.ErrDestinationAlreadyExists {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("UpsertDestination() failed: %v\n", err)})
+		}
 		return
 	}
 

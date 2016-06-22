@@ -9,8 +9,8 @@ import (
 
 // ApiService ...
 type ApiService struct {
+	*gin.Engine
 	balancer Balancer
-	router   *gin.Engine
 	env      string
 }
 
@@ -28,8 +28,8 @@ type Balancer interface {
 func NewAPI(balancer Balancer) ApiService {
 	gin.SetMode(gin.ReleaseMode)
 	as := ApiService{
+		Engine:   gin.Default(),
 		balancer: balancer,
-		router:   gin.Default(),
 		env:      getEnv(),
 	}
 	as.registerRoutes()
@@ -37,19 +37,19 @@ func NewAPI(balancer Balancer) ApiService {
 }
 
 func (as ApiService) registerRoutes() {
-	as.router.GET("/services", as.serviceList)
-	as.router.GET("/services/:service_name", as.serviceGet)
-	as.router.POST("/services", as.serviceCreate)
-	as.router.DELETE("/services/:service_name", as.serviceDelete)
-	as.router.POST("/services/:service_name/destinations", as.destinationCreate)
-	as.router.DELETE("/services/:service_name/destinations/:destination_name", as.destinationDelete)
+	as.GET("/services", as.serviceList)
+	as.GET("/services/:service_name", as.serviceGet)
+	as.POST("/services", as.serviceCreate)
+	as.DELETE("/services/:service_name", as.serviceDelete)
+	as.POST("/services/:service_name/destinations", as.destinationCreate)
+	as.DELETE("/services/:service_name/destinations/:destination_name", as.destinationDelete)
 	if as.env == "test" {
-		as.router.POST("/flush", as.flush)
+		as.POST("/flush", as.flush)
 	}
 }
 
 func (as ApiService) Serve() {
-	as.router.Run("0.0.0.0:8000")
+	as.Run("0.0.0.0:8000")
 }
 
 func getEnv() string {

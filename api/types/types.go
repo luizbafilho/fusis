@@ -1,8 +1,14 @@
 package types
 
+import (
+	"errors"
+)
+
 var (
-	ErrServiceNotFound     error = ErrNotFound("service not found")
-	ErrDestinationNotFound error = ErrNotFound("destination not found")
+	ErrServiceNotFound          error = ErrNotFound("service not found")
+	ErrDestinationNotFound      error = ErrNotFound("destination not found")
+	ErrServiceAlreadyExists           = errors.New("service already exists")
+	ErrDestinationAlreadyExists       = errors.New("destination already exists")
 )
 
 type ErrNotFound string

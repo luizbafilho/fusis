@@ -46,7 +46,7 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&conf.Bootstrap, "bootstrap", false, "starts balancer in boostrap mode")
 	cmd.Flags().BoolVar(&conf.DevMode, "dev", false, "Initialize balancer in dev mode")
 	cmd.Flags().StringSliceVarP(&conf.Join, "join", "j", []string{}, "Join balancer pool")
-
+    cmd.Flags().Uint16VarP(&conf.LogInterval, "log-interval", "i", 0, "Number in seconds of the frequency of statistics collection from ip_vs")
 	err := viper.BindPFlags(cmd.Flags())
 	if err != nil {
 		log.Errorf("error binding pflags: %v", err)

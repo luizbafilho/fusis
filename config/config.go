@@ -20,13 +20,14 @@ type Provider struct {
 type BalancerConfig struct {
 	Interface string
 
-	Name       string
-	Bootstrap  bool
-	Join       []string
-	Provider   Provider
-	ConfigPath string
-	Ports      map[string]int
-	DevMode    bool
+    Name        string
+    Bootstrap   bool
+    Join        []string
+    Provider    Provider
+    ConfigPath  string
+    Ports       map[string]int
+    DevMode     bool
+    LogInterval uint16
 }
 
 type AgentConfig struct {

@@ -4,12 +4,10 @@ import (
 	"errors"
 	"sync"
 	"time"
-    "strings"
 
 	gipvs "github.com/google/seesaw/ipvs"
 
 	"github.com/Sirupsen/logrus"
-    "github.com/bshuster-repo/logrus-logstash-hook"
 
 	"github.com/luizbafilho/fusis/api/types"
 )
@@ -122,38 +120,12 @@ func (s *FusisState) SyncService(svc *types.Service) types.Service {
 
 func (s *FusisState) CollectStats (tick time.Time) {
 
-    logger := logrus.New()
-
-    // TODO: Insert here verification for using remote logging
-
-    PROTOCOL := "udp"
-    HOST := "logstash.video.dev.globoi.com"
-    PORT := "8515"
-    url := []string{HOST, ":", PORT}
-    hook, err := logrus_logstash.NewHook(PROTOCOL, strings.Join(url, ""), "Fusis")
-    if err != nil {
-        logger.Fatal(err)
-    }
-    logger.Hooks.Add(hook)
+    statsLog := logrus.New()
 
     for _, v := range s.GetServices() {
 
         service := s.SyncService(&v)
-
-        hosts := []string{}
-        for _, i := range v.Destinations {
-            hosts = append(hosts, i.Host)
-        }
-        logger.Info(service.Stats)
-
-       //  logger.WithFields(logrus.Fields{
-       //      "time": tick,
-       //      "service": v.Name,
-       //      "Protocol": v.Protocol,
-       //      "Port": v.Port,
-       //      "hosts": strings.Join(hosts, ","),
-       //      "client": "fusis",
-       //  }).Info("Fusis router stats")
+        RouterLog(statsLog, tick, service)
     }
 
 }

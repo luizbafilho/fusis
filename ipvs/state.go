@@ -23,7 +23,7 @@ type State interface {
 	GetDestination(name string) (*types.Destination, error)
 	AddDestination(dst *types.Destination)
 	DeleteDestination(dst *types.Destination)
-    CollectStats(tick time.Time)
+	CollectStats(tick time.Time)
 }
 
 type FusisState struct {
@@ -113,19 +113,19 @@ func (s *FusisState) DeleteDestination(dst *types.Destination) {
 
 func (s *FusisState) SyncService(svc *types.Service) types.Service {
 
-    fakeService := ToIpvsService(svc)
-    kService, _ := gipvs.GetService(fakeService)
-    return FromService(kService)
+	fakeService := ToIpvsService(svc)
+	kService, _ := gipvs.GetService(fakeService)
+	return FromService(kService)
 }
 
-func (s *FusisState) CollectStats (tick time.Time) {
+func (s *FusisState) CollectStats(tick time.Time) {
 
-    statsLog := logrus.New()
+	statsLog := logrus.New()
 
-    for _, v := range s.GetServices() {
+	for _, v := range s.GetServices() {
 
-        service := s.SyncService(&v)
-        RouterLog(statsLog, tick, service)
-    }
+		service := s.SyncService(&v)
+		RouterLog(statsLog, tick, service)
+	}
 
 }

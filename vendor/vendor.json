@@ -51,6 +51,12 @@
 			"revisionTime": "2016-04-22T20:33:50Z"
 		},
 		{
+			"checksumSHA1": "dgagr59vbm8Kj+hPRI4lYCspaAE=",
+			"path": "github.com/bshuster-repo/logrus-logstash-hook",
+			"revision": "beb17f22a545c65ba7ca9552ebce6a9cbf4dbbd4",
+			"revisionTime": "2016-06-01T19:42:05Z"
+		},
+		{
 			"checksumSHA1": "fVgz/pcm/CRl3V1vyyqmj4Hwg+o=",
 			"path": "github.com/fatih/structs",
 			"revision": "73c4e3dc02a78deaba8640d5f3a8c236ec1352bf",

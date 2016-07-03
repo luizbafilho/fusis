@@ -24,7 +24,7 @@ type Service struct {
 	Protocol     string `valid:"required"`
 	Scheduler    string `valid:"required"`
 	Destinations []Destination
-    Stats        *ServiceStats
+	Stats        *ServiceStats
 }
 
 type Destination struct {
@@ -34,26 +34,26 @@ type Destination struct {
 	Weight    int32
 	Mode      string `valid:"required"`
 	ServiceId string `valid:"required"`
-    Stats     *DestinationStats
+	Stats     *DestinationStats
 }
 
 type ServiceStats struct {
-    Connections uint32
-    PacketsIn   uint32
-    PacketsOut  uint32
-    BytesIn     uint64
-    BytesOut    uint64
-    CPS         uint32
-    PPSIn       uint32
-    PPSOut      uint32
-    BPSIn       uint32
-    BPSOut      uint32
+	Connections uint32
+	PacketsIn   uint32
+	PacketsOut  uint32
+	BytesIn     uint64
+	BytesOut    uint64
+	CPS         uint32
+	PPSIn       uint32
+	PPSOut      uint32
+	BPSIn       uint32
+	BPSOut      uint32
 }
 
 type DestinationStats struct {
-    ActiveConns   uint32
-    InactiveConns uint32
-    PersistConns  uint32
+	ActiveConns   uint32
+	InactiveConns uint32
+	PersistConns  uint32
 }
 
 func (svc Service) GetId() string {

@@ -86,7 +86,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 
 	go balancer.watchLeaderChanges()
 
-    go balancer.collectStats()
+	go balancer.collectStats()
 
 	return balancer, nil
 }
@@ -461,17 +461,17 @@ func (b *Balancer) handleAgentLeave(m serf.Member) {
 	b.DeleteDestination(dst)
 }
 
-func (b *Balancer) collectStats () {
+func (b *Balancer) collectStats() {
 
-    period := b.config.LogInterval
+	period := b.config.LogInterval
 
-    if period > 0 {
+	if period > 0 {
 
-        ticker := time.NewTicker(time.Second * time.Duration(period))
-        for tick := range ticker.C {
-            b.engine.State.CollectStats(tick)
-        }
-    }
+		ticker := time.NewTicker(time.Second * time.Duration(period))
+		for tick := range ticker.C {
+			b.engine.State.CollectStats(tick)
+		}
+	}
 }
 
 func readPeersJSON(path string) ([]string, error) {

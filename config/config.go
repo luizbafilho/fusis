@@ -26,22 +26,22 @@ type Provider struct {
 }
 
 type Log struct {
-    Type string
+	Type   string
 	Params map[string]string
 }
 
 type BalancerConfig struct {
 	Interface string
 
-    Name        string
-    Bootstrap   bool
-    Join        []string
-    Provider    Provider
-    Log         Log
-    ConfigPath  string
-    Ports       map[string]int
-    DevMode     bool
-    LogInterval uint16
+	Name        string
+	Bootstrap   bool
+	Join        []string
+	Provider    Provider
+	Log         Log
+	ConfigPath  string
+	Ports       map[string]int
+	DevMode     bool
+	LogInterval uint16
 }
 
 type AgentConfig struct {

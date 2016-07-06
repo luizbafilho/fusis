@@ -22,6 +22,7 @@ func (as ApiService) serviceGet(c *gin.Context) {
 	serviceId := c.Param("service_name")
 	service, err := as.balancer.GetService(serviceId)
 	if err != nil {
+		c.Error(err)
 		if err == types.ErrServiceNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
@@ -35,6 +36,7 @@ func (as ApiService) serviceGet(c *gin.Context) {
 func (as ApiService) serviceCreate(c *gin.Context) {
 	var newService types.Service
 	if err := c.BindJSON(&newService); err != nil {
+		c.Error(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -42,6 +44,7 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 	newService.Destinations = []types.Destination{}
 
 	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
+		c.Error(errs)
 		c.JSON(http.StatusBadRequest, gin.H{"errors": govalidator.ErrorsByField(errs)})
 		return
 	}
@@ -49,6 +52,7 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 	// If everthing is ok send it to Raft
 	err := as.balancer.AddService(&newService)
 	if err != nil {
+		c.Error(err)
 		if err == types.ErrServiceAlreadyExists {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		} else {
@@ -65,6 +69,7 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 	serviceId := c.Param("service_name")
 	_, err := as.balancer.GetService(serviceId)
 	if err != nil {
+		c.Error(err)
 		if err == types.ErrServiceNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
@@ -75,6 +80,7 @@ func (as ApiService) serviceDelete(c *gin.Context) {
 
 	err = as.balancer.DeleteService(serviceId)
 	if err != nil {
+		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteService() failed: %v\n", err)})
 		return
 	}
@@ -86,6 +92,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 	serviceName := c.Param("service_name")
 	service, err := as.balancer.GetService(serviceName)
 	if err != nil {
+		c.Error(err)
 		if err == types.ErrServiceNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
@@ -96,17 +103,20 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 
 	destination := &types.Destination{Weight: 1, Mode: "route", ServiceId: serviceName}
 	if err := c.BindJSON(destination); err != nil {
+		c.Error(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	if _, errs := govalidator.ValidateStruct(destination); errs != nil {
+		c.Error(errs)
 		c.JSON(http.StatusBadRequest, gin.H{"errors": govalidator.ErrorsByField(errs)})
 		return
 	}
 
 	err = as.balancer.AddDestination(service, destination)
 	if err != nil {
+		c.Error(err)
 		if err == types.ErrDestinationAlreadyExists {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		} else {
@@ -123,6 +133,7 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 	destinationId := c.Param("destination_name")
 	dst, err := as.balancer.GetDestination(destinationId)
 	if err != nil {
+		c.Error(err)
 		if _, ok := err.(types.ErrNotFound); ok {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
@@ -133,6 +144,7 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 
 	err = as.balancer.DeleteDestination(dst)
 	if err != nil {
+		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v\n", err)})
 	}
 

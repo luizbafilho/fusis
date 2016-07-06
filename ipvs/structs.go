@@ -93,11 +93,36 @@ func ToIpvsDestination(d *types.Destination) *gipvs.Destination {
 	}
 }
 
-func NewService(s *gipvs.Service) types.Service {
+func GetServiceStats(s *gipvs.Service) *types.ServiceStats {
+
+	return &types.ServiceStats{
+		Connections: s.Statistics.Connections,
+		PacketsIn:   s.Statistics.PacketsIn,
+		PacketsOut:  s.Statistics.PacketsOut,
+		BytesIn:     s.Statistics.BytesIn,
+		BytesOut:    s.Statistics.BytesOut,
+		CPS:         s.Statistics.CPS,
+		PPSIn:       s.Statistics.PPSIn,
+		PPSOut:      s.Statistics.PPSOut,
+		BPSIn:       s.Statistics.BPSIn,
+		BPSOut:      s.Statistics.BPSOut,
+	}
+}
+
+func GetDestinationStats(d *gipvs.Destination) *types.DestinationStats {
+
+	return &types.DestinationStats{
+		ActiveConns:   d.Statistics.ActiveConns,
+		InactiveConns: d.Statistics.InactiveConns,
+		PersistConns:  d.Statistics.PersistConns,
+	}
+}
+
+func FromService(s *gipvs.Service) types.Service {
 	destinations := []types.Destination{}
 
 	for _, dst := range s.Destinations {
-		destinations = append(destinations, newDestinationRequest(dst))
+		destinations = append(destinations, FromDestination(dst))
 	}
 
 	return types.Service{
@@ -106,14 +131,16 @@ func NewService(s *gipvs.Service) types.Service {
 		Protocol:     ipProtoToString(s.Protocol),
 		Scheduler:    s.Scheduler,
 		Destinations: destinations,
+		Stats:        GetServiceStats(s),
 	}
 }
 
-func newDestinationRequest(d *gipvs.Destination) types.Destination {
+func FromDestination(d *gipvs.Destination) types.Destination {
 	return types.Destination{
 		Host:   d.Address.String(),
 		Port:   d.Port,
 		Weight: d.Weight,
 		Mode:   destinationFlagsToString(d.Flags),
+		Stats:  GetDestinationStats(d),
 	}
 }

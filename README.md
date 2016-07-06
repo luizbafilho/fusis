@@ -108,3 +108,16 @@ Content-Length: 94
 
 [{"Name":"","Host":"10.0.0.1","Port":80,"Protocol":"tcp","Scheduler":"rr","Destinations":[]}]
 ```
+
+## Logging
+
+Fusis uses [Logrus](https://github.com/Sirupsen/logrus) as its logging system.
+By default, Fusis logs to stdout every minute.
+You can change its log collection interval by passing the following command line argument:
+
+```bash
+# The argument --log-interval or -i. The value is in seconds
+$> sudo fusis balancer --bootstrap --log-interval 10 
+ ```
+ 
+ 

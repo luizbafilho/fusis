@@ -15,6 +15,18 @@
 			"revisionTime": "2016-03-17T14:11:10Z"
 		},
 		{
+			"checksumSHA1": "7BJHBzx8yLqaLrMUgzk2vT0NPQs=",
+			"path": "github.com/Sirupsen/logrus/formatters/logstash",
+			"revision": "4b6ea7319e214d98c938f12692336f7ca9348d6b",
+			"revisionTime": "2016-03-17T14:11:10Z"
+		},
+		{
+			"checksumSHA1": "MIWpr0GgA0yliqF1/KJDaMmzK44=",
+			"path": "github.com/Sirupsen/logrus/hooks/syslog",
+			"revision": "4b6ea7319e214d98c938f12692336f7ca9348d6b",
+			"revisionTime": "2016-03-17T14:11:10Z"
+		},
+		{
 			"checksumSHA1": "WlIc9k8g8MfmuzAOFHCK80toeyM=",
 			"path": "github.com/armon/go-metrics",
 			"revision": "f303b03b91d770a11a39677f1d3b55da4002bbcb",
@@ -49,6 +61,12 @@
 			"path": "github.com/boltdb/bolt",
 			"revision": "e8ca7db0e78d9513478d5c833410a5921495ca13",
 			"revisionTime": "2016-04-22T20:33:50Z"
+		},
+		{
+			"checksumSHA1": "dgagr59vbm8Kj+hPRI4lYCspaAE=",
+			"path": "github.com/bshuster-repo/logrus-logstash-hook",
+			"revision": "beb17f22a545c65ba7ca9552ebce6a9cbf4dbbd4",
+			"revisionTime": "2016-06-01T19:42:05Z"
 		},
 		{
 			"checksumSHA1": "fVgz/pcm/CRl3V1vyyqmj4Hwg+o=",

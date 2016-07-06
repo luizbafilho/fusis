@@ -3,6 +3,7 @@ package ipvs
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/luizbafilho/fusis/api/types"
 )
@@ -18,6 +19,7 @@ type State interface {
 	GetDestination(name string) (*types.Destination, error)
 	AddDestination(dst *types.Destination)
 	DeleteDestination(dst *types.Destination)
+	CollectStats(tick time.Time)
 }
 
 type FusisState struct {
@@ -103,4 +105,8 @@ func (s *FusisState) DeleteDestination(dst *types.Destination) {
 	defer s.Unlock()
 
 	delete(s.Destinations, dst.GetId())
+}
+
+func (s *FusisState) CollectStats(tick time.Time) {
+
 }

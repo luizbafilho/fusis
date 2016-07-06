@@ -11,23 +11,25 @@ import "github.com/luizbafilho/fusis/net"
 //		  "vipRange":"192.168.0.1/24"
 // 		}
 // 	}
-//  "log" {
-//      "type": "logstash",
-//      "params": {
-//          "protocol": "udp",
-//          "host": "logstash_ip_or_domain_address",
-//          "port": "8515"
-//      }
+// "Stats": {
+//   "Interval": 5,
+//   "Type": "syslog"
+//   "params": {
+//	   "protocol": "udp",
+//     "host": "logstash_ip_or_domain_address",
+//     "port": "8515"
+//   }
 //  }
-// }
+//}
 type Provider struct {
 	Type   string
 	Params map[string]string
 }
 
-type Log struct {
-	Type   string
-	Params map[string]string
+type Stats struct {
+	Type     string
+	Interval uint16
+	Params   map[string]string
 }
 
 type BalancerConfig struct {
@@ -37,7 +39,7 @@ type BalancerConfig struct {
 	Bootstrap   bool
 	Join        []string
 	Provider    Provider
-	Log         Log
+	Stats       Stats
 	ConfigPath  string
 	Ports       map[string]int
 	DevMode     bool

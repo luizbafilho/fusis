@@ -58,7 +58,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
-	engine, err := engine.New()
+	engine, err := engine.New(config)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,10 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 
 	go balancer.watchLeaderChanges()
 
-	go balancer.collectStats()
+	// Only collect stats if some interval is defined
+	if config.Stats.Interval > 0 {
+		go balancer.collectStats()
+	}
 
 	return balancer, nil
 }
@@ -463,13 +466,12 @@ func (b *Balancer) handleAgentLeave(m serf.Member) {
 
 func (b *Balancer) collectStats() {
 
-	period := b.config.LogInterval
+	interval := b.config.Stats.Interval
 
-	if period > 0 {
-
-		ticker := time.NewTicker(time.Second * time.Duration(period))
+	if interval > 0 {
+		ticker := time.NewTicker(time.Second * time.Duration(interval))
 		for tick := range ticker.C {
-			b.engine.State.CollectStats(tick)
+			b.engine.CollectStats(tick)
 		}
 	}
 }

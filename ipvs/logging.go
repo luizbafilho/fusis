@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/bshuster-repo/logrus-logstash-hook"
+	logrus_logstash "github.com/bshuster-repo/logrus-logstash-hook"
 
 	"github.com/luizbafilho/fusis/api/types"
 )

@@ -21,6 +21,12 @@
 			"revisionTime": "2016-03-17T14:11:10Z"
 		},
 		{
+			"checksumSHA1": "MIWpr0GgA0yliqF1/KJDaMmzK44=",
+			"path": "github.com/Sirupsen/logrus/hooks/syslog",
+			"revision": "4b6ea7319e214d98c938f12692336f7ca9348d6b",
+			"revisionTime": "2016-03-17T14:11:10Z"
+		},
+		{
 			"checksumSHA1": "WlIc9k8g8MfmuzAOFHCK80toeyM=",
 			"path": "github.com/armon/go-metrics",
 			"revision": "f303b03b91d770a11a39677f1d3b55da4002bbcb",

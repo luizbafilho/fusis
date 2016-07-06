@@ -5,10 +5,6 @@ import (
 	"sync"
 	"time"
 
-	gipvs "github.com/google/seesaw/ipvs"
-
-	"github.com/Sirupsen/logrus"
-
 	"github.com/luizbafilho/fusis/api/types"
 )
 
@@ -111,21 +107,6 @@ func (s *FusisState) DeleteDestination(dst *types.Destination) {
 	delete(s.Destinations, dst.GetId())
 }
 
-func (s *FusisState) SyncService(svc *types.Service) types.Service {
-
-	fakeService := ToIpvsService(svc)
-	kService, _ := gipvs.GetService(fakeService)
-	return FromService(kService)
-}
-
 func (s *FusisState) CollectStats(tick time.Time) {
-
-	statsLog := logrus.New()
-
-	for _, v := range s.GetServices() {
-
-		service := s.SyncService(&v)
-		RouterLog(statsLog, tick, service)
-	}
 
 }

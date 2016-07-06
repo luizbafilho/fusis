@@ -22,6 +22,8 @@ import (
 	"github.com/luizbafilho/fusis/provider"
 )
 
+//go:generate stringer -type=CommandOp
+
 // Engine ...
 type Engine struct {
 	sync.Mutex
@@ -36,22 +38,23 @@ type Engine struct {
 
 // Represents possible actions on engine
 const (
-	AddServiceOp = iota
+	AddServiceOp CommandOp = iota
 	DelServiceOp
-
 	AddDestinationOp
 	DelDestinationOp
 )
 
+type CommandOp int
+
 // Command represents a command in raft log
 type Command struct {
-	Op          int
+	Op          CommandOp
 	Service     *types.Service
 	Destination *types.Destination
 }
 
 func (c Command) String() string {
-	return fmt.Sprintf("Raft Command %d: Service: %#v Destination: %#v", c.Op, c.Service, c.Destination)
+	return fmt.Sprintf("%v: Service: %#v Destination: %#v", c.Op, c.Service, c.Destination)
 }
 
 // New creates a new Engine

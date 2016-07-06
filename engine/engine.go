@@ -50,6 +50,10 @@ type Command struct {
 	Destination *types.Destination
 }
 
+func (c Command) String() string {
+	return fmt.Sprintf("Raft Command %d: Service: %#v Destination: %#v", c.Op, c.Service, c.Destination)
+}
+
 // New creates a new Engine
 func New(config *config.BalancerConfig) (*Engine, error) {
 	state := ipvs.NewFusisState()
@@ -116,7 +120,6 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 	if err := json.Unmarshal(l.Data, &c); err != nil {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
 	}
-
 	logrus.Infof("Actions received to be aplied to fsm: %v", c)
 	switch c.Op {
 	case AddServiceOp:

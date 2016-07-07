@@ -18,11 +18,7 @@ clean:
 	sudo rm -rf /etc/fusis
 
 test:
-	sudo -E govendor test +local
+	sudo -E go test $$(go list ./... | grep -v /vendor)
 
-PACKAGES = $(shell find ./ -type d -not -path '*/\.*' | grep -v /vendor)
 ci:
-	echo "mode: count" > coverage.txt
-	$(foreach pkg,$(PACKAGES),\
-		sudo -E go test -coverprofile=coverage.out -covermode=count $(pkg);\
-		tail -n +2 coverage.out >> coverage.txt;)
+	./covertests.sh

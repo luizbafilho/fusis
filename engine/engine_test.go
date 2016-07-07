@@ -33,6 +33,7 @@ var _ = Suite(&EngineSuite{})
 func (s *EngineSuite) SetUpSuite(c *C) {
 	logrus.SetOutput(ioutil.Discard)
 	s.readConfig()
+	c.Assert(s.config, Not(IsNil))
 
 	s.service = &types.Service{
 		Name:         "test",
@@ -54,7 +55,7 @@ func (s *EngineSuite) SetUpSuite(c *C) {
 }
 
 func (s *EngineSuite) SetUpTest(c *C) {
-	eng, err := engine.New()
+	eng, err := engine.New(s.config)
 	c.Assert(err, IsNil)
 
 	s.engine = eng
@@ -100,7 +101,7 @@ func (s *EngineSuite) readConfig() {
 	`)
 
 	viper.ReadConfig(bytes.NewBuffer(sampleConfig))
-	viper.Unmarshal(s.config)
+	viper.Unmarshal(&s.config)
 }
 
 func makeLog(cmd *engine.Command, c *C) *raft.Log {
@@ -223,7 +224,7 @@ func (s *EngineSuite) TestSnapshotRestore(c *C) {
 
 	s.engine.Ipvs.Flush()
 
-	eng, err := engine.New()
+	eng, err := engine.New(s.config)
 	c.Assert(err, IsNil)
 
 	err = eng.Restore(sink)

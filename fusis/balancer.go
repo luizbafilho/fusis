@@ -257,12 +257,15 @@ func (b *Balancer) watchLeaderChanges() {
 	b.logger.Infof("Watching to Leader changes")
 
 	for {
-		if <-b.raft.LeaderCh() {
+		isLeader := <-b.raft.LeaderCh()
+		b.Lock()
+		if isLeader {
 			b.flushVips()
 			b.setVips()
 		} else {
 			b.flushVips()
 		}
+		b.Unlock()
 	}
 }
 

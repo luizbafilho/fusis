@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -104,7 +106,130 @@ func defaultConfig() config.BalancerConfig {
 	}
 }
 
-func (s *FusisSuite) TestGetServices(c *C) {
+func (s *FusisSuite) TestAddService(c *C) {
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+	srv, err := b.GetService(s.service.Name)
+	c.Assert(err, Equals, types.ErrServiceNotFound)
+	err = b.AddService(s.service)
+	c.Assert(err, IsNil)
+	srv, err = b.GetService(s.service.Name)
+	c.Assert(err, IsNil)
+	c.Assert(srv, DeepEquals, s.service)
+	err = b.AddService(s.service)
+	c.Assert(err, Equals, types.ErrServiceAlreadyExists)
+}
+
+func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(10))
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+	n := 100
+	errs := make([]error, n)
+	wg := sync.WaitGroup{}
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = b.AddService(s.service)
+		}(i)
+	}
+	wg.Wait()
+	count := 0
+	for _, err := range errs {
+		if err == nil {
+			count++
+		} else {
+			c.Assert(err, Equals, types.ErrServiceAlreadyExists)
+		}
+	}
+	c.Assert(count, Equals, 1)
+	srv, err := b.GetService(s.service.Name)
+	c.Assert(err, IsNil)
+	c.Assert(srv, DeepEquals, s.service)
+}
+
+func (s *FusisSuite) TestDeleteService(c *C) {
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+	err = b.AddService(s.service)
+	c.Assert(err, IsNil)
+	err = b.DeleteService(s.service.Name)
+	c.Assert(err, IsNil)
+	err = b.DeleteService(s.service.Name)
+	c.Assert(err, Equals, types.ErrServiceNotFound)
+}
+
+func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+	err = b.AddService(s.service)
+	c.Assert(err, IsNil)
+	n := 100
+	errs := make([]error, n)
+	wg := sync.WaitGroup{}
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			name := fmt.Sprintf("test-%d", i)
+			bErr := b.AddService(&types.Service{
+				Name:         name,
+				Port:         80,
+				Scheduler:    "lc",
+				Protocol:     "tcp",
+				Destinations: []types.Destination{},
+			})
+			c.Assert(bErr, IsNil)
+			bErr = b.DeleteService(name)
+			c.Assert(bErr, IsNil)
+			errs[i] = b.DeleteService(s.service.Name)
+		}(i)
+	}
+	wg.Wait()
+	count := 0
+	for _, err := range errs {
+		if err == nil {
+			count++
+		} else {
+			c.Assert(err, Equals, types.ErrServiceNotFound)
+		}
+	}
+	c.Assert(count, Equals, 1)
+	all := b.GetServices()
+	c.Assert(all, DeepEquals, []types.Service{})
 }
 
 func (s *FusisSuite) TestAssignVIP(c *C) {

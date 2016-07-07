@@ -28,7 +28,7 @@ func NewAgent(config *config.AgentConfig) (*Agent, error) {
 
 func (a *Agent) Shutdown() {
 	if err := a.serf.Leave(); err != nil {
-		log.Fatalf("Graceful shutdown failed", err)
+		log.Fatalf("Graceful shutdown failed: %s", err)
 	}
 }
 

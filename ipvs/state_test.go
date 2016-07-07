@@ -2,7 +2,6 @@ package ipvs_test
 
 import (
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/ipvs"
 	. "gopkg.in/check.v1"
 )
 
@@ -19,7 +18,7 @@ func (s *IpvsSuite) TestGetService(c *C) {
 	c.Assert(svc, DeepEquals, s.service)
 
 	_, err = s.state.GetService("unknown")
-	c.Assert(err, Equals, ipvs.ErrNotFound)
+	c.Assert(err, Equals, types.ErrServiceNotFound)
 }
 
 func (s *IpvsSuite) TestAddService(c *C) {
@@ -38,7 +37,7 @@ func (s *IpvsSuite) TestDelService(c *C) {
 	c.Assert(len(services), Equals, 0)
 
 	_, err := s.state.GetService(s.service.Name)
-	c.Assert(err, Equals, ipvs.ErrNotFound)
+	c.Assert(err, Equals, types.ErrServiceNotFound)
 }
 
 func (s *IpvsSuite) TestAddDestination(c *C) {
@@ -56,5 +55,5 @@ func (s *IpvsSuite) TestDelDestination(c *C) {
 	s.state.DeleteDestination(s.destination)
 
 	_, err := s.state.GetDestination(s.destination.Name)
-	c.Assert(err, DeepEquals, ipvs.ErrNotFound)
+	c.Assert(err, DeepEquals, types.ErrDestinationNotFound)
 }

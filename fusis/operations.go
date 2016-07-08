@@ -28,13 +28,14 @@ func (b *Balancer) AddService(svc *types.Service) error {
 	b.Lock()
 	defer b.Unlock()
 
-	for _, existingSvc := range b.engine.State.GetServices() {
-		if existingSvc.GetId() == svc.GetId() {
-			return types.ErrServiceAlreadyExists
-		}
+	_, err := b.engine.State.GetService(svc.GetId())
+	if err == nil {
+		return types.ErrServiceAlreadyExists
+	} else if err != types.ErrServiceNotFound {
+		return err
 	}
 
-	if err := b.provider.AllocateVIP(svc, b.engine.State); err != nil {
+	if err = b.provider.AllocateVIP(svc, b.engine.State); err != nil {
 		return err
 	}
 
@@ -43,7 +44,7 @@ func (b *Balancer) AddService(svc *types.Service) error {
 		Service: svc,
 	}
 
-	if err := b.ApplyToRaft(c); err != nil {
+	if err = b.ApplyToRaft(c); err != nil {
 		if e := b.provider.ReleaseVIP(*svc); e != nil {
 			return e
 		}
@@ -86,6 +87,25 @@ func (b *Balancer) GetDestination(name string) (*types.Destination, error) {
 func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) error {
 	b.Lock()
 	defer b.Unlock()
+
+	stateSvc, err := b.engine.State.GetService(svc.GetId())
+	if err != nil {
+		return err
+	}
+
+	_, err = b.engine.State.GetDestination(dst.GetId())
+	if err == nil {
+		return types.ErrDestinationAlreadyExists
+	} else if err != types.ErrDestinationNotFound {
+		return err
+	}
+
+	for _, existDst := range stateSvc.Destinations {
+		if existDst.Host == dst.Host && existDst.Port == dst.Port {
+			return types.ErrDestinationAlreadyExists
+		}
+	}
+
 	c := &engine.Command{
 		Op:          engine.AddDestinationOp,
 		Service:     svc,
@@ -99,6 +119,11 @@ func (b *Balancer) DeleteDestination(dst *types.Destination) error {
 	b.Lock()
 	defer b.Unlock()
 	svc, err := b.engine.State.GetService(dst.ServiceId)
+	if err != nil {
+		return err
+	}
+
+	_, err = b.engine.State.GetDestination(dst.GetId())
 	if err != nil {
 		return err
 	}

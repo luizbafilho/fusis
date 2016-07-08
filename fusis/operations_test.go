@@ -176,6 +176,8 @@ func (s *FusisSuite) TestDeleteService(c *C) {
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
+	err = b.DeleteService(s.service.Name)
+	c.Assert(err, Equals, types.ErrServiceNotFound)
 	err = b.AddService(s.service)
 	c.Assert(err, IsNil)
 	err = b.DeleteService(s.service.Name)
@@ -230,6 +232,151 @@ func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
 	c.Assert(count, Equals, 1)
 	all := b.GetServices()
 	c.Assert(all, DeepEquals, []types.Service{})
+}
+
+func (s *FusisSuite) TestAddDestination(c *C) {
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+	dst, err := b.GetDestination(s.destination.GetId())
+	c.Assert(err, Equals, types.ErrDestinationNotFound)
+	err = b.AddDestination(s.service, s.destination)
+	c.Assert(err, Equals, types.ErrServiceNotFound)
+	err = b.AddService(s.service)
+	c.Assert(err, IsNil)
+	err = b.AddDestination(s.service, s.destination)
+	c.Assert(err, IsNil)
+	err = b.AddDestination(s.service, s.destination)
+	c.Assert(err, Equals, types.ErrDestinationAlreadyExists)
+	svc, err := b.GetService(s.service.GetId())
+	c.Assert(err, IsNil)
+	c.Assert(svc.Destinations, DeepEquals, []types.Destination{*s.destination})
+	dst, err = b.GetDestination(s.destination.GetId())
+	c.Assert(err, IsNil)
+	c.Assert(dst, DeepEquals, s.destination)
+}
+
+func (s *FusisSuite) TestDeleteDestination(c *C) {
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+	err = b.DeleteDestination(s.destination)
+	c.Assert(err, Equals, types.ErrServiceNotFound)
+	err = b.AddService(s.service)
+	c.Assert(err, IsNil)
+	err = b.DeleteDestination(s.destination)
+	c.Assert(err, Equals, types.ErrDestinationNotFound)
+	err = b.AddDestination(s.service, s.destination)
+	c.Assert(err, IsNil)
+	err = b.DeleteDestination(s.destination)
+	c.Assert(err, IsNil)
+	svc, err := b.GetService(s.service.GetId())
+	c.Assert(err, IsNil)
+	c.Assert(svc.Destinations, DeepEquals, []types.Destination{})
+	_, err = b.GetDestination(s.destination.GetId())
+	c.Assert(err, Equals, types.ErrDestinationNotFound)
+}
+
+func (s *FusisSuite) TestAddDeleteDestination(c *C) {
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+	err = b.AddService(s.service)
+	c.Assert(err, IsNil)
+	err = b.AddDestination(s.service, s.destination)
+	c.Assert(err, IsNil)
+	newDst := &types.Destination{
+		Name:      "test-1",
+		Host:      "192.168.1.1",
+		Port:      80,
+		Mode:      "nat",
+		Weight:    1,
+		ServiceId: s.service.GetId(),
+	}
+	err = b.AddDestination(s.service, newDst)
+	c.Assert(err, Equals, types.ErrDestinationAlreadyExists)
+	newDst.Port = 81
+	err = b.AddDestination(s.service, newDst)
+	c.Assert(err, IsNil)
+	err = b.DeleteDestination(newDst)
+	c.Assert(err, IsNil)
+	svc, err := b.GetService(s.service.GetId())
+	c.Assert(err, IsNil)
+	c.Assert(svc.Destinations, DeepEquals, []types.Destination{*s.destination})
+}
+
+func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
+	config := defaultConfig()
+	b, err := NewBalancer(&config)
+	c.Assert(err, IsNil)
+	defer b.Shutdown()
+	defer os.RemoveAll(config.ConfigPath)
+	WaitForResult(func() (bool, error) {
+		return b.isLeader(), nil
+	}, func(err error) {
+		c.Fatalf("balancer did not become leader")
+	})
+	err = b.AddService(s.service)
+	c.Assert(err, IsNil)
+	n := 100
+	errs := make([]error, n)
+	wg := sync.WaitGroup{}
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = b.AddDestination(s.service, s.destination)
+			newDst := &types.Destination{
+				Name:      fmt.Sprintf("test-%d", i),
+				Host:      "192.168.1.1",
+				Port:      81 + uint16(i),
+				Mode:      "nat",
+				Weight:    1,
+				ServiceId: s.service.GetId(),
+			}
+			bErr := b.AddDestination(s.service, newDst)
+			c.Assert(bErr, IsNil)
+			bErr = b.DeleteDestination(newDst)
+			c.Assert(bErr, IsNil)
+		}(i)
+	}
+	wg.Wait()
+	count := 0
+	for _, err := range errs {
+		if err == nil {
+			count++
+		} else {
+			c.Assert(err, Equals, types.ErrDestinationAlreadyExists)
+		}
+	}
+	c.Assert(count, Equals, 1)
+	svc, err := b.GetService(s.service.GetId())
+	c.Assert(err, IsNil)
+	c.Assert(svc.Destinations, DeepEquals, []types.Destination{*s.destination})
+	dst, err := b.GetDestination(s.destination.GetId())
+	c.Assert(err, IsNil)
+	c.Assert(dst, DeepEquals, s.destination)
 }
 
 func (s *FusisSuite) TestAssignVIP(c *C) {

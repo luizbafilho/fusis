@@ -175,7 +175,7 @@ func (e *Engine) applyDelService(svc *types.Service) error {
 func (e *Engine) applyAddDestination(svc *types.Service, dst *types.Destination) error {
 	err := e.Ipvs.AddDestination(*ipvs.ToIpvsService(svc), *ipvs.ToIpvsDestination(dst))
 	if err != nil {
-		return nil
+		return err
 	}
 
 	e.State.AddDestination(dst)
@@ -186,7 +186,7 @@ func (e *Engine) applyAddDestination(svc *types.Service, dst *types.Destination)
 func (e *Engine) applyDelDestination(svc *types.Service, dst *types.Destination) error {
 	err := e.Ipvs.DeleteDestination(*ipvs.ToIpvsService(svc), *ipvs.ToIpvsDestination(dst))
 	if err != nil {
-		return nil
+		return err
 	}
 
 	e.State.DeleteDestination(dst)

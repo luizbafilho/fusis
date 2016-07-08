@@ -240,7 +240,7 @@ func (s *FusisSuite) TestAssignVIP(c *C) {
 	defer os.RemoveAll(config.ConfigPath)
 
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -270,7 +270,7 @@ func (s *FusisSuite) TestUnassignVIP(c *C) {
 	defer os.RemoveAll(config.ConfigPath)
 
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -301,7 +301,7 @@ func (s *FusisSuite) TestJoinPoolLeave(c *C) {
 	defer os.RemoveAll(config.ConfigPath)
 
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -359,7 +359,7 @@ func (s *FusisSuite) TestWatchCommands(c *C) {
 	defer os.RemoveAll(config.ConfigPath)
 
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"net"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -22,6 +24,8 @@ type Balancer interface {
 	AddDestination(*types.Service, *types.Destination) error
 	GetDestination(string) (*types.Destination, error)
 	DeleteDestination(*types.Destination) error
+	IsLeader() bool
+	GetLeader() string
 }
 
 //NewAPI ...
@@ -32,6 +36,8 @@ func NewAPI(balancer Balancer) ApiService {
 		balancer: balancer,
 		env:      getEnv(),
 	}
+
+	as.registerRedirectMiddleware()
 	as.registerRoutes()
 	return as
 }
@@ -43,9 +49,23 @@ func (as ApiService) registerRoutes() {
 	as.DELETE("/services/:service_name", as.serviceDelete)
 	as.POST("/services/:service_name/destinations", as.destinationCreate)
 	as.DELETE("/services/:service_name/destinations/:destination_name", as.destinationDelete)
-	if as.env == "test" {
-		as.POST("/flush", as.flush)
+}
+
+func redirectMiddleware(b Balancer) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if b.IsLeader() {
+			c.Next()
+		} else {
+			c.Abort()
+
+			host, _, _ := net.SplitHostPort(b.GetLeader())
+			c.Redirect(307, fmt.Sprintf("http://%s:8000%s", host, c.Request.URL))
+		}
 	}
+}
+
+func (as ApiService) registerRedirectMiddleware() {
+	as.Use(redirectMiddleware(as.balancer))
 }
 
 func (as ApiService) Serve() {

@@ -10,6 +10,7 @@ import (
 )
 
 func (as ApiService) serviceList(c *gin.Context) {
+	fmt.Println("testando redirect")
 	services := as.balancer.GetServices()
 	if len(services) == 0 {
 		c.Status(http.StatusNoContent)

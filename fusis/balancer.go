@@ -221,7 +221,7 @@ func (b *Balancer) watchCommands() {
 }
 
 func (b *Balancer) UnassignVIP(svc *types.Service) {
-	if b.isLeader() {
+	if b.IsLeader() {
 		if err := b.provider.UnassignVIP(svc); err != nil {
 			b.logger.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
@@ -229,15 +229,19 @@ func (b *Balancer) UnassignVIP(svc *types.Service) {
 }
 
 func (b *Balancer) AssignVIP(svc *types.Service) {
-	if b.isLeader() {
+	if b.IsLeader() {
 		if err := b.provider.AssignVIP(svc); err != nil {
 			b.logger.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)
 		}
 	}
 }
 
-func (b *Balancer) isLeader() bool {
+func (b *Balancer) IsLeader() bool {
 	return b.raft.State() == raft.Leader
+}
+
+func (b *Balancer) GetLeader() string {
+	return b.raft.Leader()
 }
 
 // JoinPool joins the Fusis Serf cluster
@@ -314,7 +318,7 @@ func (b *Balancer) flushVips() {
 func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
 	b.logger.Infof("handleMemberJoin: %s", event)
 
-	if !b.isLeader() {
+	if !b.IsLeader() {
 		return
 	}
 
@@ -352,7 +356,7 @@ func (b *Balancer) handleMemberLeave(memberEvent serf.MemberEvent) {
 
 func (b *Balancer) handleBalancerLeave(m serf.Member) {
 	b.logger.Info("Removing left balancer from raft")
-	if !b.isLeader() {
+	if !b.IsLeader() {
 		b.logger.Info("Member is not leader")
 		return
 	}
@@ -388,7 +392,7 @@ func (b *Balancer) Leave() {
 	// servers), we should do a RemovePeer to safely reduce the quorum size. If we are
 	// not the leader, then we should issue our leave intention and wait to be removed
 	// for some sane period of time.
-	isLeader := b.isLeader()
+	isLeader := b.IsLeader()
 	// if isLeader && numPeers > 0 {
 	// 	future := b.raft.RemovePeer(b.raftTransport.LocalAddr())
 	// 	if err := future.Error(); err != nil && err != raft.ErrUnknownPeer {

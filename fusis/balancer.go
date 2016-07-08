@@ -177,7 +177,7 @@ func (b *Balancer) setupRaft() error {
 		peerStore := raft.NewJSONPeers(b.config.ConfigPath, transport)
 		b.raftPeers = peerStore
 
-		var snapshots *FileSnapshotStore
+		var snapshots *raft.FileSnapshotStore
 		// Create the snapshot store. This allows the Raft to truncate the log.
 		snapshots, err = raft.NewFileSnapshotStore(b.config.ConfigPath, retainSnapshotCount, os.Stderr)
 		if err != nil {
@@ -185,7 +185,7 @@ func (b *Balancer) setupRaft() error {
 		}
 		snap = snapshots
 
-		var logStore *BoltStore
+		var logStore *raftboltdb.BoltStore
 		// Create the log store and stable store.
 		logStore, err = raftboltdb.NewBoltStore(filepath.Join(b.config.ConfigPath, "raft.db"))
 		if err != nil {

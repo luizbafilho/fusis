@@ -241,7 +241,7 @@ func (s *FusisSuite) TestAddDestination(c *C) {
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -270,7 +270,7 @@ func (s *FusisSuite) TestDeleteDestination(c *C) {
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -298,7 +298,7 @@ func (s *FusisSuite) TestAddDeleteDestination(c *C) {
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -333,7 +333,7 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})

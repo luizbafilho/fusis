@@ -22,7 +22,6 @@ var _ = Suite(&IpvsSuite{})
 
 func (s *IpvsSuite) SetUpSuite(c *C) {
 	logrus.SetOutput(ioutil.Discard)
-
 	s.service = &types.Service{
 		Name:         "test",
 		Host:         "10.0.1.1",
@@ -43,7 +42,12 @@ func (s *IpvsSuite) SetUpSuite(c *C) {
 }
 
 func (s *IpvsSuite) SetUpTest(c *C) {
-	state := ipvs.NewFusisState()
+	s.state = ipvs.NewFusisState()
+}
 
-	s.state = state
+func (s *IpvsSuite) TearDownSuite(c *C) {
+	i, err := ipvs.New()
+	c.Assert(err, IsNil)
+	err = i.Flush()
+	c.Assert(err, IsNil)
 }

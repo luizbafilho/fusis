@@ -67,6 +67,19 @@ func GetVips(iface string) ([]netlink.Addr, error) {
 	return netlink.AddrList(link, netlink.FAMILY_V4)
 }
 
+func GetFusisVipsIps(iface string) ([]string, error) {
+	addrs, err := GetVips(iface)
+	if err != nil {
+		return nil, err
+	}
+	addrs = addrs[1:]
+	ips := make([]string, len(addrs))
+	for i, addr := range addrs {
+		ips[i] = addr.IP.String()
+	}
+	return ips, nil
+}
+
 func GetIpByInterface(iface string) (string, error) {
 	link, err := netlink.LinkByName(iface)
 	if err != nil {

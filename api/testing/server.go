@@ -32,6 +32,14 @@ func newTestBalancer() *testBalancer {
 	return &testBalancer{}
 }
 
+func (b *testBalancer) GetLeader() string {
+	return "localhost:8000"
+}
+
+func (b *testBalancer) IsLeader() bool {
+	return true
+}
+
 func (b *testBalancer) GetServices() []types.Service {
 	return b.services
 }

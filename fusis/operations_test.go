@@ -113,7 +113,7 @@ func (s *FusisSuite) TestAddService(c *C) {
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -136,7 +136,7 @@ func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -172,7 +172,7 @@ func (s *FusisSuite) TestDeleteService(c *C) {
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
@@ -191,7 +191,7 @@ func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
 	WaitForResult(func() (bool, error) {
-		return b.isLeader(), nil
+		return b.IsLeader(), nil
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})

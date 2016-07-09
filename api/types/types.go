@@ -2,6 +2,7 @@ package types
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -62,4 +63,12 @@ func (svc Service) GetId() string {
 
 func (dst Destination) GetId() string {
 	return dst.Name
+}
+
+func (svc Service) KernelKey() string {
+	return fmt.Sprintf("%s-%d-%s", svc.Host, svc.Port, svc.Protocol)
+}
+
+func (dst Destination) KernelKey() string {
+	return fmt.Sprintf("%s-%d", dst.Host, dst.Port)
 }

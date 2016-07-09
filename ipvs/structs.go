@@ -74,6 +74,9 @@ func destinationFlagsToString(flags gipvs.DestinationFlags) string {
 
 func ToIpvsService(s *types.Service) *gipvs.Service {
 	destinations := []*gipvs.Destination{}
+	for _, dest := range s.Destinations {
+		destinations = append(destinations, toIpvsDestination(&dest))
+	}
 
 	return &gipvs.Service{
 		Address:      net.ParseIP(s.Host),
@@ -84,7 +87,7 @@ func ToIpvsService(s *types.Service) *gipvs.Service {
 	}
 }
 
-func ToIpvsDestination(d *types.Destination) *gipvs.Destination {
+func toIpvsDestination(d *types.Destination) *gipvs.Destination {
 	return &gipvs.Destination{
 		Address: net.ParseIP(d.Host),
 		Port:    d.Port,
@@ -93,7 +96,7 @@ func ToIpvsDestination(d *types.Destination) *gipvs.Destination {
 	}
 }
 
-func GetServiceStats(s *gipvs.Service) *types.ServiceStats {
+func getServiceStats(s *gipvs.Service) *types.ServiceStats {
 
 	return &types.ServiceStats{
 		Connections: s.Statistics.Connections,
@@ -109,7 +112,7 @@ func GetServiceStats(s *gipvs.Service) *types.ServiceStats {
 	}
 }
 
-func GetDestinationStats(d *gipvs.Destination) *types.DestinationStats {
+func getDestinationStats(d *gipvs.Destination) *types.DestinationStats {
 
 	return &types.DestinationStats{
 		ActiveConns:   d.Statistics.ActiveConns,
@@ -120,9 +123,8 @@ func GetDestinationStats(d *gipvs.Destination) *types.DestinationStats {
 
 func FromService(s *gipvs.Service) types.Service {
 	destinations := []types.Destination{}
-
 	for _, dst := range s.Destinations {
-		destinations = append(destinations, FromDestination(dst))
+		destinations = append(destinations, fromDestination(dst))
 	}
 
 	return types.Service{
@@ -131,16 +133,16 @@ func FromService(s *gipvs.Service) types.Service {
 		Protocol:     ipProtoToString(s.Protocol),
 		Scheduler:    s.Scheduler,
 		Destinations: destinations,
-		Stats:        GetServiceStats(s),
+		Stats:        getServiceStats(s),
 	}
 }
 
-func FromDestination(d *gipvs.Destination) types.Destination {
+func fromDestination(d *gipvs.Destination) types.Destination {
 	return types.Destination{
 		Host:   d.Address.String(),
 		Port:   d.Port,
 		Weight: d.Weight,
 		Mode:   destinationFlagsToString(d.Flags),
-		Stats:  GetDestinationStats(d),
+		Stats:  getDestinationStats(d),
 	}
 }

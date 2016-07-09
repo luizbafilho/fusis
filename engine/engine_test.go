@@ -60,7 +60,7 @@ func (s *EngineSuite) SetUpTest(c *C) {
 
 	s.engine = eng
 
-	go watchCommandCh(eng)
+	go watchStateCh(eng)
 }
 
 func (s *EngineSuite) TearDownTest(c *C) {
@@ -116,9 +116,10 @@ func makeLog(cmd *engine.Command, c *C) *raft.Log {
 	}
 }
 
-func watchCommandCh(engine *engine.Engine) {
+func watchStateCh(engine *engine.Engine) {
 	for {
-		<-engine.CommandCh
+		errCh := <-engine.StateCh
+		errCh <- nil
 	}
 }
 
@@ -157,11 +158,6 @@ func (s *EngineSuite) TestApplyAddService(c *C) {
 	s.addService(c)
 
 	c.Assert(s.engine.State.GetServices(), DeepEquals, []types.Service{*s.service})
-	svcs, err := s.engine.Ipvs.GetServices()
-	c.Assert(err, IsNil)
-
-	c.Assert(len(svcs), Equals, 1)
-	c.Assert(svcs[0].Address.String(), DeepEquals, s.service.Host)
 }
 
 func (s *EngineSuite) TestApplyDelService(c *C) {
@@ -169,10 +165,6 @@ func (s *EngineSuite) TestApplyDelService(c *C) {
 	s.delService(c)
 
 	c.Assert(s.engine.State.GetServices(), DeepEquals, []types.Service{})
-	svcs, err := s.engine.Ipvs.GetServices()
-	c.Assert(err, IsNil)
-
-	c.Assert(len(svcs), Equals, 0)
 }
 
 func (s *EngineSuite) TestApplyAddDestination(c *C) {
@@ -181,13 +173,7 @@ func (s *EngineSuite) TestApplyAddDestination(c *C) {
 
 	dst, err := s.engine.State.GetDestination(s.destination.Name)
 	c.Assert(err, IsNil)
-
 	c.Assert(dst, DeepEquals, s.destination)
-	dests, err := s.engine.Ipvs.GetDestinations(ipvs.ToIpvsService(s.service))
-	c.Assert(err, IsNil)
-
-	c.Assert(len(dests), Equals, 1)
-	c.Assert(dests[0].Address.String(), DeepEquals, s.destination.Host)
 }
 
 func (s *EngineSuite) TestApplyDelDestination(c *C) {
@@ -203,10 +189,8 @@ func (s *EngineSuite) TestApplyDelDestination(c *C) {
 	resp := s.engine.Apply(makeLog(cmd, c))
 	c.Assert(resp, IsNil)
 
-	dests, err := s.engine.Ipvs.GetDestinations(ipvs.ToIpvsService(s.service))
-	c.Assert(err, IsNil)
-
-	c.Assert(len(dests), Equals, 0)
+	_, err := s.engine.State.GetDestination(s.destination.Name)
+	c.Assert(err, Equals, types.ErrDestinationNotFound)
 }
 
 func (s *EngineSuite) TestSnapshotRestore(c *C) {
@@ -222,10 +206,9 @@ func (s *EngineSuite) TestSnapshotRestore(c *C) {
 	err = snap.Persist(sink)
 	c.Assert(err, IsNil)
 
-	s.engine.Ipvs.Flush()
-
 	eng, err := engine.New(s.config)
 	c.Assert(err, IsNil)
+	go watchStateCh(eng)
 
 	err = eng.Restore(sink)
 	c.Assert(err, IsNil)
@@ -233,11 +216,4 @@ func (s *EngineSuite) TestSnapshotRestore(c *C) {
 	s.service.Destinations = []types.Destination{*s.destination}
 
 	c.Assert(eng.State.GetServices(), DeepEquals, []types.Service{*s.service})
-
-	svcs, err := s.engine.Ipvs.GetServices()
-	c.Assert(err, IsNil)
-
-	c.Assert(len(svcs), Equals, 1)
-	c.Assert(svcs[0].Address.String(), DeepEquals, s.service.Host)
-	c.Assert(svcs[0].Destinations[0].Address.String(), Equals, s.destination.Host)
 }

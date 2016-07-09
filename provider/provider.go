@@ -13,8 +13,7 @@ var ErrProviderNotRegistered = errors.New("Provider not registered")
 type Provider interface {
 	AllocateVIP(s *types.Service, state ipvs.State) error
 	ReleaseVIP(s types.Service) error
-	AssignVIP(s *types.Service) error
-	UnassignVIP(s *types.Service) error
+	SyncVIPs(state ipvs.State) error
 }
 
 func New(config *config.BalancerConfig) (Provider, error) {

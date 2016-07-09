@@ -28,10 +28,10 @@ import (
 type Engine struct {
 	sync.Mutex
 
-	Ipvs      *ipvs.Ipvs
-	State     ipvs.State
-	Provider  provider.Provider
-	CommandCh chan Command
+	Ipvs     *ipvs.Ipvs
+	State    ipvs.State
+	Provider provider.Provider
+	StateCh  chan chan error
 
 	StatsLogger *logrus.Logger
 }
@@ -51,6 +51,7 @@ type Command struct {
 	Op          CommandOp
 	Service     *types.Service
 	Destination *types.Destination
+	Response    chan interface{} `json:"-"`
 }
 
 func (c Command) String() string {
@@ -68,7 +69,7 @@ func New(config *config.BalancerConfig) (*Engine, error) {
 	statsLogger := NewStatsLogger(config)
 
 	return &Engine{
-		CommandCh:   make(chan Command),
+		StateCh:     make(chan chan error),
 		State:       state,
 		Ipvs:        ipvsInstance,
 		StatsLogger: statsLogger,
@@ -126,72 +127,17 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 	logrus.Infof("Actions received to be aplied to fsm: %v", c)
 	switch c.Op {
 	case AddServiceOp:
-		if err := e.applyAddService(c.Service); err != nil {
-			logrus.Error(err)
-			return err
-		}
-		e.CommandCh <- c
+		e.State.AddService(c.Service)
 	case DelServiceOp:
-		if err := e.applyDelService(c.Service); err != nil {
-			logrus.Error(err)
-			return err
-		}
-		e.CommandCh <- c
+		e.State.DeleteService(c.Service)
 	case AddDestinationOp:
-		if err := e.applyAddDestination(c.Service, c.Destination); err != nil {
-			logrus.Error(err)
-			return err
-		}
-		e.CommandCh <- c
+		e.State.AddDestination(c.Destination)
 	case DelDestinationOp:
-		if err := e.applyDelDestination(c.Service, c.Destination); err != nil {
-			logrus.Error(err)
-			return err
-		}
-		e.CommandCh <- c
+		e.State.DeleteDestination(c.Destination)
 	}
-	return nil
-}
-
-func (e *Engine) applyAddService(svc *types.Service) error {
-	if err := e.Ipvs.AddService(ipvs.ToIpvsService(svc)); err != nil {
-		return err
-	}
-
-	e.State.AddService(svc)
-
-	return nil
-}
-
-func (e *Engine) applyDelService(svc *types.Service) error {
-	if err := e.Ipvs.DeleteService(ipvs.ToIpvsService(svc)); err != nil {
-		return err
-	}
-
-	e.State.DeleteService(svc)
-	return nil
-}
-
-func (e *Engine) applyAddDestination(svc *types.Service, dst *types.Destination) error {
-	err := e.Ipvs.AddDestination(*ipvs.ToIpvsService(svc), *ipvs.ToIpvsDestination(dst))
-	if err != nil {
-		return err
-	}
-
-	e.State.AddDestination(dst)
-
-	return nil
-}
-
-func (e *Engine) applyDelDestination(svc *types.Service, dst *types.Destination) error {
-	err := e.Ipvs.DeleteDestination(*ipvs.ToIpvsService(svc), *ipvs.ToIpvsDestination(dst))
-	if err != nil {
-		return err
-	}
-
-	e.State.DeleteDestination(dst)
-
-	return nil
+	rsp := make(chan error)
+	e.StateCh <- rsp
+	return <-rsp
 }
 
 type fusisSnapshot struct {
@@ -219,18 +165,14 @@ func (e *Engine) Restore(rc io.ReadCloser) error {
 	// Set the state from the snapshot, no lock required according to
 	// Hashicorp docs.
 	for _, s := range services {
-		if err := e.applyAddService(&s); err != nil {
-			return err
-		}
-
+		e.State.AddService(&s)
 		for _, d := range s.Destinations {
-			if err := e.applyAddDestination(&s, &d); err != nil {
-				return err
-			}
+			e.State.AddDestination(&d)
 		}
 	}
-
-	return nil
+	rsp := make(chan error)
+	e.StateCh <- rsp
+	return <-rsp
 }
 
 func (e *Engine) CollectStats(tick time.Time) {
@@ -289,11 +231,9 @@ func (f *fusisSnapshot) Release() {
 }
 
 func (e *Engine) syncService(svc *types.Service) types.Service {
-
 	service, err := gipvs.GetService(ipvs.ToIpvsService(svc))
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	return ipvs.FromService(service)
 }

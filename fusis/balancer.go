@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
 	fusis_net "github.com/luizbafilho/fusis/net"
@@ -196,6 +195,8 @@ func (b *Balancer) setupRaft() error {
 		stable = logStore
 	}
 
+	go b.watchState()
+
 	// Instantiate the Raft systems.
 	ra, err := raft.NewRaft(raftConfig, b.engine, log, stable, snap, b.raftPeers, transport)
 	if err != nil {
@@ -203,39 +204,29 @@ func (b *Balancer) setupRaft() error {
 	}
 	b.raft = ra
 
-	go b.watchCommands()
-
 	return nil
 }
 
-func (b *Balancer) watchCommands() {
+func (b *Balancer) watchState() {
 	for {
 		select {
-		case c := <-b.engine.CommandCh:
-			switch c.Op {
-			case engine.AddServiceOp:
-				b.AssignVIP(c.Service)
-			case engine.DelServiceOp:
-				b.UnassignVIP(c.Service)
-			}
+		case rsp := <-b.engine.StateCh:
+			// TODO: this doesn't need to run all the time, we can implement
+			// some kind of throttling in the future waiting for a threashold of
+			// messages before applying the messages.
+			rsp <- b.handleStateChange()
 		}
 	}
 }
 
-func (b *Balancer) UnassignVIP(svc *types.Service) {
+func (b *Balancer) handleStateChange() error {
 	if b.IsLeader() {
-		if err := b.provider.UnassignVIP(svc); err != nil {
-			b.logger.Errorf("Unassigning VIP to Service: %#v. Err: %#v", svc, err)
-		}
+		b.provider.SyncVIPs(b.engine.State)
+	} else {
+		b.Lock()
+		defer b.Unlock()
 	}
-}
-
-func (b *Balancer) AssignVIP(svc *types.Service) {
-	if b.IsLeader() {
-		if err := b.provider.AssignVIP(svc); err != nil {
-			b.logger.Errorf("Assigning VIP to Service: %#v. Err: %#v", svc, err)
-		}
-	}
+	return b.engine.Ipvs.SyncState(b.engine.State)
 }
 
 func (b *Balancer) IsLeader() bool {
@@ -300,20 +291,17 @@ func (b *Balancer) handleEvents() {
 }
 
 func (b *Balancer) setVips() {
-	svcs := b.engine.State.GetServices()
-
-	for _, s := range svcs {
-		err := b.provider.AssignVIP(&s)
-		if err != nil {
-			//TODO: Remove balancer from cluster when error occurs
-			b.logger.Error(err)
-		}
+	err := b.provider.SyncVIPs(b.engine.State)
+	if err != nil {
+		//TODO: Remove balancer from cluster when error occurs
+		b.logger.Error(err)
 	}
 }
 
 func (b *Balancer) flushVips() {
 	if err := fusis_net.DelVips(b.config.Provider.Params["interface"]); err != nil {
-		panic(err)
+		//TODO: Remove balancer from cluster when error occurs
+		b.logger.Error(err)
 	}
 }
 

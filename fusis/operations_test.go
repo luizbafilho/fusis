@@ -11,7 +11,6 @@ import (
 
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/engine"
 	"github.com/luizbafilho/fusis/net"
 	. "gopkg.in/check.v1"
 )
@@ -379,67 +378,6 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 	c.Assert(dst, DeepEquals, s.destination)
 }
 
-func (s *FusisSuite) TestAssignVIP(c *C) {
-	config := defaultConfig()
-	b, err := NewBalancer(&config)
-	c.Assert(err, IsNil)
-	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
-
-	WaitForResult(func() (bool, error) {
-		return b.IsLeader(), nil
-	}, func(err error) {
-		c.Fatalf("balancer did not become leader")
-	})
-
-	s.service.Host = "192.168.85.43"
-
-	b.AssignVIP(s.service)
-
-	addrs, err := net.GetVips(config.Interface)
-	c.Assert(err, IsNil)
-
-	found := false
-	for _, a := range addrs {
-		if a.IPNet.String() == "192.168.85.43/32" {
-			found = true
-		}
-	}
-
-	c.Assert(found, Equals, true)
-}
-
-func (s *FusisSuite) TestUnassignVIP(c *C) {
-	config := defaultConfig()
-	b, err := NewBalancer(&config)
-	c.Assert(err, IsNil)
-	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
-
-	WaitForResult(func() (bool, error) {
-		return b.IsLeader(), nil
-	}, func(err error) {
-		c.Fatalf("balancer did not become leader")
-	})
-
-	s.service.Host = "192.168.85.43"
-
-	b.AssignVIP(s.service)
-	b.UnassignVIP(s.service)
-
-	addrs, err := net.GetVips(config.Interface)
-	c.Assert(err, IsNil)
-
-	deleted := true
-	for _, a := range addrs {
-		if a.IPNet.String() == "192.168.0.1/32" {
-			deleted = false
-		}
-	}
-
-	c.Assert(deleted, Equals, true)
-}
-
 func (s *FusisSuite) TestJoinPoolLeave(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
@@ -498,7 +436,7 @@ func (s *FusisSuite) TestJoinPoolLeave(c *C) {
 	})
 }
 
-func (s *FusisSuite) TestWatchCommands(c *C) {
+func (s *FusisSuite) TestWatchState(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
@@ -512,50 +450,32 @@ func (s *FusisSuite) TestWatchCommands(c *C) {
 	})
 
 	s.service.Host = "192.168.85.43"
-
-	// Sending add service event to balancer assign the VIP
-	cmd := engine.Command{
-		Op:      engine.AddServiceOp,
-		Service: s.service,
-	}
-	b.engine.CommandCh <- cmd
-
-	WaitForResult(func() (bool, error) {
-		addrs, err := net.GetVips(config.Interface)
-		c.Assert(err, IsNil)
-
-		found := false
-		for _, a := range addrs {
-			if a.IPNet.String() == "192.168.85.43/32" {
-				found = true
-			}
+	b.engine.State.AddService(s.service)
+	errCh := make(chan error)
+	b.engine.StateCh <- errCh
+	c.Assert(<-errCh, IsNil)
+	addrs, err := net.GetVips(config.Interface)
+	c.Assert(err, IsNil)
+	found := false
+	for _, a := range addrs {
+		if a.IPNet.String() == "192.168.85.43/32" {
+			found = true
+			break
 		}
-
-		return found, nil
-	}, func(err error) {
-		c.Fatalf("balancer did not assigned ip")
-	})
-
-	// Sending del service event to balancer unassign the VIP
-	cmd = engine.Command{
-		Op:      engine.DelServiceOp,
-		Service: s.service,
 	}
-	b.engine.CommandCh <- cmd
-
-	WaitForResult(func() (bool, error) {
-		addrs, err := net.GetVips(config.Interface)
-		c.Assert(err, IsNil)
-
-		deleted := true
-		for _, a := range addrs {
-			if a.IPNet.String() == "192.168.85.43/32" {
-				deleted = false
-			}
+	c.Assert(found, Equals, true)
+	b.engine.State.DeleteService(s.service)
+	errCh = make(chan error)
+	b.engine.StateCh <- errCh
+	c.Assert(<-errCh, IsNil)
+	addrs, err = net.GetVips(config.Interface)
+	c.Assert(err, IsNil)
+	deleted := true
+	for _, a := range addrs {
+		if a.IPNet.String() == "192.168.85.43/32" {
+			deleted = false
+			break
 		}
-
-		return deleted, nil
-	}, func(err error) {
-		c.Fatalf("balancer did not unassigned ip")
-	})
+	}
+	c.Assert(deleted, Equals, true)
 }

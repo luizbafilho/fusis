@@ -1,6 +1,7 @@
 package ipvs
 
 import (
+	"sync"
 	"time"
 
 	"github.com/luizbafilho/fusis/api/types"
@@ -19,6 +20,7 @@ type State interface {
 }
 
 type FusisState struct {
+	sync.Mutex
 	Services     map[string]types.Service
 	Destinations map[string]types.Destination
 }
@@ -31,6 +33,9 @@ func NewFusisState() *FusisState {
 }
 
 func (s *FusisState) GetServices() []types.Service {
+	s.Lock()
+	defer s.Unlock()
+
 	services := []types.Service{}
 	for _, v := range s.Services {
 		s.getDestinations(&v)
@@ -40,6 +45,9 @@ func (s *FusisState) GetServices() []types.Service {
 }
 
 func (s *FusisState) GetService(name string) (*types.Service, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	svc := s.Services[name]
 	if svc.Name == "" {
 		return nil, types.ErrServiceNotFound
@@ -59,14 +67,23 @@ func (s *FusisState) getDestinations(svc *types.Service) {
 }
 
 func (s *FusisState) AddService(svc *types.Service) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.Services[svc.GetId()] = *svc
 }
 
 func (s *FusisState) DeleteService(svc *types.Service) {
+	s.Lock()
+	defer s.Unlock()
+
 	delete(s.Services, svc.GetId())
 }
 
 func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	dst := s.Destinations[name]
 	if dst.Name == "" {
 		return nil, types.ErrDestinationNotFound
@@ -75,10 +92,16 @@ func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
 }
 
 func (s *FusisState) AddDestination(dst *types.Destination) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.Destinations[dst.GetId()] = *dst
 }
 
 func (s *FusisState) DeleteDestination(dst *types.Destination) {
+	s.Lock()
+	defer s.Unlock()
+
 	delete(s.Destinations, dst.GetId())
 }
 

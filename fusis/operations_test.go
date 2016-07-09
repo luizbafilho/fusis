@@ -139,7 +139,7 @@ func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
 	}, func(err error) {
 		c.Fatalf("balancer did not become leader")
 	})
-	n := 100
+	n := 10
 	errs := make([]error, n)
 	wg := sync.WaitGroup{}
 	for i := 0; i < n; i++ {
@@ -198,7 +198,7 @@ func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
 	})
 	err = b.AddService(s.service)
 	c.Assert(err, IsNil)
-	n := 100
+	n := 10
 	errs := make([]error, n)
 	wg := sync.WaitGroup{}
 	for i := 0; i < n; i++ {
@@ -338,7 +338,7 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 	})
 	err = b.AddService(s.service)
 	c.Assert(err, IsNil)
-	n := 100
+	n := 10
 	errs := make([]error, n)
 	wg := sync.WaitGroup{}
 	for i := 0; i < n; i++ {

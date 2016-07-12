@@ -131,10 +131,5 @@ func GetDefaultGateway() (*netlink.Route, error) {
 }
 
 func DeleteDefaultGateway(route *netlink.Route) error {
-	err := netlink.RouteDel(route)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return netlink.RouteDel(route)
 }

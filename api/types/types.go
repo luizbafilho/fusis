@@ -72,3 +72,11 @@ func (svc Service) KernelKey() string {
 func (dst Destination) KernelKey() string {
 	return fmt.Sprintf("%s-%d", dst.Host, dst.Port)
 }
+
+type DestinationList []Destination
+
+func (l DestinationList) Len() int      { return len(l) }
+func (l DestinationList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
+func (l DestinationList) Less(i, j int) bool {
+	return l[i].Name < l[j].Name
+}

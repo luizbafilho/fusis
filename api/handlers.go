@@ -102,11 +102,18 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
-	destination := &types.Destination{Weight: 1, Mode: "route", ServiceId: serviceName}
-	if err := c.BindJSON(destination); err != nil {
+	var destination *types.Destination
+	if err := c.BindJSON(&destination); err != nil {
 		c.Error(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	destination.ServiceId = serviceName
+	if destination.Weight == 0 {
+		destination.Weight = 1
+	}
+	if destination.Mode == "" {
+		destination.Mode = "route"
 	}
 
 	if _, errs := govalidator.ValidateStruct(destination); errs != nil {

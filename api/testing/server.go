@@ -84,6 +84,9 @@ func (b *testBalancer) AddDestination(srv *types.Service, dest *types.Destinatio
 			if curSrv.Destinations[j].Name == dest.Name {
 				return types.ErrDestinationAlreadyExists
 			}
+			if curSrv.Destinations[j].Host == dest.Host && curSrv.Destinations[j].Port == dest.Port {
+				return types.ErrDestinationAlreadyExists
+			}
 		}
 	}
 	if foundSrv == nil {

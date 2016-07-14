@@ -253,11 +253,13 @@ func (s *S) TestDestinationDelete(c *check.C) {
 	c.Assert(err, check.IsNil)
 	dst := &types.Destination{
 		Name:      "mydest",
+		Host:      "h1",
 		ServiceId: "myservice",
 	}
 	err = s.bal.AddDestination(srv, dst)
 	c.Assert(err, check.IsNil)
 	dst.Name = "mydest2"
+	dst.Host = "h2"
 	err = s.bal.AddDestination(srv, dst)
 	c.Assert(err, check.IsNil)
 	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)
@@ -269,6 +271,7 @@ func (s *S) TestDestinationDelete(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
 		Name:      "mydest2",
+		Host:      "h2",
 		ServiceId: "myservice",
 	}})
 	req, err = http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest2", nil)

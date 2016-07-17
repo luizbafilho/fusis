@@ -43,7 +43,7 @@ func initConfig() {
 	}
 
 	viper.SetConfigName("fusis") // name of config file (without extension)
-	viper.SetConfigType("json")
+	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".") // adding home directory as first search path
 	viper.AutomaticEnv()     // read in environment variables that match
 

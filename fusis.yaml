@@ -1,0 +1,17 @@
+---
+provider:
+  type: "none"
+  params:
+    interface: "eth0"
+    vip-range: "192.168.0.0/28"
+ports:
+  raft: 4382
+  serf: 7946
+bgp:
+  as: 100
+  router-id: "192.168.151.176"
+  neighbors:
+    -
+      address: "192.168.151.178"
+      peer-as: 100
+

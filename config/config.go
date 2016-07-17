@@ -2,25 +2,28 @@ package config
 
 import "github.com/luizbafilho/fusis/net"
 
-// {
-// 	"provider": {
-// 		"type": "cloudstack",
-// 		"params": {
-// 			"apiKey": "seila",
-// 			"secretKey": "testando",
-//		  "vipRange":"192.168.0.1/24"
-// 		}
-// 	}
-// "Stats": {
-//   "Interval": 5,
-//   "Type": "syslog"
-//   "params": {
-//	   "protocol": "udp",
-//     "host": "logstash_ip_or_domain_address",
-//     "port": "8515"
-//   }
-//  }
-//}
+// provider:
+// 	type: "none"
+// 	params:
+// 		interface: "eth0"
+// 		vip-range: "192.168.0.0/28"
+// ports:
+// 	raft: 4382
+// 	serf: 7946
+// stats:
+// 	interval: 5
+// 	type: "syslog"
+// 	params:
+// 		protocol: "udp"
+// 		host: "logstash_ip_or_domain_address"
+// 		port: "8515"
+// bgp:
+// 	as: 100
+// 	router-id: "192.168.151.176"
+// 	neighbors:
+// 		-
+// 			address: "192.168.151.178"
+// 			peer-as: 100
 type Provider struct {
 	Type   string
 	Params map[string]string
@@ -35,15 +38,14 @@ type Stats struct {
 type BalancerConfig struct {
 	Interface string
 
-	Name        string
-	Bootstrap   bool
-	Join        []string
-	Provider    Provider
-	Stats       Stats
-	ConfigPath  string
-	Ports       map[string]int
-	DevMode     bool
-	LogInterval uint16
+	Name       string
+	Bootstrap  bool
+	Join       []string
+	Provider   Provider
+	Stats      Stats
+	ConfigPath string
+	Ports      map[string]int
+	DevMode    bool
 }
 
 type AgentConfig struct {

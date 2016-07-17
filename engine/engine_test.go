@@ -94,7 +94,7 @@ func (s *EngineSuite) readConfig() {
 			"type": "none",
 			"params": {
 				"interface": "eth0",
-				"vipRange": "192.168.0.0/28"
+				"vip-range": "192.168.0.0/28"
 			}
 		}
 	}

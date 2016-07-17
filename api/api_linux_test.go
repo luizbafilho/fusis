@@ -31,7 +31,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 			Type: "none",
 			Params: map[string]string{
 				"interface": "eth0",
-				"vipRange":  "192.168.10.0/24",
+				"vip-range": "192.168.10.0/24",
 			},
 		},
 	}

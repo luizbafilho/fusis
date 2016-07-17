@@ -16,7 +16,7 @@ type None struct {
 }
 
 func NewNone(config *config.BalancerConfig) (Provider, error) {
-	i, err := NewIpam(config.Provider.Params["vipRange"])
+	i, err := NewIpam(config.Provider.Params["vip-range"])
 	if err != nil {
 		return nil, err
 	}

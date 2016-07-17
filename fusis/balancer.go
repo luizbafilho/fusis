@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/engine"
 	fusis_net "github.com/luizbafilho/fusis/net"
@@ -315,7 +316,28 @@ func (b *Balancer) handleMemberJoin(event serf.MemberEvent) {
 	for _, m := range event.Members {
 		if isBalancer(m) {
 			b.addMemberToPool(m)
+		} else {
+			b.handleAgentJoin(m)
 		}
+	}
+}
+
+func (b *Balancer) handleAgentJoin(m serf.Member) {
+	var dst *types.Destination
+	if err := json.Unmarshal([]byte(m.Tags["info"]), &dst); err != nil {
+		b.logger.Error("Unable to Unmarshal new destination info", err)
+	}
+
+	srv, err := b.GetService(dst.ServiceId)
+	if err != nil {
+		b.logger.Error("handleAgentJoin: Unable to find service", err)
+	}
+
+	if err := b.AddDestination(srv, dst); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"err":         err,
+			"destination": dst,
+		}).Error("handleAgentJoin: Unable to add new destination")
 	}
 }
 

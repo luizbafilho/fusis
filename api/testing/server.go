@@ -76,16 +76,15 @@ func (b *testBalancer) DeleteService(id string) error {
 func (b *testBalancer) AddDestination(srv *types.Service, dest *types.Destination) error {
 	var foundSrv *types.Service
 	for i := range b.services {
-		curSrv := b.services[i]
-		if b.services[i].Name == srv.Name {
+		if b.services[i].Name == srv.Name { // Found service
 			foundSrv = &b.services[i]
-		}
-		for j := range curSrv.Destinations {
-			if curSrv.Destinations[j].Name == dest.Name {
-				return types.ErrDestinationAlreadyExists
-			}
-			if curSrv.Destinations[j].Host == dest.Host && curSrv.Destinations[j].Port == dest.Port {
-				return types.ErrDestinationAlreadyExists
+			for j := range foundSrv.Destinations {
+				if foundSrv.Destinations[j].Name == dest.Name {
+					return types.ErrDestinationAlreadyExists
+				}
+				if foundSrv.Destinations[j].Host == dest.Host && foundSrv.Destinations[j].Port == dest.Port {
+					return types.ErrDestinationAlreadyExists
+				}
 			}
 		}
 	}

@@ -83,6 +83,7 @@ func (s *S) TestTestBalancerAddDestination(c *check.C) {
 	}
 	err := bal.AddService(srv)
 	c.Assert(err, check.IsNil)
+
 	dst := &types.Destination{
 		Name:      "dst1",
 		ServiceId: "srv1",
@@ -91,11 +92,13 @@ func (s *S) TestTestBalancerAddDestination(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = bal.AddDestination(srv, dst)
 	c.Assert(err, check.Equals, types.ErrDestinationAlreadyExists)
+
 	dst.Name = "dstX"
 	dst.ServiceId = "srvX"
 	srv.Name = "srvX"
 	err = bal.AddDestination(srv, dst)
 	c.Assert(err, check.Equals, types.ErrServiceNotFound)
+
 	srv, err = bal.GetService("srv1")
 	c.Assert(err, check.IsNil)
 	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
@@ -131,37 +134,48 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 	}
 	err := bal.AddService(srv)
 	c.Assert(err, check.IsNil)
+
 	dst := &types.Destination{
 		Name:      "dst1",
 		ServiceId: "srv1",
+		Host:      "192.1.1.1",
 	}
 	err = bal.AddDestination(srv, dst)
 	c.Assert(err, check.IsNil)
-	dst = &types.Destination{
+
+	dst2 := &types.Destination{
 		Name:      "dst2",
 		ServiceId: "srv1",
+		Host:      "192.2.2.2",
 	}
-	err = bal.AddDestination(srv, dst)
+	err = bal.AddDestination(srv, dst2)
 	c.Assert(err, check.IsNil)
+
 	err = bal.DeleteDestination(dst)
 	c.Assert(err, check.IsNil)
 	err = bal.DeleteDestination(dst)
 	c.Assert(err, check.Equals, types.ErrDestinationNotFound)
-	dst, err = bal.GetDestination("dst1")
+
+	dst, err = bal.GetDestination("dst2")
 	c.Assert(err, check.IsNil)
 	c.Assert(dst, check.DeepEquals, &types.Destination{
-		Name:      "dst1",
+		Name:      "dst2",
 		ServiceId: "srv1",
+		Host:      "192.2.2.2",
 	})
+
 	srv, err = bal.GetService("srv1")
 	c.Assert(err, check.IsNil)
 	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
-		Name:      "dst1",
+		Name:      "dst2",
 		ServiceId: "srv1",
+		Host:      "192.2.2.2",
 	}})
+
 	dst.Name = "dst1"
 	err = bal.DeleteDestination(dst)
 	c.Assert(err, check.IsNil)
+
 	srv, err = bal.GetService("srv1")
 	c.Assert(err, check.IsNil)
 	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{})

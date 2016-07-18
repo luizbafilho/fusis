@@ -6,6 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	log "github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/fusis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -34,6 +36,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+	log.SetFormatter(&fusis.CustomLogFormatter{})
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -44,12 +47,13 @@ func initConfig() {
 
 	viper.SetConfigName("fusis") // name of config file (without extension)
 	viper.SetConfigType("yaml")
+	viper.AddConfigPath("$HOME/.fusis")
 	viper.AddConfigPath(".") // adding home directory as first search path
 	viper.AutomaticEnv()     // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+		fmt.Println("======> Using config file:", viper.ConfigFileUsed())
 	}
 }
 

@@ -46,10 +46,22 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&conf.Bootstrap, "bootstrap", false, "starts balancer in boostrap mode")
 	cmd.Flags().BoolVar(&conf.DevMode, "dev", false, "Initialize balancer in dev mode")
 	cmd.Flags().StringSliceVarP(&conf.Join, "join", "j", []string{}, "Join balancer pool")
+
 	err := viper.BindPFlags(cmd.Flags())
 	if err != nil {
 		log.Errorf("error binding pflags: %v", err)
 	}
+}
+
+func readConfigFile(config *config.BalancerConfig) error {
+	file, err := os.Open(config.ConfigFile) // For read access.
+	if err != nil {
+		log.Fatal("Fusis: Config file passed does not exists.")
+	}
+
+	viper.ReadConfig(file)
+
+	return nil
 }
 
 func balancerCommandFunc(cmd *cobra.Command, args []string) error {

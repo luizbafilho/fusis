@@ -124,7 +124,7 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 	if err := json.Unmarshal(l.Data, &c); err != nil {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
 	}
-	logrus.Infof("Actions received to be aplied to fsm: %v", c)
+	logrus.Infof("fusis: Action received to be aplied to fsm: %v", c)
 	switch c.Op {
 	case AddServiceOp:
 		e.State.AddService(c.Service)

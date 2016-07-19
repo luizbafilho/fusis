@@ -53,17 +53,6 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	}
 }
 
-func readConfigFile(config *config.BalancerConfig) error {
-	file, err := os.Open(config.ConfigFile) // For read access.
-	if err != nil {
-		log.Fatal("Fusis: Config file passed does not exists.")
-	}
-
-	viper.ReadConfig(file)
-
-	return nil
-}
-
 func balancerCommandFunc(cmd *cobra.Command, args []string) error {
 	if err := net.SetIpForwarding(); err != nil {
 		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")

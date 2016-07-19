@@ -1,6 +1,6 @@
 {
 	"comment": "",
-	"ignore": "",
+	"ignore": "test",
 	"package": [
 		{
 			"checksumSHA1": "OQ5kAyWp1PtzFLiL4hc0idGHh6E=",
@@ -187,6 +187,12 @@
 			"path": "github.com/hashicorp/hcl/json/token",
 			"revision": "567a5d1c4878a4ac8c198c730fd15f978b0529c7",
 			"revisionTime": "2016-03-14T21:09:37Z"
+		},
+		{
+			"checksumSHA1": "vt+P9D2yWDO3gdvdgCzwqunlhxU=",
+			"path": "github.com/hashicorp/logutils",
+			"revision": "0dc08b1671f34c4250ce212759ebd880f743d883",
+			"revisionTime": "2015-06-09T07:04:31Z"
 		},
 		{
 			"checksumSHA1": "WdE6Btwdq3hRDdzhgWmD2OrVLG8=",

@@ -5,15 +5,15 @@ import (
 
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/state"
 )
 
 var ErrProviderNotRegistered = errors.New("Provider not registered")
 
 type Provider interface {
-	AllocateVIP(s *types.Service, state ipvs.State) error
+	AllocateVIP(s *types.Service, state state.Store) error
 	ReleaseVIP(s types.Service) error
-	SyncVIPs(state ipvs.State) error
+	SyncVIPs(state state.Store) error
 }
 
 func New(config *config.BalancerConfig) (Provider, error) {

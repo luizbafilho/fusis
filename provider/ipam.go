@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/state"
 	"github.com/mikioh/ipaddr"
 )
 
@@ -21,7 +21,7 @@ func NewIpam(iprange string) (*Ipam, error) {
 }
 
 //Allocate allocates a new avaliable ip
-func (i *Ipam) Allocate(state ipvs.State) (string, error) {
+func (i *Ipam) Allocate(state state.Store) (string, error) {
 	for pos := i.rangeCursor.Next(); pos != nil; pos = i.rangeCursor.Next() {
 		assigned, err := i.ipIsAssigned(pos.IP.String(), state)
 		if err != nil {
@@ -40,7 +40,7 @@ func (i *Ipam) Allocate(state ipvs.State) (string, error) {
 //Release releases a allocated IP
 func (i *Ipam) Release(allocIP string) {}
 
-func (i *Ipam) ipIsAssigned(e string, state ipvs.State) (bool, error) {
+func (i *Ipam) ipIsAssigned(e string, state state.Store) (bool, error) {
 	services := state.GetServices()
 
 	for _, a := range services {

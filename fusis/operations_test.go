@@ -450,7 +450,7 @@ func (s *FusisSuite) TestWatchState(c *C) {
 	})
 
 	s.service.Host = "192.168.85.43"
-	b.engine.State.AddService(s.service)
+	b.engine.Store.AddService(s.service)
 	errCh := make(chan error)
 	b.engine.StateCh <- errCh
 	c.Assert(<-errCh, IsNil)
@@ -464,7 +464,7 @@ func (s *FusisSuite) TestWatchState(c *C) {
 		}
 	}
 	c.Assert(found, Equals, true)
-	b.engine.State.DeleteService(s.service)
+	b.engine.Store.DeleteService(s.service)
 	errCh = make(chan error)
 	b.engine.StateCh <- errCh
 	c.Assert(<-errCh, IsNil)

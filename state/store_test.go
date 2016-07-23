@@ -1,11 +1,11 @@
-package ipvs_test
+package state_test
 
 import (
 	"github.com/luizbafilho/fusis/api/types"
 	. "gopkg.in/check.v1"
 )
 
-func (s *IpvsSuite) TestGetService(c *C) {
+func (s *StateSuite) TestGetService(c *C) {
 	s.state.AddService(s.service)
 	s.state.AddDestination(s.destination)
 
@@ -21,7 +21,7 @@ func (s *IpvsSuite) TestGetService(c *C) {
 	c.Assert(err, Equals, types.ErrServiceNotFound)
 }
 
-func (s *IpvsSuite) TestAddService(c *C) {
+func (s *StateSuite) TestAddService(c *C) {
 	s.state.AddService(s.service)
 
 	service, err := s.state.GetService(s.service.Name)
@@ -29,7 +29,7 @@ func (s *IpvsSuite) TestAddService(c *C) {
 	c.Assert(service, DeepEquals, s.service)
 }
 
-func (s *IpvsSuite) TestDelService(c *C) {
+func (s *StateSuite) TestDelService(c *C) {
 	s.state.AddService(s.service)
 	s.state.DeleteService(s.service)
 
@@ -40,7 +40,7 @@ func (s *IpvsSuite) TestDelService(c *C) {
 	c.Assert(err, Equals, types.ErrServiceNotFound)
 }
 
-func (s *IpvsSuite) TestAddDestination(c *C) {
+func (s *StateSuite) TestAddDestination(c *C) {
 	s.state.AddService(s.service)
 	s.state.AddDestination(s.destination)
 
@@ -49,7 +49,7 @@ func (s *IpvsSuite) TestAddDestination(c *C) {
 	c.Assert(dst, DeepEquals, s.destination)
 }
 
-func (s *IpvsSuite) TestDelDestination(c *C) {
+func (s *StateSuite) TestDelDestination(c *C) {
 	s.state.AddService(s.service)
 	s.state.AddDestination(s.destination)
 	s.state.DeleteDestination(s.destination)

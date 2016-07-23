@@ -26,7 +26,7 @@ func (l serviceList) Less(i, j int) bool {
 	return fmt.Sprintf("%v", l[i].Address) < fmt.Sprintf("%v", l[j].Address)
 }
 
-func matchState(c *C, services1 []*gipvs.Service, state ipvs.State) {
+func matchState(c *C, services1 []*gipvs.Service, state ipvs.Store) {
 	for _, s := range services1 {
 		s.Flags = 0
 		s.Statistics = nil

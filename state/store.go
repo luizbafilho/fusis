@@ -1,4 +1,4 @@
-package ipvs
+package state
 
 import (
 	"sync"
@@ -7,7 +7,7 @@ import (
 	"github.com/luizbafilho/fusis/api/types"
 )
 
-type State interface {
+type Store interface {
 	GetServices() []types.Service
 	GetService(name string) (*types.Service, error)
 	AddService(svc *types.Service)

@@ -1,4 +1,4 @@
-package ipvs_test
+package state_test
 
 import (
 	"io/ioutil"
@@ -7,20 +7,21 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/state"
 	. "gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type IpvsSuite struct {
-	state       ipvs.Store
+type StateSuite struct {
+	state       state.Store
 	service     *types.Service
 	destination *types.Destination
 }
 
-var _ = Suite(&IpvsSuite{})
+var _ = Suite(&StateSuite{})
 
-func (s *IpvsSuite) SetUpSuite(c *C) {
+func (s *StateSuite) SetUpSuite(c *C) {
 	logrus.SetOutput(ioutil.Discard)
 	s.service = &types.Service{
 		Name:         "test",
@@ -41,11 +42,11 @@ func (s *IpvsSuite) SetUpSuite(c *C) {
 	}
 }
 
-func (s *IpvsSuite) SetUpTest(c *C) {
-	s.state = ipvs.NewFusisState()
+func (s *StateSuite) SetUpTest(c *C) {
+	s.state = state.NewFusisState()
 }
 
-func (s *IpvsSuite) TearDownSuite(c *C) {
+func (s *StateSuite) TearDownSuite(c *C) {
 	i, err := ipvs.New()
 	c.Assert(err, IsNil)
 	err = i.Flush()

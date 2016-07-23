@@ -1,4 +1,4 @@
-package engine
+package state
 
 import (
 	"encoding/json"
@@ -6,11 +6,7 @@ import (
 	"io"
 	"log"
 	"log/syslog"
-	"strings"
 	"sync"
-	"time"
-
-	gipvs "github.com/google/seesaw/ipvs"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/Sirupsen/logrus/hooks/syslog"
@@ -18,22 +14,16 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/ipvs"
-	"github.com/luizbafilho/fusis/provider"
 )
 
 //go:generate stringer -type=CommandOp
 
-// Engine ...
-type Engine struct {
+// State...
+type State struct {
 	sync.Mutex
 
-	Ipvs     *ipvs.Ipvs
-	State    ipvs.State
-	Provider provider.Provider
-	StateCh  chan chan error
-
-	StatsLogger *logrus.Logger
+	Store   Store
+	StateCh chan chan error
 }
 
 // Represents possible actions on engine
@@ -59,20 +49,15 @@ func (c Command) String() string {
 }
 
 // New creates a new Engine
-func New(config *config.BalancerConfig) (*Engine, error) {
-	state := ipvs.NewFusisState()
-	ipvsInstance, err := ipvs.New()
-	if err != nil {
-		return nil, err
-	}
+func New(config *config.BalancerConfig) (*State, error) {
+	state := NewFusisState()
 
-	statsLogger := NewStatsLogger(config)
+	// statsLogger := NewStatsLogger(config)
 
-	return &Engine{
-		StateCh:     make(chan chan error),
-		State:       state,
-		Ipvs:        ipvsInstance,
-		StatsLogger: statsLogger,
+	return &State{
+		StateCh: make(chan chan error),
+		Store:   state,
+		// StatsLogger: statsLogger,
 	}, nil
 }
 
@@ -119,7 +104,7 @@ func addLogstashLoggerHook(logger *logrus.Logger, config *config.BalancerConfig)
 }
 
 // Apply actions to fsm
-func (e *Engine) Apply(l *raft.Log) interface{} {
+func (e *State) Apply(l *raft.Log) interface{} {
 	var c Command
 	if err := json.Unmarshal(l.Data, &c); err != nil {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
@@ -127,13 +112,13 @@ func (e *Engine) Apply(l *raft.Log) interface{} {
 	logrus.Infof("fusis: Action received to be aplied to fsm: %v", c)
 	switch c.Op {
 	case AddServiceOp:
-		e.State.AddService(c.Service)
+		e.Store.AddService(c.Service)
 	case DelServiceOp:
-		e.State.DeleteService(c.Service)
+		e.Store.DeleteService(c.Service)
 	case AddDestinationOp:
-		e.State.AddDestination(c.Destination)
+		e.Store.AddDestination(c.Destination)
 	case DelDestinationOp:
-		e.State.DeleteDestination(c.Destination)
+		e.Store.DeleteDestination(c.Destination)
 	}
 	rsp := make(chan error)
 	e.StateCh <- rsp
@@ -144,18 +129,18 @@ type fusisSnapshot struct {
 	Services []types.Service
 }
 
-func (e *Engine) Snapshot() (raft.FSMSnapshot, error) {
+func (e *State) Snapshot() (raft.FSMSnapshot, error) {
 	logrus.Info("Snapshotting Fusis State")
 	e.Lock()
 	defer e.Unlock()
 
-	services := e.State.GetServices()
+	services := e.Store.GetServices()
 
 	return &fusisSnapshot{services}, nil
 }
 
 // Restore stores the key-value store to a previous state.
-func (e *Engine) Restore(rc io.ReadCloser) error {
+func (e *State) Restore(rc io.ReadCloser) error {
 	logrus.Info("Restoring Fusis state")
 	var services []types.Service
 	if err := json.NewDecoder(rc).Decode(&services); err != nil {
@@ -165,9 +150,9 @@ func (e *Engine) Restore(rc io.ReadCloser) error {
 	// Set the state from the snapshot, no lock required according to
 	// Hashicorp docs.
 	for _, s := range services {
-		e.State.AddService(&s)
+		e.Store.AddService(&s)
 		for _, d := range s.Destinations {
-			e.State.AddDestination(&d)
+			e.Store.AddDestination(&d)
 		}
 	}
 	rsp := make(chan error)
@@ -175,26 +160,26 @@ func (e *Engine) Restore(rc io.ReadCloser) error {
 	return <-rsp
 }
 
-func (e *Engine) CollectStats(tick time.Time) {
-	e.StatsLogger.Info("logging stats")
-	for _, s := range e.State.GetServices() {
-		srv := e.syncService(&s)
-
-		hosts := []string{}
-		for _, dst := range srv.Destinations {
-			hosts = append(hosts, dst.Host)
-		}
-
-		e.StatsLogger.WithFields(logrus.Fields{
-			"time":     tick,
-			"service":  s.Name,
-			"Protocol": s.Protocol,
-			"Port":     s.Port,
-			"hosts":    strings.Join(hosts, ","),
-			"client":   "fusis",
-		}).Info("Fusis router stats")
-	}
-}
+// func (e *State) CollectStats(tick time.Time) {
+// 	e.StatsLogger.Info("logging stats")
+// 	for _, s := range e.Store.GetServices() {
+// 		srv := e.syncService(&s)
+//
+// 		hosts := []string{}
+// 		for _, dst := range srv.Destinations {
+// 			hosts = append(hosts, dst.Host)
+// 		}
+//
+// 		e.StatsLogger.WithFields(logrus.Fields{
+// 			"time":     tick,
+// 			"service":  s.Name,
+// 			"Protocol": s.Protocol,
+// 			"Port":     s.Port,
+// 			"hosts":    strings.Join(hosts, ","),
+// 			"client":   "fusis",
+// 		}).Info("Fusis router stats")
+// 	}
+// }
 
 func (f *fusisSnapshot) Persist(sink raft.SnapshotSink) error {
 	logrus.Infoln("Persisting Fusis state")
@@ -230,10 +215,10 @@ func (f *fusisSnapshot) Release() {
 	logrus.Info("Calling release")
 }
 
-func (e *Engine) syncService(svc *types.Service) types.Service {
-	service, err := gipvs.GetService(ipvs.ToIpvsService(svc))
-	if err != nil {
-		log.Fatal(err)
-	}
-	return ipvs.FromService(service)
-}
+// func (e *State) syncService(svc *types.Service) types.Service {
+// 	service, err := gipvs.GetService(ipvs.ToIpvsService(svc))
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	return ipvs.FromService(service)
+// }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/engine"
+	"github.com/luizbafilho/fusis/state"
 )
 
 type ErrCrashError struct {
@@ -20,7 +20,7 @@ func (e ErrCrashError) Error() string {
 func (b *Balancer) GetServices() []types.Service {
 	b.Lock()
 	defer b.Unlock()
-	return b.engine.State.GetServices()
+	return b.state.Store.GetServices()
 }
 
 // AddService ...
@@ -28,19 +28,19 @@ func (b *Balancer) AddService(svc *types.Service) error {
 	b.Lock()
 	defer b.Unlock()
 
-	_, err := b.engine.State.GetService(svc.GetId())
+	_, err := b.state.Store.GetService(svc.GetId())
 	if err == nil {
 		return types.ErrServiceAlreadyExists
 	} else if err != types.ErrServiceNotFound {
 		return err
 	}
 
-	if err = b.provider.AllocateVIP(svc, b.engine.State); err != nil {
+	if err = b.provider.AllocateVIP(svc, b.state.Store); err != nil {
 		return err
 	}
 
-	c := &engine.Command{
-		Op:      engine.AddServiceOp,
+	c := &state.Command{
+		Op:      state.AddServiceOp,
 		Service: svc,
 	}
 
@@ -58,20 +58,20 @@ func (b *Balancer) AddService(svc *types.Service) error {
 func (b *Balancer) GetService(name string) (*types.Service, error) {
 	b.Lock()
 	defer b.Unlock()
-	return b.engine.State.GetService(name)
+	return b.state.Store.GetService(name)
 }
 
 func (b *Balancer) DeleteService(name string) error {
 	b.Lock()
 	defer b.Unlock()
 
-	svc, err := b.engine.State.GetService(name)
+	svc, err := b.state.Store.GetService(name)
 	if err != nil {
 		return err
 	}
 
-	c := &engine.Command{
-		Op:      engine.DelServiceOp,
+	c := &state.Command{
+		Op:      state.DelServiceOp,
 		Service: svc,
 	}
 
@@ -81,19 +81,19 @@ func (b *Balancer) DeleteService(name string) error {
 func (b *Balancer) GetDestination(name string) (*types.Destination, error) {
 	b.Lock()
 	defer b.Unlock()
-	return b.engine.State.GetDestination(name)
+	return b.state.Store.GetDestination(name)
 }
 
 func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) error {
 	b.Lock()
 	defer b.Unlock()
 
-	stateSvc, err := b.engine.State.GetService(svc.GetId())
+	stateSvc, err := b.state.Store.GetService(svc.GetId())
 	if err != nil {
 		return err
 	}
 
-	_, err = b.engine.State.GetDestination(dst.GetId())
+	_, err = b.state.Store.GetDestination(dst.GetId())
 	if err == nil {
 		return types.ErrDestinationAlreadyExists
 	} else if err != types.ErrDestinationNotFound {
@@ -106,8 +106,8 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 		}
 	}
 
-	c := &engine.Command{
-		Op:          engine.AddDestinationOp,
+	c := &state.Command{
+		Op:          state.AddDestinationOp,
 		Service:     svc,
 		Destination: dst,
 	}
@@ -118,18 +118,18 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 func (b *Balancer) DeleteDestination(dst *types.Destination) error {
 	b.Lock()
 	defer b.Unlock()
-	svc, err := b.engine.State.GetService(dst.ServiceId)
+	svc, err := b.state.Store.GetService(dst.ServiceId)
 	if err != nil {
 		return err
 	}
 
-	_, err = b.engine.State.GetDestination(dst.GetId())
+	_, err = b.state.Store.GetDestination(dst.GetId())
 	if err != nil {
 		return err
 	}
 
-	c := &engine.Command{
-		Op:          engine.DelDestinationOp,
+	c := &state.Command{
+		Op:          state.DelDestinationOp,
 		Service:     svc,
 		Destination: dst,
 	}
@@ -137,7 +137,7 @@ func (b *Balancer) DeleteDestination(dst *types.Destination) error {
 	return b.ApplyToRaft(c)
 }
 
-func (b *Balancer) ApplyToRaft(cmd *engine.Command) error {
+func (b *Balancer) ApplyToRaft(cmd *state.Command) error {
 	bytes, err := json.Marshal(cmd)
 	if err != nil {
 		return err

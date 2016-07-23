@@ -8,6 +8,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	gipvs "github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/state"
 )
 
 type Ipvs struct {
@@ -62,7 +63,7 @@ func (ipvs *Ipvs) diffDestinations(old, new *types.Service) destDiffResult {
 	}
 }
 
-func (ipvs *Ipvs) SyncState(state State) error {
+func (ipvs *Ipvs) SyncState(state state.Store) error {
 	oldServices, err := gipvs.GetServices()
 	if err != nil {
 		return err

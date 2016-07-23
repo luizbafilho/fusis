@@ -16,9 +16,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/engine"
 	fusis_net "github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/provider"
+	"github.com/luizbafilho/fusis/state"
 
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/raft"
@@ -45,7 +45,7 @@ type Balancer struct {
 	raftTransport *raft.NetworkTransport
 	config        *config.BalancerConfig
 
-	engine     *engine.Engine
+	state      *state.State
 	provider   provider.Provider
 	shutdownCh chan bool
 }
@@ -58,14 +58,14 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
-	engine, err := engine.New(config)
+	state, err := state.New(config)
 	if err != nil {
 		return nil, err
 	}
 
 	balancer := &Balancer{
 		eventCh:  make(chan serf.Event, 64),
-		engine:   engine,
+		state:    state,
 		provider: provider,
 		config:   config,
 	}
@@ -209,7 +209,7 @@ func (b *Balancer) setupRaft() error {
 	go b.watchState()
 
 	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(raftConfig, b.engine, log, stable, snap, b.raftPeers, transport)
+	ra, err := raft.NewRaft(raftConfig, b.state, log, stable, snap, b.raftPeers, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
@@ -221,7 +221,7 @@ func (b *Balancer) setupRaft() error {
 func (b *Balancer) watchState() {
 	for {
 		select {
-		case rsp := <-b.engine.StateCh:
+		case rsp := <-b.state.StateCh:
 			// TODO: this doesn't need to run all the time, we can implement
 			// some kind of throttling in the future waiting for a threashold of
 			// messages before applying the messages.
@@ -232,12 +232,13 @@ func (b *Balancer) watchState() {
 
 func (b *Balancer) handleStateChange() error {
 	if b.IsLeader() {
-		b.provider.SyncVIPs(b.engine.State)
+		b.provider.SyncVIPs(b.state.Store)
 	} else {
 		b.Lock()
 		defer b.Unlock()
 	}
-	return b.engine.Ipvs.SyncState(b.engine.State)
+	// return b.state.Ipvs.SyncState(b.state.State)
+	return nil
 }
 
 func (b *Balancer) IsLeader() bool {
@@ -299,7 +300,7 @@ func (b *Balancer) handleEvents() {
 }
 
 func (b *Balancer) setVips() {
-	err := b.provider.SyncVIPs(b.engine.State)
+	err := b.provider.SyncVIPs(b.state.Store)
 	if err != nil {
 		//TODO: Remove balancer from cluster when error occurs
 		log.Error(err)
@@ -492,14 +493,14 @@ func (b *Balancer) handleAgentLeave(m serf.Member) {
 
 func (b *Balancer) collectStats() {
 
-	interval := b.config.Stats.Interval
-
-	if interval > 0 {
-		ticker := time.NewTicker(time.Second * time.Duration(interval))
-		for tick := range ticker.C {
-			b.engine.CollectStats(tick)
-		}
-	}
+	// interval := b.config.Stats.Interval
+	//
+	// if interval > 0 {
+	// 	ticker := time.NewTicker(time.Second * time.Duration(interval))
+	// 	for tick := range ticker.C {
+	// 		// b.state.CollectStats(tick)
+	// 	}
+	// }
 }
 
 func readPeersJSON(path string) ([]string, error) {

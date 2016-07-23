@@ -6,8 +6,8 @@ import (
 
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/net"
+	"github.com/luizbafilho/fusis/state"
 )
 
 type None struct {
@@ -27,7 +27,7 @@ func NewNone(config *config.BalancerConfig) (Provider, error) {
 	}, nil
 }
 
-func (n None) AllocateVIP(s *types.Service, state ipvs.State) error {
+func (n None) AllocateVIP(s *types.Service, state state.Store) error {
 	ip, err := n.ipam.Allocate(state)
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func (n None) ReleaseVIP(s types.Service) error {
 	return nil
 }
 
-func (n None) SyncVIPs(state ipvs.State) error {
+func (n None) SyncVIPs(state state.Store) error {
 	oldVIPs, err := net.GetFusisVipsIps(n.iface)
 	if err != nil {
 		return err

@@ -21,8 +21,8 @@ import (
 // State...
 type State struct {
 	sync.Mutex
+	Store
 
-	Store   Store
 	StateCh chan chan error
 }
 
@@ -50,13 +50,13 @@ func (c Command) String() string {
 
 // New creates a new Engine
 func New(config *config.BalancerConfig) (*State, error) {
-	state := NewFusisState()
 
 	// statsLogger := NewStatsLogger(config)
 
 	return &State{
+		Store:   NewFusisStore(),
 		StateCh: make(chan chan error),
-		Store:   state,
+		// store:   fstate,
 		// StatsLogger: statsLogger,
 	}, nil
 }
@@ -104,7 +104,7 @@ func addLogstashLoggerHook(logger *logrus.Logger, config *config.BalancerConfig)
 }
 
 // Apply actions to fsm
-func (e *State) Apply(l *raft.Log) interface{} {
+func (s *State) Apply(l *raft.Log) interface{} {
 	var c Command
 	if err := json.Unmarshal(l.Data, &c); err != nil {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
@@ -112,16 +112,16 @@ func (e *State) Apply(l *raft.Log) interface{} {
 	logrus.Infof("fusis: Action received to be aplied to fsm: %v", c)
 	switch c.Op {
 	case AddServiceOp:
-		e.Store.AddService(c.Service)
+		s.AddService(c.Service)
 	case DelServiceOp:
-		e.Store.DeleteService(c.Service)
+		s.DeleteService(c.Service)
 	case AddDestinationOp:
-		e.Store.AddDestination(c.Destination)
+		s.AddDestination(c.Destination)
 	case DelDestinationOp:
-		e.Store.DeleteDestination(c.Destination)
+		s.DeleteDestination(c.Destination)
 	}
 	rsp := make(chan error)
-	e.StateCh <- rsp
+	s.StateCh <- rsp
 	return <-rsp
 }
 
@@ -129,18 +129,18 @@ type fusisSnapshot struct {
 	Services []types.Service
 }
 
-func (e *State) Snapshot() (raft.FSMSnapshot, error) {
+func (s *State) Snapshot() (raft.FSMSnapshot, error) {
 	logrus.Info("Snapshotting Fusis State")
-	e.Lock()
-	defer e.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
-	services := e.Store.GetServices()
+	services := s.GetServices()
 
 	return &fusisSnapshot{services}, nil
 }
 
 // Restore stores the key-value store to a previous state.
-func (e *State) Restore(rc io.ReadCloser) error {
+func (s *State) Restore(rc io.ReadCloser) error {
 	logrus.Info("Restoring Fusis state")
 	var services []types.Service
 	if err := json.NewDecoder(rc).Decode(&services); err != nil {
@@ -149,21 +149,21 @@ func (e *State) Restore(rc io.ReadCloser) error {
 
 	// Set the state from the snapshot, no lock required according to
 	// Hashicorp docs.
-	for _, s := range services {
-		e.Store.AddService(&s)
-		for _, d := range s.Destinations {
-			e.Store.AddDestination(&d)
+	for _, srv := range services {
+		s.AddService(&srv)
+		for _, d := range srv.Destinations {
+			s.AddDestination(&d)
 		}
 	}
 	rsp := make(chan error)
-	e.StateCh <- rsp
+	s.StateCh <- rsp
 	return <-rsp
 }
 
-// func (e *State) CollectStats(tick time.Time) {
+// func (s *State) CollectStats(tick time.Time) {
 // 	e.StatsLogger.Info("logging stats")
-// 	for _, s := range e.Store.GetServices() {
-// 		srv := e.syncService(&s)
+// 	for _, s := range s.GetServices() {
+// 		srv := s.syncService(&s)
 //
 // 		hosts := []string{}
 // 		for _, dst := range srv.Destinations {
@@ -215,7 +215,7 @@ func (f *fusisSnapshot) Release() {
 	logrus.Info("Calling release")
 }
 
-// func (e *State) syncService(svc *types.Service) types.Service {
+// func (s *State) syncService(svc *types.Service) types.Service {
 // 	service, err := gipvs.GetService(ipvs.ToIpvsService(svc))
 // 	if err != nil {
 // 		log.Fatal(err)

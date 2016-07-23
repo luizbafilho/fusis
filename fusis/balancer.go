@@ -232,7 +232,7 @@ func (b *Balancer) watchState() {
 
 func (b *Balancer) handleStateChange() error {
 	if b.IsLeader() {
-		b.provider.SyncVIPs(b.state.Store)
+		// b.provider.SyncVIPs(b.state.Store)
 	} else {
 		b.Lock()
 		defer b.Unlock()
@@ -300,11 +300,11 @@ func (b *Balancer) handleEvents() {
 }
 
 func (b *Balancer) setVips() {
-	err := b.provider.SyncVIPs(b.state.Store)
-	if err != nil {
-		//TODO: Remove balancer from cluster when error occurs
-		log.Error(err)
-	}
+	// err := b.provider.SyncVIPs(b.state.Store)
+	// if err != nil {
+	// 	//TODO: Remove balancer from cluster when error occurs
+	// 	log.Error(err)
+	// }
 }
 
 func (b *Balancer) flushVips() {

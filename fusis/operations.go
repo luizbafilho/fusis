@@ -20,7 +20,7 @@ func (e ErrCrashError) Error() string {
 func (b *Balancer) GetServices() []types.Service {
 	b.Lock()
 	defer b.Unlock()
-	return b.state.Store.GetServices()
+	return b.state.GetServices()
 }
 
 // AddService ...
@@ -28,14 +28,14 @@ func (b *Balancer) AddService(svc *types.Service) error {
 	b.Lock()
 	defer b.Unlock()
 
-	_, err := b.state.Store.GetService(svc.GetId())
+	_, err := b.state.GetService(svc.GetId())
 	if err == nil {
 		return types.ErrServiceAlreadyExists
 	} else if err != types.ErrServiceNotFound {
 		return err
 	}
 
-	if err = b.provider.AllocateVIP(svc, b.state.Store); err != nil {
+	if err = b.provider.AllocateVIP(svc, b.state); err != nil {
 		return err
 	}
 
@@ -58,14 +58,14 @@ func (b *Balancer) AddService(svc *types.Service) error {
 func (b *Balancer) GetService(name string) (*types.Service, error) {
 	b.Lock()
 	defer b.Unlock()
-	return b.state.Store.GetService(name)
+	return b.state.GetService(name)
 }
 
 func (b *Balancer) DeleteService(name string) error {
 	b.Lock()
 	defer b.Unlock()
 
-	svc, err := b.state.Store.GetService(name)
+	svc, err := b.state.GetService(name)
 	if err != nil {
 		return err
 	}
@@ -81,19 +81,19 @@ func (b *Balancer) DeleteService(name string) error {
 func (b *Balancer) GetDestination(name string) (*types.Destination, error) {
 	b.Lock()
 	defer b.Unlock()
-	return b.state.Store.GetDestination(name)
+	return b.state.GetDestination(name)
 }
 
 func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) error {
 	b.Lock()
 	defer b.Unlock()
 
-	stateSvc, err := b.state.Store.GetService(svc.GetId())
+	stateSvc, err := b.state.GetService(svc.GetId())
 	if err != nil {
 		return err
 	}
 
-	_, err = b.state.Store.GetDestination(dst.GetId())
+	_, err = b.state.GetDestination(dst.GetId())
 	if err == nil {
 		return types.ErrDestinationAlreadyExists
 	} else if err != types.ErrDestinationNotFound {
@@ -118,12 +118,12 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 func (b *Balancer) DeleteDestination(dst *types.Destination) error {
 	b.Lock()
 	defer b.Unlock()
-	svc, err := b.state.Store.GetService(dst.ServiceId)
+	svc, err := b.state.GetService(dst.ServiceId)
 	if err != nil {
 		return err
 	}
 
-	_, err = b.state.Store.GetDestination(dst.GetId())
+	_, err = b.state.GetDestination(dst.GetId())
 	if err != nil {
 		return err
 	}

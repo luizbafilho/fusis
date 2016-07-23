@@ -19,20 +19,20 @@ type Store interface {
 	CollectStats(tick time.Time)
 }
 
-type FusisState struct {
+type FusisStore struct {
 	sync.Mutex
 	Services     map[string]types.Service
 	Destinations map[string]types.Destination
 }
 
-func NewFusisState() *FusisState {
-	return &FusisState{
+func NewFusisStore() *FusisStore {
+	return &FusisStore{
 		Services:     make(map[string]types.Service),
 		Destinations: make(map[string]types.Destination),
 	}
 }
 
-func (s *FusisState) GetServices() []types.Service {
+func (s *FusisStore) GetServices() []types.Service {
 	s.Lock()
 	defer s.Unlock()
 
@@ -44,7 +44,7 @@ func (s *FusisState) GetServices() []types.Service {
 	return services
 }
 
-func (s *FusisState) GetService(name string) (*types.Service, error) {
+func (s *FusisStore) GetService(name string) (*types.Service, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -56,7 +56,7 @@ func (s *FusisState) GetService(name string) (*types.Service, error) {
 	return &svc, nil
 }
 
-func (s *FusisState) getDestinations(svc *types.Service) {
+func (s *FusisStore) getDestinations(svc *types.Service) {
 	dsts := []types.Destination{}
 	for _, d := range s.Destinations {
 		if d.ServiceId == svc.GetId() {
@@ -66,21 +66,21 @@ func (s *FusisState) getDestinations(svc *types.Service) {
 	svc.Destinations = dsts
 }
 
-func (s *FusisState) AddService(svc *types.Service) {
+func (s *FusisStore) AddService(svc *types.Service) {
 	s.Lock()
 	defer s.Unlock()
 
 	s.Services[svc.GetId()] = *svc
 }
 
-func (s *FusisState) DeleteService(svc *types.Service) {
+func (s *FusisStore) DeleteService(svc *types.Service) {
 	s.Lock()
 	defer s.Unlock()
 
 	delete(s.Services, svc.GetId())
 }
 
-func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
+func (s *FusisStore) GetDestination(name string) (*types.Destination, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -91,20 +91,20 @@ func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
 	return &dst, nil
 }
 
-func (s *FusisState) AddDestination(dst *types.Destination) {
+func (s *FusisStore) AddDestination(dst *types.Destination) {
 	s.Lock()
 	defer s.Unlock()
 
 	s.Destinations[dst.GetId()] = *dst
 }
 
-func (s *FusisState) DeleteDestination(dst *types.Destination) {
+func (s *FusisStore) DeleteDestination(dst *types.Destination) {
 	s.Lock()
 	defer s.Unlock()
 
 	delete(s.Destinations, dst.GetId())
 }
 
-func (s *FusisState) CollectStats(tick time.Time) {
+func (s *FusisStore) CollectStats(tick time.Time) {
 
 }

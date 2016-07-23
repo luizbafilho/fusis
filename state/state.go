@@ -23,7 +23,7 @@ type State struct {
 	sync.Mutex
 	Store
 
-	StateCh chan chan error
+	changesCh chan chan error
 }
 
 // Represents possible actions on engine
@@ -54,8 +54,8 @@ func New(config *config.BalancerConfig) (*State, error) {
 	// statsLogger := NewStatsLogger(config)
 
 	return &State{
-		Store:   NewFusisStore(),
-		StateCh: make(chan chan error),
+		Store:     NewFusisStore(),
+		changesCh: make(chan chan error),
 		// store:   fstate,
 		// StatsLogger: statsLogger,
 	}, nil
@@ -103,6 +103,10 @@ func addLogstashLoggerHook(logger *logrus.Logger, config *config.BalancerConfig)
 	logger.Hooks.Add(hook)
 }
 
+func (s *State) ChangesCh() chan chan error {
+	return s.changesCh
+}
+
 // Apply actions to fsm
 func (s *State) Apply(l *raft.Log) interface{} {
 	var c Command
@@ -121,7 +125,7 @@ func (s *State) Apply(l *raft.Log) interface{} {
 		s.DeleteDestination(c.Destination)
 	}
 	rsp := make(chan error)
-	s.StateCh <- rsp
+	s.changesCh <- rsp
 	return <-rsp
 }
 
@@ -156,7 +160,7 @@ func (s *State) Restore(rc io.ReadCloser) error {
 		}
 	}
 	rsp := make(chan error)
-	s.StateCh <- rsp
+	s.changesCh <- rsp
 	return <-rsp
 }
 

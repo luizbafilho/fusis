@@ -117,7 +117,7 @@ func makeLog(cmd *state.Command, c *C) *raft.Log {
 
 func watchStateCh(state *state.State) {
 	for {
-		errCh := <-state.StateCh
+		errCh := <-state.ChangesCh
 		errCh <- nil
 	}
 }

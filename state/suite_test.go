@@ -43,7 +43,7 @@ func (s *StateSuite) SetUpSuite(c *C) {
 }
 
 func (s *StateSuite) SetUpTest(c *C) {
-	s.state = state.NewFusisState()
+	s.state = state.NewFusisStore()
 }
 
 func (s *StateSuite) TearDownSuite(c *C) {

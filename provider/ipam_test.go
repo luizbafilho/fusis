@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/provider"
+	"github.com/luizbafilho/fusis/state"
 
 	. "gopkg.in/check.v1"
 )
@@ -13,14 +13,14 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type IpamSuite struct {
-	state *ipvs.FusisState
+	state *state.FusisStore
 	ipam  *provider.Ipam
 }
 
 var _ = Suite(&IpamSuite{})
 
 func (s *IpamSuite) SetUpSuite(c *C) {
-	s.state = ipvs.NewFusisState()
+	s.state = state.NewFusisStore()
 
 	ipam, err := provider.NewIpam("192.168.0.0/28")
 	c.Assert(err, IsNil)

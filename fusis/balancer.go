@@ -221,7 +221,7 @@ func (b *Balancer) setupRaft() error {
 func (b *Balancer) watchState() {
 	for {
 		select {
-		case rsp := <-b.state.StateCh:
+		case rsp := <-b.state.ChangesCh():
 			// TODO: this doesn't need to run all the time, we can implement
 			// some kind of throttling in the future waiting for a threashold of
 			// messages before applying the messages.

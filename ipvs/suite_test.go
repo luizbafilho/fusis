@@ -13,7 +13,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type IpvsSuite struct {
-	state       ipvs.Store
+	// state       ipvs.Store
 	service     *types.Service
 	destination *types.Destination
 }
@@ -42,7 +42,7 @@ func (s *IpvsSuite) SetUpSuite(c *C) {
 }
 
 func (s *IpvsSuite) SetUpTest(c *C) {
-	s.state = ipvs.NewFusisState()
+	// s.state = ipvs.NewFusisState()
 }
 
 func (s *IpvsSuite) TearDownSuite(c *C) {

@@ -16,6 +16,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/iptables"
+	"github.com/luizbafilho/fusis/ipvs"
 	fusis_net "github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/provider"
 	"github.com/luizbafilho/fusis/state"
@@ -44,6 +46,8 @@ type Balancer struct {
 	raftInmem     *raft.InmemStore
 	raftTransport *raft.NetworkTransport
 	config        *config.BalancerConfig
+	ipvsMngr      ipvs.Syncer
+	iptablesMngr  iptables.Syncer
 
 	state      *state.State
 	provider   provider.Provider
@@ -63,11 +67,20 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
+	ipvsMngr, err := ipvs.New()
+	if err != nil {
+		return nil, err
+	}
+
+	iptablesMngr, err := iptables.New(config)
+
 	balancer := &Balancer{
-		eventCh:  make(chan serf.Event, 64),
-		state:    state,
-		provider: provider,
-		config:   config,
+		eventCh:      make(chan serf.Event, 64),
+		state:        state,
+		ipvsMngr:     ipvsMngr,
+		iptablesMngr: iptablesMngr,
+		provider:     provider,
+		config:       config,
 	}
 
 	if err = balancer.setupRaft(); err != nil {
@@ -84,11 +97,12 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	}
 
 	go balancer.watchLeaderChanges()
+	go balancer.watchState()
 
 	// Only collect stats if some interval is defined
-	if config.Stats.Interval > 0 {
-		go balancer.collectStats()
-	}
+	// if config.Stats.Interval > 0 {
+	// 	go balancer.collectStats()
+	// }
 
 	return balancer, nil
 }
@@ -206,8 +220,6 @@ func (b *Balancer) setupRaft() error {
 		stable = logStore
 	}
 
-	go b.watchState()
-
 	// Instantiate the Raft systems.
 	ra, err := raft.NewRaft(raftConfig, b.state, log, stable, snap, b.raftPeers, transport)
 	if err != nil {
@@ -231,13 +243,21 @@ func (b *Balancer) watchState() {
 }
 
 func (b *Balancer) handleStateChange() error {
-	if b.IsLeader() {
-		// b.provider.SyncVIPs(b.state.Store)
-	} else {
-		b.Lock()
-		defer b.Unlock()
-	}
+	// if b.IsLeader() {
+	// 	// b.provider.SyncVIPs(b.state.Store)
+	// } else {
+	// 	b.Lock()
+	// 	defer b.Unlock()
+	// }
 	// return b.state.Ipvs.SyncState(b.state.State)
+	if err := b.ipvsMngr.Sync(*b.state); err != nil {
+		return err
+	}
+
+	if err := b.iptablesMngr.Sync(*b.state); err != nil {
+		return err
+	}
+
 	return nil
 }
 

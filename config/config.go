@@ -36,7 +36,8 @@ type Stats struct {
 }
 
 type BalancerConfig struct {
-	Interface string
+	PublicInterface  string
+	PrivateInterface string
 
 	Name       string
 	Bootstrap  bool
@@ -61,7 +62,7 @@ type AgentConfig struct {
 }
 
 func (c *BalancerConfig) GetIpByInterface() (string, error) {
-	return net.GetIpByInterface(c.Interface)
+	return net.GetIpByInterface(c.PublicInterface)
 }
 
 func (c *AgentConfig) GetIpByInterface() (string, error) {

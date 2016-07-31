@@ -41,7 +41,8 @@ func NewBalancerCommand() *cobra.Command {
 func setupBalancerCmdFlags(cmd *cobra.Command) {
 	hostname, _ := os.Hostname()
 	cmd.Flags().StringVarP(&conf.Name, "name", "n", hostname, "node name (unique in the cluster)")
-	cmd.Flags().StringVarP(&conf.Interface, "interface", "", "eth0", "Network interface")
+	cmd.Flags().StringVarP(&conf.PublicInterface, "public-iface", "", "eth0", "Public network interface")
+	cmd.Flags().StringVarP(&conf.PrivateInterface, "private-iface", "", "eth0", "Private network interface")
 	cmd.Flags().StringVarP(&conf.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
 	cmd.Flags().BoolVar(&conf.Bootstrap, "bootstrap", false, "starts balancer in boostrap mode")
 	cmd.Flags().BoolVar(&conf.DevMode, "dev", false, "Initialize balancer in dev mode")

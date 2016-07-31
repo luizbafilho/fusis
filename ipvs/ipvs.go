@@ -15,6 +15,10 @@ type Ipvs struct {
 	sync.Mutex
 }
 
+type Syncer interface {
+	Sync(state state.State) error
+}
+
 //New creates a new ipvs struct and flushes the IPVS Table
 func New() (*Ipvs, error) {
 	log.Infof("Initialising IPVS Module...")
@@ -63,7 +67,7 @@ func (ipvs *Ipvs) diffDestinations(old, new *types.Service) destDiffResult {
 	}
 }
 
-func (ipvs *Ipvs) SyncState(state state.Store) error {
+func (ipvs Ipvs) Sync(state state.State) error {
 	oldServices, err := gipvs.GetServices()
 	if err != nil {
 		return err

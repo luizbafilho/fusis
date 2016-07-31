@@ -12,6 +12,12 @@ var (
 	ErrDestinationAlreadyExists       = errors.New("destination already exists")
 )
 
+var (
+	NAT    = "nat"
+	ROUTE  = "route"
+	TUNNEL = "tunnel"
+)
+
 type ErrNotFound string
 
 func (e ErrNotFound) Error() string {
@@ -24,6 +30,7 @@ type Service struct {
 	Port         uint16 `valid:"required"`
 	Protocol     string `valid:"required"`
 	Scheduler    string `valid:"required"`
+	Mode         string `valid:"required"`
 	Destinations []Destination
 	Stats        *ServiceStats
 }
@@ -59,6 +66,10 @@ type DestinationStats struct {
 
 func (svc Service) GetId() string {
 	return svc.Name
+}
+
+func (svc Service) IsNat() bool {
+	return svc.Mode == NAT
 }
 
 func (dst Destination) GetId() string {

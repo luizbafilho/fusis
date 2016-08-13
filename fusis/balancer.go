@@ -243,13 +243,10 @@ func (b *Balancer) watchState() {
 }
 
 func (b *Balancer) handleStateChange() error {
-	// if b.IsLeader() {
-	// 	// b.provider.SyncVIPs(b.state.Store)
-	// } else {
-	// 	b.Lock()
-	// 	defer b.Unlock()
-	// }
-	// return b.state.Ipvs.SyncState(b.state.State)
+	if b.IsLeader() {
+		b.provider.Sync(*b.state)
+	}
+
 	if err := b.ipvsMngr.Sync(*b.state); err != nil {
 		return err
 	}

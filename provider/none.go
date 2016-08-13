@@ -2,8 +2,8 @@ package provider
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/net"
@@ -42,46 +42,62 @@ func (n None) ReleaseVIP(s types.Service) error {
 	return nil
 }
 
-//Sync syncs the given state by setting all vips on network interface
 func (n None) Sync(state state.State) error {
-	oldVIPs, err := net.GetFusisVipsIps(n.iface)
+	currentVips, err := n.getCurrentVips()
 	if err != nil {
 		return err
 	}
 
-	newServices := state.GetServices()
-	toAddMap := make(map[string]struct{})
-	for _, s := range newServices {
-		toAddMap[s.Host] = struct{}{}
-	}
+	stateVips := n.getStateVips(state)
 
-	var toRemove []string
-	for _, ip := range oldVIPs {
-		if _, isPresent := toAddMap[ip]; isPresent {
-			delete(toAddMap, ip)
-		} else {
-			toRemove = append(toRemove, ip)
-		}
-	}
+	vipsToAdd := stateVips.Difference(currentVips)
+	vipsToRemove := currentVips.Difference(stateVips)
 
-	var errors []string
-	for ip := range toAddMap {
-		err := net.AddIp(ip+"/32", n.iface)
+	for v := range vipsToAdd.Iter() {
+		vip := v.(string)
+		err := net.AddIp(vip+"/32", n.iface)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error adding ip %s: %s", ip, err))
+			return fmt.Errorf("error adding ip %s: %s", vip, err)
 		}
 	}
 
-	for _, ip := range toRemove {
-		err := net.DelIp(ip+"/32", n.iface)
+	for v := range vipsToRemove.Iter() {
+		vip := v.(string)
+		err := net.DelIp(vip+"/32", n.iface)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error deleting ip %s: %s", ip, err))
+			return fmt.Errorf("error deleting ip %s: %s", vip, err)
 		}
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("multiple errors: %s", strings.Join(errors, " | "))
 	}
 
 	return nil
+}
+
+func (n None) getCurrentVips() (mapset.Set, error) {
+	vips, err := net.GetFusisVipsIps(n.iface)
+	if err != nil {
+		return nil, err
+	}
+
+	set := mapset.NewSet()
+	for _, v := range vips {
+		set.Add(v)
+	}
+
+	return set, nil
+}
+
+func (n None) getStateVips(state state.State) mapset.Set {
+	vips := []string{}
+
+	svcs := state.GetServices()
+	for _, s := range svcs {
+		vips = append(vips, s.Host)
+	}
+
+	set := mapset.NewSet()
+	for _, v := range vips {
+		set.Add(v)
+	}
+
+	return set
 }

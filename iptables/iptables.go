@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
@@ -185,7 +184,6 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
 	out, err := exec.Command(i.path, "--wait", "--list", "-t", "nat").Output()
 	if err != nil {
-		spew.Dump(err)
 		log.Fatal(err)
 	}
 

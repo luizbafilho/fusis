@@ -69,6 +69,12 @@
 			"revisionTime": "2016-06-01T19:42:05Z"
 		},
 		{
+			"checksumSHA1": "Wh56y74a8ih88XBvGg0wmPVceW4=",
+			"path": "github.com/deckarep/golang-set",
+			"revision": "a847793a0d5f0cfd57c3ece4242e75223cdaf898",
+			"revisionTime": "2016-07-27T17:05:31Z"
+		},
+		{
 			"checksumSHA1": "fVgz/pcm/CRl3V1vyyqmj4Hwg+o=",
 			"path": "github.com/fatih/structs",
 			"revision": "73c4e3dc02a78deaba8640d5f3a8c236ec1352bf",

@@ -19,10 +19,11 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 	conf := config.BalancerConfig{
-		PublicInterface: "eth0",
-		Name:            "Test",
-		ConfigPath:      dir,
-		Bootstrap:       true,
+		PublicInterface:  "eth0",
+		PrivateInterface: "eth0",
+		Name:             "Test",
+		ConfigPath:       dir,
+		Bootstrap:        true,
 		Ports: map[string]int{
 			"raft": 20012,
 			"serf": 20013,
@@ -52,9 +53,9 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	apiHandler := api.NewAPI(balancer)
 	srv := httptest.NewServer(apiHandler)
 	client := api.NewClient(srv.URL)
-	_, err = client.CreateService(types.Service{Name: "myservice", Port: 1040, Protocol: "tcp", Scheduler: "rr"})
+	_, err = client.CreateService(types.Service{Name: "myservice", Port: 1040, Mode: "nat", Protocol: "tcp", Scheduler: "rr"})
 	c.Assert(err, check.IsNil)
-	_, err = client.CreateService(types.Service{Name: "myservice", Port: 1050, Protocol: "tcp", Scheduler: "rr"})
+	_, err = client.CreateService(types.Service{Name: "myservice", Port: 1050, Mode: "nat", Protocol: "tcp", Scheduler: "rr"})
 	c.Assert(err, check.Equals, types.ErrServiceAlreadyExists)
 	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname1", Host: "10.0.0.1", Port: 1234, Mode: "nat"})
 	c.Assert(err, check.IsNil)
@@ -75,6 +76,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	sort.Sort(types.DestinationList(svc.Destinations))
 	c.Assert(svc, check.DeepEquals, types.Service{
 		Name:      "myservice",
+		Mode:      "nat",
 		Port:      1040,
 		Protocol:  "tcp",
 		Scheduler: "rr",
@@ -119,6 +121,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	c.Assert(services, check.HasLen, 1)
 	c.Assert(*services[0], check.DeepEquals, types.Service{
 		Name:      "myservice",
+		Mode:      "nat",
 		Port:      1040,
 		Protocol:  "tcp",
 		Scheduler: "rr",

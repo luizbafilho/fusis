@@ -71,7 +71,7 @@ func (s *S) TestServiceGetNotFound(c *check.C) {
 }
 
 func (s *S) TestServiceCreate(c *check.C) {
-	body := strings.NewReader(`{"name": "ahoy", "port": 1040, "protocol": "tcp", "scheduler": "rr"}`)
+	body := strings.NewReader(`{"name": "ahoy", "port": 1040, "protocol": "tcp", "mode": "nat", "scheduler": "rr"}`)
 	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
 	c.Assert(err, check.IsNil)
 	data, err := ioutil.ReadAll(resp.Body)
@@ -82,6 +82,7 @@ func (s *S) TestServiceCreate(c *check.C) {
 	c.Assert(result, check.DeepEquals, types.Service{
 		Name:         "ahoy",
 		Port:         1040,
+		Mode:         "nat",
 		Protocol:     "tcp",
 		Scheduler:    "rr",
 		Destinations: []types.Destination{},
@@ -105,6 +106,7 @@ func (s *S) TestServiceCreateValidationError(c *check.C) {
 			"Name":      "non zero value required",
 			"Port":      "non zero value required",
 			"Protocol":  "non zero value required",
+			"Mode":      "non zero value required",
 			"Scheduler": "non zero value required",
 		},
 	})
@@ -115,7 +117,7 @@ func (s *S) TestServiceCreateValidationError(c *check.C) {
 func (s *S) TestServiceCreateConflict(c *check.C) {
 	err := s.bal.AddService(&types.Service{Name: "mysrv"})
 	c.Assert(err, check.IsNil)
-	body := strings.NewReader(`{"name": "mysrv", "port": 1040, "protocol": "tcp", "scheduler": "rr"}`)
+	body := strings.NewReader(`{"name": "mysrv", "port": 1040, "protocol": "tcp","mode": "nat", "scheduler": "rr"}`)
 	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
 	c.Assert(err, check.IsNil)
 	data, err := ioutil.ReadAll(resp.Body)

@@ -1,6 +1,7 @@
 package iptables
 
 import (
+	"os"
 	"testing"
 
 	"github.com/luizbafilho/fusis/api/types"
@@ -39,12 +40,16 @@ func (s *IptablesSuite) TearDownSuite(c *C) {
 }
 
 func (s *IptablesSuite) TestSync(c *C) {
+	if os.Getenv("TRAVIS") == "true" {
+		c.Skip("Skipping test because travis-ci do not allow iptables")
+	}
+
 	state, err := state.New(defaultConfig())
 	c.Assert(err, IsNil)
 
 	s1 := &types.Service{
 		Name:         "test",
-		Host:         "10.0.1.1",
+		Host:         "100.0.1.1",
 		Port:         80,
 		Mode:         "nat",
 		Protocol:     "tcp",
@@ -54,7 +59,7 @@ func (s *IptablesSuite) TestSync(c *C) {
 
 	state.AddService(&types.Service{
 		Name:         "test2",
-		Host:         "10.0.1.2",
+		Host:         "100.0.1.2",
 		Port:         80,
 		Protocol:     "tcp",
 		Mode:         "nat",
@@ -64,12 +69,12 @@ func (s *IptablesSuite) TestSync(c *C) {
 	toSource, err := net.GetIpByInterface("eth0")
 	c.Assert(err, IsNil)
 	rule2 := SnatRule{
-		vaddr:    "10.0.1.2",
+		vaddr:    "100.0.1.2",
 		vport:    "80",
 		toSource: toSource,
 	}
 	rule3 := SnatRule{
-		vaddr:    "10.0.1.3",
+		vaddr:    "100.0.1.3",
 		vport:    "80",
 		toSource: toSource,
 	}

@@ -15,6 +15,10 @@ import (
 )
 
 func (s *S) TestFullstackWithClient(c *check.C) {
+	if os.Getenv("TRAVIS") == "true" {
+		c.Skip("Skipping test because travis-ci do not allow iptables")
+	}
+
 	dir, err := ioutil.TempDir("", "fusis")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)

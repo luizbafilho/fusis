@@ -251,9 +251,9 @@ func (b *Balancer) handleStateChange() error {
 		return err
 	}
 
-	// if err := b.iptablesMngr.Sync(*b.state); err != nil {
-	// 	return err
-	// }
+	if err := b.iptablesMngr.Sync(*b.state); err != nil {
+		return err
+	}
 
 	return nil
 }

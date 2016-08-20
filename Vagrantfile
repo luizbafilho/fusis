@@ -55,7 +55,7 @@ Vagrant.configure(2) do |config|
     sudo apt-get install -y vim-gnome
 
     echo "====> Installing dependencies"
-    sudo apt-get install -y zsh software-properties-common libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump xauth
+    sudo apt-get install -y zsh silversearcher-ag software-properties-common libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump xauth
     sudo add-apt-repository ppa:neovim-ppa/unstable
     sudo apt-get update
     sudo apt-get install neovim

@@ -11,6 +11,7 @@ import (
 
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/state"
 	. "gopkg.in/check.v1"
 )
 
@@ -65,6 +66,12 @@ func tmpDir() string {
 type testFn func() (bool, error)
 type errorFn func(error)
 
+type fakeIptablesMngr struct{}
+
+func (i fakeIptablesMngr) Sync(s state.State) error {
+	return nil
+}
+
 func WaitForResult(test testFn, error errorFn) {
 	retries := 1000
 
@@ -107,6 +114,7 @@ func defaultConfig() config.BalancerConfig {
 func (s *FusisSuite) TestAddService(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
+	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
@@ -130,6 +138,7 @@ func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(10))
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
+	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
@@ -166,6 +175,7 @@ func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
 func (s *FusisSuite) TestDeleteService(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
+	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
@@ -187,6 +197,7 @@ func (s *FusisSuite) TestDeleteService(c *C) {
 func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
+	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
@@ -235,6 +246,7 @@ func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
 func (s *FusisSuite) TestAddDestination(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
+	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
@@ -264,6 +276,7 @@ func (s *FusisSuite) TestAddDestination(c *C) {
 func (s *FusisSuite) TestDeleteDestination(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
+	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
@@ -292,6 +305,7 @@ func (s *FusisSuite) TestDeleteDestination(c *C) {
 func (s *FusisSuite) TestAddDeleteDestination(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
+	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)
@@ -327,6 +341,7 @@ func (s *FusisSuite) TestAddDeleteDestination(c *C) {
 func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 	config := defaultConfig()
 	b, err := NewBalancer(&config)
+	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
 	defer os.RemoveAll(config.ConfigPath)

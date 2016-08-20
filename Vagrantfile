@@ -13,10 +13,10 @@ Vagrant.configure(2) do |config|
 
   config.vm.network "private_network", ip: "192.168.33.10"
 
-  config.vm.synced_folder ENV['GOPATH'], "/home/vagrant/gocode", type: "nfs"
+  config.vm.synced_folder "#{ENV['GOPATH']}/src", "/home/vagrant/gocode/src", type: "nfs"
 
   config.vm.provider "vmware_fusion" do |provider, override|
-    override.vm.box = "geerlingguy/ubuntu1404"
+    override.vm.box = "bento/ubuntu-14.04"
     provider.cpus = 4
     provider.memory = "2048"
   end
@@ -46,13 +46,6 @@ Vagrant.configure(2) do |config|
 
     HOME=/home/vagrant
 
-    curl -O https://storage.googleapis.com/golang/go1.6.linux-amd64.tar.gz
-    tar -xvf go1.6.linux-amd64.tar.gz
-    sudo mv go /usr/local
-    echo export PATH=$PATH:/usr/local/go/bin >> $HOME/.profile
-    mkdir $HOME/gocode
-    echo export GOPATH=$HOME/gocode >> $HOME/.profile
-
     echo "====> Installing docker"
     sudo curl -fsSL https://get.docker.com/ | sh
     sudo usermod -aG docker vagrant
@@ -62,7 +55,21 @@ Vagrant.configure(2) do |config|
     sudo apt-get install -y vim-gnome
 
     echo "====> Installing dependencies"
-    sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump xauth
+    sudo apt-get install -y zsh software-properties-common libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump xauth
+    sudo add-apt-repository ppa:neovim-ppa/unstable
+    sudo apt-get update
+    sudo apt-get install neovim
+
+    echo "====> Installing Oh my ZSH"
+    curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh
+
+    echo "====> Installing Go"
+    curl -O https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz
+    tar -xvf go1.7.linux-amd64.tar.gz
+    sudo mv go /usr/local
+    echo export PATH=$PATH:/usr/local/go/bin >> $HOME/.zshrc
+    mkdir $HOME/gocode
+    echo export GOPATH=$HOME/gocode >> $HOME/.zshrc
 
     echo "====> Installing tmux 2.1"
     sudo apt-get build-dep -y tmux
@@ -75,14 +82,8 @@ Vagrant.configure(2) do |config|
     wget https://gist.githubusercontent.com/luizbafilho/99c6ec91b0c3415df75b4c4cf7d0265a/raw/bb10b105f4809c3549e20777e1afdde9b50bc915/.tmux.conf -O  $HOME/.tmux.conf
 
     echo "====> Downloading vimfiles"
-    git clone https://github.com/luizbafilho/vimfiles.git $HOME/.vim
-    ln -s $HOME/.vim/vimrc $HOME/.vimrc
-    vim +PlugInstall +qa! && echo "Done! :)"
-    cd $HOME/.vim/plugged/YouCompleteMe
-    ./install.py --gocode-completer
-
-
-    echo "====> Config autojump"
-    echo 'source /usr/share/autojump/autojump.sh' >> $HOME/.bashrc
+    mkdir $HOME/.config
+    git clone https://github.com/luizbafilho/vimfiles.git $HOME/.config/nvim
+    nvim +PlugInstall +qa! && echo "Done! :)"
   SHELL
 end

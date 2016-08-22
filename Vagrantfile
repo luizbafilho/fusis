@@ -64,8 +64,8 @@ Vagrant.configure(2) do |config|
     curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh
 
     echo "====> Installing Go"
-    curl -O https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz
-    tar -xvf go1.7.linux-amd64.tar.gz
+    curl -O https://storage.googleapis.com/golang/go1.6.3.linux-amd64.tar.gz
+    tar -xvf go1.6.3.linux-amd64.tar.gz
     sudo mv go /usr/local
     echo export PATH=$PATH:/usr/local/go/bin >> $HOME/.zshrc
     mkdir $HOME/gocode

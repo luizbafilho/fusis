@@ -15,6 +15,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/iptables"
 	"github.com/luizbafilho/fusis/ipvs"
@@ -48,6 +49,7 @@ type Balancer struct {
 	config        *config.BalancerConfig
 	ipvsMngr      ipvs.Syncer
 	iptablesMngr  iptables.Syncer
+	bgpService    *bgp.BgpService
 
 	state      *state.State
 	provider   provider.Provider
@@ -72,6 +74,12 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
+	bgpService, err := bgp.NewBgpService(config)
+	if err != nil {
+		return nil, err
+	}
+	go bgpService.Serve()
+
 	iptablesMngr, err := iptables.New(config)
 
 	balancer := &Balancer{
@@ -79,6 +87,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		state:        state,
 		ipvsMngr:     ipvsMngr,
 		iptablesMngr: iptablesMngr,
+		bgpService:   bgpService,
 		provider:     provider,
 		config:       config,
 	}
@@ -91,6 +100,9 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, fmt.Errorf("error setting up Serf: %v", err)
 	}
 
+	// if config.Mode == fusis.ANYCAST {
+	// }
+
 	// Flushing all VIPs on the network interface
 	if err := fusis_net.DelVips(balancer.config.Provider.Params["interface"]); err != nil {
 		return nil, fmt.Errorf("error cleaning up network vips: %v", err)
@@ -98,11 +110,6 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 
 	go balancer.watchLeaderChanges()
 	go balancer.watchState()
-
-	// Only collect stats if some interval is defined
-	// if config.Stats.Interval > 0 {
-	// 	go balancer.collectStats()
-	// }
 
 	return balancer, nil
 }
@@ -254,6 +261,10 @@ func (b *Balancer) handleStateChange() error {
 	if err := b.iptablesMngr.Sync(*b.state); err != nil {
 		return err
 	}
+
+	fmt.Println("sending router")
+	b.bgpService.AddPath("10.0.0.23")
+	fmt.Println("route sent")
 
 	return nil
 }

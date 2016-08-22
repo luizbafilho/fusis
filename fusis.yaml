@@ -9,7 +9,7 @@ ports:
   serf: 7946
 bgp:
   as: 100
-  router-id: "192.168.151.176"
+  router-id: "192.168.151.182"
   neighbors:
     -
       address: "192.168.151.178"

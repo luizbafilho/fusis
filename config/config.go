@@ -35,6 +35,17 @@ type Stats struct {
 	Params   map[string]string
 }
 
+type Bgp struct {
+	As        uint32     `valid:"required"`
+	RouterId  string     `valid:"ipv4,required" mapstructure:"router-id"`
+	Neighbors []Neighbor `valid:"required"`
+}
+
+type Neighbor struct {
+	Address string `valid:"ipv4,required"`
+	PeerAs  uint32 `valid:"required" mapstructure:"peer-as"`
+}
+
 type BalancerConfig struct {
 	PublicInterface  string
 	PrivateInterface string
@@ -47,6 +58,7 @@ type BalancerConfig struct {
 	ConfigPath string
 	Ports      map[string]int
 	DevMode    bool
+	Bgp        Bgp
 }
 
 type AgentConfig struct {

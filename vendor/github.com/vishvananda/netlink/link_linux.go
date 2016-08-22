@@ -10,6 +10,19 @@ import (
 	"unsafe"
 
 	"github.com/vishvananda/netlink/nl"
+	"github.com/vishvananda/netns"
+)
+
+const SizeofLinkStats = 0x5c
+
+const (
+	TUNTAP_MODE_TUN  TuntapMode = syscall.IFF_TUN
+	TUNTAP_MODE_TAP  TuntapMode = syscall.IFF_TAP
+	TUNTAP_DEFAULTS  TuntapFlag = syscall.IFF_TUN_EXCL | syscall.IFF_ONE_QUEUE
+	TUNTAP_VNET_HDR  TuntapFlag = syscall.IFF_VNET_HDR
+	TUNTAP_TUN_EXCL  TuntapFlag = syscall.IFF_TUN_EXCL
+	TUNTAP_NO_PI     TuntapFlag = syscall.IFF_NO_PI
+	TUNTAP_ONE_QUEUE TuntapFlag = syscall.IFF_ONE_QUEUE
 )
 
 var native = nl.NativeEndian()
@@ -33,12 +46,65 @@ func ensureIndex(link *LinkAttrs) {
 	}
 }
 
+func (h *Handle) ensureIndex(link *LinkAttrs) {
+	if link != nil && link.Index == 0 {
+		newlink, _ := h.LinkByName(link.Name)
+		if newlink != nil {
+			link.Index = newlink.Attrs().Index
+		}
+	}
+}
+
+func (h *Handle) SetPromiscOn(link Link) error {
+	base := link.Attrs()
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+
+	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
+	msg.Change = syscall.IFF_PROMISC
+	msg.Flags = syscall.IFF_UP
+	msg.Index = int32(base.Index)
+	req.AddData(msg)
+
+	_, err := req.Execute(syscall.NETLINK_ROUTE, 0)
+	return err
+}
+
+func SetPromiscOn(link Link) error {
+	return pkgHandle.SetPromiscOn(link)
+}
+
+func (h *Handle) SetPromiscOff(link Link) error {
+	base := link.Attrs()
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+
+	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
+	msg.Change = syscall.IFF_PROMISC
+	msg.Flags = 0 & ^syscall.IFF_UP
+	msg.Index = int32(base.Index)
+	req.AddData(msg)
+
+	_, err := req.Execute(syscall.NETLINK_ROUTE, 0)
+	return err
+}
+
+func SetPromiscOff(link Link) error {
+	return pkgHandle.SetPromiscOff(link)
+}
+
 // LinkSetUp enables the link device.
 // Equivalent to: `ip link set $link up`
 func LinkSetUp(link Link) error {
+	return pkgHandle.LinkSetUp(link)
+}
+
+// LinkSetUp enables the link device.
+// Equivalent to: `ip link set $link up`
+func (h *Handle) LinkSetUp(link Link) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_NEWLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_NEWLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Change = syscall.IFF_UP
@@ -53,9 +119,15 @@ func LinkSetUp(link Link) error {
 // LinkSetDown disables link device.
 // Equivalent to: `ip link set $link down`
 func LinkSetDown(link Link) error {
+	return pkgHandle.LinkSetDown(link)
+}
+
+// LinkSetDown disables link device.
+// Equivalent to: `ip link set $link down`
+func (h *Handle) LinkSetDown(link Link) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_NEWLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_NEWLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Change = syscall.IFF_UP
@@ -70,9 +142,15 @@ func LinkSetDown(link Link) error {
 // LinkSetMTU sets the mtu of the link device.
 // Equivalent to: `ip link set $link mtu $mtu`
 func LinkSetMTU(link Link, mtu int) error {
+	return pkgHandle.LinkSetMTU(link, mtu)
+}
+
+// LinkSetMTU sets the mtu of the link device.
+// Equivalent to: `ip link set $link mtu $mtu`
+func (h *Handle) LinkSetMTU(link Link, mtu int) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -91,9 +169,15 @@ func LinkSetMTU(link Link, mtu int) error {
 // LinkSetName sets the name of the link device.
 // Equivalent to: `ip link set $link name $name`
 func LinkSetName(link Link, name string) error {
+	return pkgHandle.LinkSetName(link, name)
+}
+
+// LinkSetName sets the name of the link device.
+// Equivalent to: `ip link set $link name $name`
+func (h *Handle) LinkSetName(link Link, name string) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -109,9 +193,15 @@ func LinkSetName(link Link, name string) error {
 // LinkSetAlias sets the alias of the link device.
 // Equivalent to: `ip link set dev $link alias $name`
 func LinkSetAlias(link Link, name string) error {
+	return pkgHandle.LinkSetAlias(link, name)
+}
+
+// LinkSetAlias sets the alias of the link device.
+// Equivalent to: `ip link set dev $link alias $name`
+func (h *Handle) LinkSetAlias(link Link, name string) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -127,9 +217,15 @@ func LinkSetAlias(link Link, name string) error {
 // LinkSetHardwareAddr sets the hardware address of the link device.
 // Equivalent to: `ip link set $link address $hwaddr`
 func LinkSetHardwareAddr(link Link, hwaddr net.HardwareAddr) error {
+	return pkgHandle.LinkSetHardwareAddr(link, hwaddr)
+}
+
+// LinkSetHardwareAddr sets the hardware address of the link device.
+// Equivalent to: `ip link set $link address $hwaddr`
+func (h *Handle) LinkSetHardwareAddr(link Link, hwaddr net.HardwareAddr) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -145,9 +241,15 @@ func LinkSetHardwareAddr(link Link, hwaddr net.HardwareAddr) error {
 // LinkSetVfHardwareAddr sets the hardware address of a vf for the link.
 // Equivalent to: `ip link set $link vf $vf mac $hwaddr`
 func LinkSetVfHardwareAddr(link Link, vf int, hwaddr net.HardwareAddr) error {
+	return pkgHandle.LinkSetVfHardwareAddr(link, vf, hwaddr)
+}
+
+// LinkSetVfHardwareAddr sets the hardware address of a vf for the link.
+// Equivalent to: `ip link set $link vf $vf mac $hwaddr`
+func (h *Handle) LinkSetVfHardwareAddr(link Link, vf int, hwaddr net.HardwareAddr) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -169,9 +271,15 @@ func LinkSetVfHardwareAddr(link Link, vf int, hwaddr net.HardwareAddr) error {
 // LinkSetVfVlan sets the vlan of a vf for the link.
 // Equivalent to: `ip link set $link vf $vf vlan $vlan`
 func LinkSetVfVlan(link Link, vf, vlan int) error {
+	return pkgHandle.LinkSetVfVlan(link, vf, vlan)
+}
+
+// LinkSetVfVlan sets the vlan of a vf for the link.
+// Equivalent to: `ip link set $link vf $vf vlan $vlan`
+func (h *Handle) LinkSetVfVlan(link Link, vf, vlan int) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -193,30 +301,48 @@ func LinkSetVfVlan(link Link, vf, vlan int) error {
 // LinkSetMaster sets the master of the link device.
 // Equivalent to: `ip link set $link master $master`
 func LinkSetMaster(link Link, master *Bridge) error {
+	return pkgHandle.LinkSetMaster(link, master)
+}
+
+// LinkSetMaster sets the master of the link device.
+// Equivalent to: `ip link set $link master $master`
+func (h *Handle) LinkSetMaster(link Link, master *Bridge) error {
 	index := 0
 	if master != nil {
 		masterBase := master.Attrs()
-		ensureIndex(masterBase)
+		h.ensureIndex(masterBase)
 		index = masterBase.Index
 	}
 	if index <= 0 {
 		return fmt.Errorf("Device does not exist")
 	}
-	return LinkSetMasterByIndex(link, index)
+	return h.LinkSetMasterByIndex(link, index)
 }
 
 // LinkSetNoMaster removes the master of the link device.
 // Equivalent to: `ip link set $link nomaster`
 func LinkSetNoMaster(link Link) error {
-	return LinkSetMasterByIndex(link, 0)
+	return pkgHandle.LinkSetNoMaster(link)
+}
+
+// LinkSetNoMaster removes the master of the link device.
+// Equivalent to: `ip link set $link nomaster`
+func (h *Handle) LinkSetNoMaster(link Link) error {
+	return h.LinkSetMasterByIndex(link, 0)
 }
 
 // LinkSetMasterByIndex sets the master of the link device.
 // Equivalent to: `ip link set $link master $master`
 func LinkSetMasterByIndex(link Link, masterIndex int) error {
+	return pkgHandle.LinkSetMasterByIndex(link, masterIndex)
+}
+
+// LinkSetMasterByIndex sets the master of the link device.
+// Equivalent to: `ip link set $link master $master`
+func (h *Handle) LinkSetMasterByIndex(link Link, masterIndex int) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -236,9 +362,16 @@ func LinkSetMasterByIndex(link Link, masterIndex int) error {
 // pid must be a pid of a running process.
 // Equivalent to: `ip link set $link netns $pid`
 func LinkSetNsPid(link Link, nspid int) error {
+	return pkgHandle.LinkSetNsPid(link, nspid)
+}
+
+// LinkSetNsPid puts the device into a new network namespace. The
+// pid must be a pid of a running process.
+// Equivalent to: `ip link set $link netns $pid`
+func (h *Handle) LinkSetNsPid(link Link, nspid int) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -258,9 +391,16 @@ func LinkSetNsPid(link Link, nspid int) error {
 // fd must be an open file descriptor to a network namespace.
 // Similar to: `ip link set $link netns $ns`
 func LinkSetNsFd(link Link, fd int) error {
+	return pkgHandle.LinkSetNsFd(link, fd)
+}
+
+// LinkSetNsFd puts the device into a new network namespace. The
+// fd must be an open file descriptor to a network namespace.
+// Similar to: `ip link set $link netns $ns`
+func (h *Handle) LinkSetNsFd(link Link, fd int) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -329,7 +469,7 @@ func addVxlanAttrs(vxlan *Vxlan, linkInfo *nl.RtAttr) {
 		nl.NewRtAttrChild(data, nl.IFLA_VXLAN_UDP_CSUM, boolAttr(vxlan.UDPCSum))
 	}
 	if vxlan.GBP {
-		nl.NewRtAttrChild(data, nl.IFLA_VXLAN_GBP, boolAttr(vxlan.GBP))
+		nl.NewRtAttrChild(data, nl.IFLA_VXLAN_GBP, []byte{})
 	}
 	if vxlan.NoAge {
 		nl.NewRtAttrChild(data, nl.IFLA_VXLAN_AGEING, nl.Uint32Attr(0))
@@ -340,7 +480,7 @@ func addVxlanAttrs(vxlan *Vxlan, linkInfo *nl.RtAttr) {
 		nl.NewRtAttrChild(data, nl.IFLA_VXLAN_LIMIT, nl.Uint32Attr(uint32(vxlan.Limit)))
 	}
 	if vxlan.Port > 0 {
-		nl.NewRtAttrChild(data, nl.IFLA_VXLAN_PORT, nl.Uint16Attr(uint16(vxlan.Port)))
+		nl.NewRtAttrChild(data, nl.IFLA_VXLAN_PORT, htons(uint16(vxlan.Port)))
 	}
 	if vxlan.PortLow > 0 || vxlan.PortHigh > 0 {
 		pr := vxlanPortRange{uint16(vxlan.PortLow), uint16(vxlan.PortHigh)}
@@ -434,9 +574,16 @@ func addBondAttrs(bond *Bond, linkInfo *nl.RtAttr) {
 }
 
 // LinkAdd adds a new link device. The type and features of the device
-// are taken fromt the parameters in the link object.
+// are taken from the parameters in the link object.
 // Equivalent to: `ip link add $link`
 func LinkAdd(link Link) error {
+	return pkgHandle.LinkAdd(link)
+}
+
+// LinkAdd adds a new link device. The type and features of the device
+// are taken fromt the parameters in the link object.
+// Equivalent to: `ip link add $link`
+func (h *Handle) LinkAdd(link Link) error {
 	// TODO: set mtu and hardware address
 	// TODO: support extra data for macvlan
 	base := link.Attrs()
@@ -448,9 +595,7 @@ func LinkAdd(link Link) error {
 	if tuntap, ok := link.(*Tuntap); ok {
 		// TODO: support user
 		// TODO: support group
-		// TODO: support non- one_queue
-		// TODO: support pi | vnet_hdr | multi_queue
-		// TODO: support non- exclusive
+		// TODO: multi_queue
 		// TODO: support non- persistent
 		if tuntap.Mode < syscall.IFF_TUN || tuntap.Mode > syscall.IFF_TAP {
 			return fmt.Errorf("Tuntap.Mode %v unknown!", tuntap.Mode)
@@ -461,10 +606,13 @@ func LinkAdd(link Link) error {
 		}
 		defer file.Close()
 		var req ifReq
-		req.Flags |= syscall.IFF_ONE_QUEUE
-		req.Flags |= syscall.IFF_TUN_EXCL
-		copy(req.Name[:15], base.Name)
+		if tuntap.Flags == 0 {
+			req.Flags = uint16(TUNTAP_DEFAULTS)
+		} else {
+			req.Flags = uint16(tuntap.Flags)
+		}
 		req.Flags |= uint16(tuntap.Mode)
+		copy(req.Name[:15], base.Name)
 		_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, file.Fd(), uintptr(syscall.TUNSETIFF), uintptr(unsafe.Pointer(&req)))
 		if errno != 0 {
 			return fmt.Errorf("Tuntap IOCTL TUNSETIFF failed, errno %v", errno)
@@ -473,17 +621,17 @@ func LinkAdd(link Link) error {
 		if errno != 0 {
 			return fmt.Errorf("Tuntap IOCTL TUNSETPERSIST failed, errno %v", errno)
 		}
-		ensureIndex(base)
+		h.ensureIndex(base)
 
 		// can't set master during create, so set it afterwards
 		if base.MasterIndex != 0 {
 			// TODO: verify MasterIndex is actually a bridge?
-			return LinkSetMasterByIndex(link, base.MasterIndex)
+			return h.LinkSetMasterByIndex(link, base.MasterIndex)
 		}
 		return nil
 	}
 
-	req := nl.NewNetlinkRequest(syscall.RTM_NEWLINK, syscall.NLM_F_CREATE|syscall.NLM_F_EXCL|syscall.NLM_F_ACK)
+	req := h.newNetlinkRequest(syscall.RTM_NEWLINK, syscall.NLM_F_CREATE|syscall.NLM_F_EXCL|syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	// TODO: make it shorter
@@ -577,6 +725,11 @@ func LinkAdd(link Link) error {
 			data := nl.NewRtAttrChild(linkInfo, nl.IFLA_INFO_DATA, nil)
 			nl.NewRtAttrChild(data, nl.IFLA_MACVLAN_MODE, nl.Uint32Attr(macvlanModes[macv.Mode]))
 		}
+	} else if macv, ok := link.(*Macvtap); ok {
+		if macv.Mode != MACVLAN_MODE_DEFAULT {
+			data := nl.NewRtAttrChild(linkInfo, nl.IFLA_INFO_DATA, nil)
+			nl.NewRtAttrChild(data, nl.IFLA_MACVLAN_MODE, nl.Uint32Attr(macvlanModes[macv.Mode]))
+		}
 	} else if gretap, ok := link.(*Gretap); ok {
 		addGretapAttrs(gretap, linkInfo)
 	}
@@ -588,12 +741,12 @@ func LinkAdd(link Link) error {
 		return err
 	}
 
-	ensureIndex(base)
+	h.ensureIndex(base)
 
 	// can't set master during create, so set it afterwards
 	if base.MasterIndex != 0 {
 		// TODO: verify MasterIndex is actually a bridge?
-		return LinkSetMasterByIndex(link, base.MasterIndex)
+		return h.LinkSetMasterByIndex(link, base.MasterIndex)
 	}
 	return nil
 }
@@ -602,11 +755,18 @@ func LinkAdd(link Link) error {
 // the link object for it to be deleted. The other values are ignored.
 // Equivalent to: `ip link del $link`
 func LinkDel(link Link) error {
+	return pkgHandle.LinkDel(link)
+}
+
+// LinkDel deletes link device. Either Index or Name must be set in
+// the link object for it to be deleted. The other values are ignored.
+// Equivalent to: `ip link del $link`
+func (h *Handle) LinkDel(link Link) error {
 	base := link.Attrs()
 
-	ensureIndex(base)
+	h.ensureIndex(base)
 
-	req := nl.NewNetlinkRequest(syscall.RTM_DELLINK, syscall.NLM_F_ACK)
+	req := h.newNetlinkRequest(syscall.RTM_DELLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(base.Index)
@@ -616,8 +776,8 @@ func LinkDel(link Link) error {
 	return err
 }
 
-func linkByNameDump(name string) (Link, error) {
-	links, err := LinkList()
+func (h *Handle) linkByNameDump(name string) (Link, error) {
+	links, err := h.LinkList()
 	if err != nil {
 		return nil, err
 	}
@@ -630,8 +790,8 @@ func linkByNameDump(name string) (Link, error) {
 	return nil, fmt.Errorf("Link %s not found", name)
 }
 
-func linkByAliasDump(alias string) (Link, error) {
-	links, err := LinkList()
+func (h *Handle) linkByAliasDump(alias string) (Link, error) {
+	links, err := h.LinkList()
 	if err != nil {
 		return nil, err
 	}
@@ -646,11 +806,16 @@ func linkByAliasDump(alias string) (Link, error) {
 
 // LinkByName finds a link by name and returns a pointer to the object.
 func LinkByName(name string) (Link, error) {
-	if lookupByDump {
-		return linkByNameDump(name)
+	return pkgHandle.LinkByName(name)
+}
+
+// LinkByName finds a link by name and returns a pointer to the object.
+func (h *Handle) LinkByName(name string) (Link, error) {
+	if h.lookupByDump {
+		return h.linkByNameDump(name)
 	}
 
-	req := nl.NewNetlinkRequest(syscall.RTM_GETLINK, syscall.NLM_F_ACK)
+	req := h.newNetlinkRequest(syscall.RTM_GETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	req.AddData(msg)
@@ -662,8 +827,8 @@ func LinkByName(name string) (Link, error) {
 	if err == syscall.EINVAL {
 		// older kernels don't support looking up via IFLA_IFNAME
 		// so fall back to dumping all links
-		lookupByDump = true
-		return linkByNameDump(name)
+		h.lookupByDump = true
+		return h.linkByNameDump(name)
 	}
 
 	return link, err
@@ -672,11 +837,17 @@ func LinkByName(name string) (Link, error) {
 // LinkByAlias finds a link by its alias and returns a pointer to the object.
 // If there are multiple links with the alias it returns the first one
 func LinkByAlias(alias string) (Link, error) {
-	if lookupByDump {
-		return linkByAliasDump(alias)
+	return pkgHandle.LinkByAlias(alias)
+}
+
+// LinkByAlias finds a link by its alias and returns a pointer to the object.
+// If there are multiple links with the alias it returns the first one
+func (h *Handle) LinkByAlias(alias string) (Link, error) {
+	if h.lookupByDump {
+		return h.linkByAliasDump(alias)
 	}
 
-	req := nl.NewNetlinkRequest(syscall.RTM_GETLINK, syscall.NLM_F_ACK)
+	req := h.newNetlinkRequest(syscall.RTM_GETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	req.AddData(msg)
@@ -688,8 +859,8 @@ func LinkByAlias(alias string) (Link, error) {
 	if err == syscall.EINVAL {
 		// older kernels don't support looking up via IFLA_IFALIAS
 		// so fall back to dumping all links
-		lookupByDump = true
-		return linkByAliasDump(alias)
+		h.lookupByDump = true
+		return h.linkByAliasDump(alias)
 	}
 
 	return link, err
@@ -697,7 +868,12 @@ func LinkByAlias(alias string) (Link, error) {
 
 // LinkByIndex finds a link by index and returns a pointer to the object.
 func LinkByIndex(index int) (Link, error) {
-	req := nl.NewNetlinkRequest(syscall.RTM_GETLINK, syscall.NLM_F_ACK)
+	return pkgHandle.LinkByIndex(index)
+}
+
+// LinkByIndex finds a link by index and returns a pointer to the object.
+func (h *Handle) LinkByIndex(index int) (Link, error) {
+	req := h.newNetlinkRequest(syscall.RTM_GETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	msg.Index = int32(index)
@@ -740,6 +916,9 @@ func linkDeserialize(m []byte) (Link, error) {
 	}
 
 	base := LinkAttrs{Index: int(msg.Index), Flags: linkFlags(msg.Flags)}
+	if msg.Flags&syscall.IFF_PROMISC != 0 {
+		base.Promisc = 1
+	}
 	var link Link
 	linkType := ""
 	for _, attr := range attrs {
@@ -824,6 +1003,8 @@ func linkDeserialize(m []byte) (Link, error) {
 			base.TxQLen = int(native.Uint32(attr.Value[0:4]))
 		case syscall.IFLA_IFALIAS:
 			base.Alias = string(attr.Value[:len(attr.Value)-1])
+		case syscall.IFLA_STATS:
+			base.Statistics = parseLinkStats(attr.Value[:])
 		}
 	}
 	// Links that don't have IFLA_INFO_KIND are hardware devices
@@ -838,9 +1019,15 @@ func linkDeserialize(m []byte) (Link, error) {
 // LinkList gets a list of link devices.
 // Equivalent to: `ip link show`
 func LinkList() ([]Link, error) {
+	return pkgHandle.LinkList()
+}
+
+// LinkList gets a list of link devices.
+// Equivalent to: `ip link show`
+func (h *Handle) LinkList() ([]Link, error) {
 	// NOTE(vish): This duplicates functionality in net/iface_linux.go, but we need
 	//             to get the message ourselves to parse link type.
-	req := nl.NewNetlinkRequest(syscall.RTM_GETLINK, syscall.NLM_F_DUMP)
+	req := h.newNetlinkRequest(syscall.RTM_GETLINK, syscall.NLM_F_DUMP)
 
 	msg := nl.NewIfInfomsg(syscall.AF_UNSPEC)
 	req.AddData(msg)
@@ -872,7 +1059,17 @@ type LinkUpdate struct {
 // LinkSubscribe takes a chan down which notifications will be sent
 // when links change.  Close the 'done' chan to stop subscription.
 func LinkSubscribe(ch chan<- LinkUpdate, done <-chan struct{}) error {
-	s, err := nl.Subscribe(syscall.NETLINK_ROUTE, syscall.RTNLGRP_LINK)
+	return linkSubscribe(netns.None(), netns.None(), ch, done)
+}
+
+// LinkSubscribeAt works like LinkSubscribe plus it allows the caller
+// to choose the network namespace in which to subscribe (ns).
+func LinkSubscribeAt(ns netns.NsHandle, ch chan<- LinkUpdate, done <-chan struct{}) error {
+	return linkSubscribe(ns, netns.None(), ch, done)
+}
+
+func linkSubscribe(newNs, curNs netns.NsHandle, ch chan<- LinkUpdate, done <-chan struct{}) error {
+	s, err := nl.SubscribeAt(newNs, curNs, syscall.NETLINK_ROUTE, syscall.RTNLGRP_LINK)
 	if err != nil {
 		return err
 	}
@@ -904,33 +1101,57 @@ func LinkSubscribe(ch chan<- LinkUpdate, done <-chan struct{}) error {
 }
 
 func LinkSetHairpin(link Link, mode bool) error {
-	return setProtinfoAttr(link, mode, nl.IFLA_BRPORT_MODE)
+	return pkgHandle.LinkSetHairpin(link, mode)
+}
+
+func (h *Handle) LinkSetHairpin(link Link, mode bool) error {
+	return h.setProtinfoAttr(link, mode, nl.IFLA_BRPORT_MODE)
 }
 
 func LinkSetGuard(link Link, mode bool) error {
-	return setProtinfoAttr(link, mode, nl.IFLA_BRPORT_GUARD)
+	return pkgHandle.LinkSetGuard(link, mode)
+}
+
+func (h *Handle) LinkSetGuard(link Link, mode bool) error {
+	return h.setProtinfoAttr(link, mode, nl.IFLA_BRPORT_GUARD)
 }
 
 func LinkSetFastLeave(link Link, mode bool) error {
-	return setProtinfoAttr(link, mode, nl.IFLA_BRPORT_FAST_LEAVE)
+	return pkgHandle.LinkSetFastLeave(link, mode)
+}
+
+func (h *Handle) LinkSetFastLeave(link Link, mode bool) error {
+	return h.setProtinfoAttr(link, mode, nl.IFLA_BRPORT_FAST_LEAVE)
 }
 
 func LinkSetLearning(link Link, mode bool) error {
-	return setProtinfoAttr(link, mode, nl.IFLA_BRPORT_LEARNING)
+	return pkgHandle.LinkSetLearning(link, mode)
+}
+
+func (h *Handle) LinkSetLearning(link Link, mode bool) error {
+	return h.setProtinfoAttr(link, mode, nl.IFLA_BRPORT_LEARNING)
 }
 
 func LinkSetRootBlock(link Link, mode bool) error {
-	return setProtinfoAttr(link, mode, nl.IFLA_BRPORT_PROTECT)
+	return pkgHandle.LinkSetRootBlock(link, mode)
+}
+
+func (h *Handle) LinkSetRootBlock(link Link, mode bool) error {
+	return h.setProtinfoAttr(link, mode, nl.IFLA_BRPORT_PROTECT)
 }
 
 func LinkSetFlood(link Link, mode bool) error {
-	return setProtinfoAttr(link, mode, nl.IFLA_BRPORT_UNICAST_FLOOD)
+	return pkgHandle.LinkSetFlood(link, mode)
 }
 
-func setProtinfoAttr(link Link, mode bool, attr int) error {
+func (h *Handle) LinkSetFlood(link Link, mode bool) error {
+	return h.setProtinfoAttr(link, mode, nl.IFLA_BRPORT_UNICAST_FLOOD)
+}
+
+func (h *Handle) setProtinfoAttr(link Link, mode bool, attr int) error {
 	base := link.Attrs()
-	ensureIndex(base)
-	req := nl.NewNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
+	h.ensureIndex(base)
+	req := h.newNetlinkRequest(syscall.RTM_SETLINK, syscall.NLM_F_ACK)
 
 	msg := nl.NewIfInfomsg(syscall.AF_BRIDGE)
 	msg.Index = int32(base.Index)
@@ -989,14 +1210,14 @@ func parseVxlanData(link Link, data []syscall.NetlinkRouteAttr) {
 		case nl.IFLA_VXLAN_UDP_CSUM:
 			vxlan.UDPCSum = int8(datum.Value[0]) != 0
 		case nl.IFLA_VXLAN_GBP:
-			vxlan.GBP = int8(datum.Value[0]) != 0
+			vxlan.GBP = true
 		case nl.IFLA_VXLAN_AGEING:
 			vxlan.Age = int(native.Uint32(datum.Value[0:4]))
 			vxlan.NoAge = vxlan.Age == 0
 		case nl.IFLA_VXLAN_LIMIT:
 			vxlan.Limit = int(native.Uint32(datum.Value[0:4]))
 		case nl.IFLA_VXLAN_PORT:
-			vxlan.Port = int(native.Uint16(datum.Value[0:2]))
+			vxlan.Port = int(ntohs(datum.Value[0:2]))
 		case nl.IFLA_VXLAN_PORT_RANGE:
 			buf := bytes.NewBuffer(datum.Value[0:4])
 			var pr vxlanPortRange
@@ -1210,4 +1431,8 @@ func parseGretapData(link Link, data []syscall.NetlinkRouteAttr) {
 			gre.EncapFlags = native.Uint16(datum.Value[0:2])
 		}
 	}
+}
+
+func parseLinkStats(data []byte) *LinkStatistics {
+	return (*LinkStatistics)(unsafe.Pointer(&data[0:SizeofLinkStats][0]))
 }

@@ -1,7 +1,9 @@
 package bgp
 
 import (
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -45,18 +47,6 @@ func validateConfig(conf *config.BalancerConfig) error {
 func (bs *BgpService) Serve() {
 	go bs.bgp.Serve()
 
-	// // global configuration
-	// req := gobgp.NewGrpcRequest(gobgp.REQ_START_SERVER, "", bgp.RouteFamily(0), &gobgp_api.StartServerRequest{
-	// 	Global: &gobgp_api.Global{
-	// 		As:       bs.config.Bgp.As,
-	// 		RouterId: bs.config.Bgp.RouterId,
-	// 	},
-	// })
-	// bs.bgp.GrpcReqCh <- req
-	// res := <-req.ResponseCh
-	// if err := res.Err(); err != nil {
-	// 	log.Fatal(err)
-	// }
 	// global configuration
 	global := &bgp_config.Global{
 		Config: bgp_config.GlobalConfig{
@@ -76,23 +66,6 @@ func (bs *BgpService) Serve() {
 
 func (bs *BgpService) addNeighbor(nb config.Neighbor) {
 	// neighbor configuration
-	// req := gobgp.NewGrpcRequest(gobgp.REQ_GRPC_ADD_NEIGHBOR, "", bgp.RouteFamily(0), &gobgp_api.AddNeighborRequest{
-	// 	Peer: &gobgp_api.Peer{
-	// 		Conf: &gobgp_api.PeerConf{
-	// 			NeighborAddress: n.Address,
-	// 			PeerAs:          n.PeerAs,
-	// 		},
-	// 		Transport: &gobgp_api.Transport{
-	// 			LocalAddress: transportAddress,
-	// 		},
-	// 	},
-	// })
-	// bs.bgp.GrpcReqCh <- req
-	// res := <-req.ResponseCh
-	// if err := res.Err(); err != nil {
-	// 	log.Fatal("Adding BGP Neighbor failed", err)
-	// }
-	// neighbor configuration
 	n := &bgp_config.Neighbor{
 		Config: bgp_config.NeighborConfig{
 			NeighborAddress: nb.Address,
@@ -105,37 +78,43 @@ func (bs *BgpService) addNeighbor(nb config.Neighbor) {
 	}
 }
 
-func (bs *BgpService) AddPath(route string) {
-	// add routes
-	// path, _ := cmd.ParsePath(bgp.RF_IPv4_UC, []string{route})
-	// req := gobgp.NewGrpcRequest(gobgp.REQ_ADD_PATH, "", bgp.RouteFamily(0), &gobgp_api.AddPathRequest{
-	// 	Resource: gobgp_api.Resource_GLOBAL,
-	// 	Path:     path,
-	// })
-	// bs.bgp.GrpcReqCh <- req
-	// res := <-req.ResponseCh
-	// if err := res.Err(); err != nil {
-	// 	log.Fatal(err)
-	// }
+func (bs *BgpService) AddPath(route string) error {
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeNextHop("0.0.0.0"),
 	}
+
 	if _, err := bs.bgp.AddPath("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(32, route), false, attrs, time.Now(), false)}); err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("Error adding bgp path. %v", err)
 	}
+
+	return nil
 }
 
-func (bs *BgpService) delPath(route string) {
-	// del routes
-	// path, _ := cmd.ParsePath(bgp.RF_IPv4_UC, []string{route})
-	// req := gobgp.NewGrpcRequest(gobgp.REQ_DELETE_PATH, "", bgp.RouteFamily(0), &gobgp_api.DeletePathRequest{
-	// 	Resource: gobgp_api.Resource_GLOBAL,
-	// 	Path:     path,
-	// })
-	// bs.bgp.GrpcReqCh <- req
-	// res := <-req.ResponseCh
-	// if err := res.Err(); err != nil {
-	// 	log.Fatal(err)
-	// }
+func (bs *BgpService) GetPaths() ([]string, error) {
+	paths := []string{}
+
+	var lookupPrefix []*gobgp.LookupPrefix
+	_, dsts, err := bs.bgp.GetRib("", bgp.RF_IPv4_UC, lookupPrefix)
+	if err != nil {
+		return paths, fmt.Errorf("error getting bgp paths. %v", err)
+	}
+
+	for k := range dsts {
+		paths = append(paths, strings.TrimSuffix(k, "/32"))
+	}
+
+	return paths, nil
+}
+
+func (bs *BgpService) DelPath(route string) error {
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeNextHop("0.0.0.0"),
+	}
+
+	if err := bs.bgp.DeletePath([]byte{}, bgp.RF_IPv4_UC, "", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(32, route), true, attrs, time.Now(), false)}); err != nil {
+		return fmt.Errorf("Error deleting bgp path. %v", err)
+	}
+
+	return nil
 }

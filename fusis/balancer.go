@@ -262,10 +262,6 @@ func (b *Balancer) handleStateChange() error {
 		return err
 	}
 
-	fmt.Println("sending router")
-	b.bgpService.AddPath("10.0.0.23")
-	fmt.Println("route sent")
-
 	return nil
 }
 

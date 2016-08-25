@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/asaskevich/govalidator"
+	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
 	bgp_config "github.com/osrg/gobgp/config"
@@ -16,12 +18,67 @@ import (
 )
 
 type BgpService struct {
+	sync.Mutex
 	bgp    *gobgp.BgpServer
 	config *config.BalancerConfig
 }
 
 type Syncer interface {
 	Sync(state state.State) error
+}
+
+func (bs *BgpService) Sync(s state.State) error {
+	bs.Lock()
+	defer bs.Unlock()
+
+	stateSet := bs.getStateBgpPaths(s)
+	currentSet, err := bs.getCurrentBgpPaths(s)
+	if err != nil {
+		return err
+	}
+
+	pathsToAdd := stateSet.Difference(currentSet)
+	pathsToRemove := currentSet.Difference(stateSet)
+
+	for p := range pathsToAdd.Iter() {
+		err := bs.AddPath(p.(string))
+		if err != nil {
+			return err
+		}
+	}
+
+	for p := range pathsToRemove.Iter() {
+		err := bs.DelPath(p.(string))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (bs *BgpService) getStateBgpPaths(s state.State) mapset.Set {
+	paths := mapset.NewSet()
+
+	for _, v := range s.GetServices() {
+		paths.Add(v.Host)
+	}
+
+	return paths
+}
+
+func (bs *BgpService) getCurrentBgpPaths(s state.State) (mapset.Set, error) {
+	paths, err := bs.GetPaths()
+	if err != nil {
+		return nil, err
+	}
+
+	currPaths := mapset.NewSet()
+	for _, v := range paths {
+		currPaths.Add(v)
+	}
+
+	return currPaths, nil
 }
 
 func NewBgpService(conf *config.BalancerConfig) (*BgpService, error) {

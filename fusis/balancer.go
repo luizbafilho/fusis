@@ -49,7 +49,7 @@ type Balancer struct {
 	config        *config.BalancerConfig
 	ipvsMngr      ipvs.Syncer
 	iptablesMngr  iptables.Syncer
-	bgpService    *bgp.BgpService
+	bgpMngr       bgp.Syncer
 
 	state      *state.State
 	provider   provider.Provider
@@ -74,12 +74,6 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
-	bgpService, err := bgp.NewBgpService(config)
-	if err != nil {
-		return nil, err
-	}
-	go bgpService.Serve()
-
 	iptablesMngr, err := iptables.New(config)
 
 	balancer := &Balancer{
@@ -87,9 +81,19 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		state:        state,
 		ipvsMngr:     ipvsMngr,
 		iptablesMngr: iptablesMngr,
-		bgpService:   bgpService,
 		provider:     provider,
 		config:       config,
+	}
+
+	if balancer.isAnycast() {
+		bgpMngr, err := bgp.NewBgpService(config)
+		if err != nil {
+			return nil, err
+		}
+
+		balancer.bgpMngr = bgpMngr
+
+		go bgpMngr.Serve()
 	}
 
 	if err = balancer.setupRaft(); err != nil {
@@ -100,10 +104,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, fmt.Errorf("error setting up Serf: %v", err)
 	}
 
-	// if config.Mode == fusis.ANYCAST {
-	// }
-
-	// Flushing all VIPs on the network interface
+	// Cleanup all VIPs on the network interface
 	if err := fusis_net.DelVips(balancer.config.Provider.Params["interface"]); err != nil {
 		return nil, fmt.Errorf("error cleaning up network vips: %v", err)
 	}
@@ -250,16 +251,27 @@ func (b *Balancer) watchState() {
 }
 
 func (b *Balancer) handleStateChange() error {
-	if b.IsLeader() {
-		b.provider.Sync(*b.state)
-	}
-
 	if err := b.ipvsMngr.Sync(*b.state); err != nil {
 		return err
 	}
 
 	if err := b.iptablesMngr.Sync(*b.state); err != nil {
 		return err
+	}
+
+	if b.isAnycast() {
+		if err := b.bgpMngr.Sync(*b.state); err != nil {
+			return err
+		}
+
+		if err := b.provider.Sync(*b.state); err != nil {
+			return err
+		}
+
+	} else if b.IsLeader() {
+		if err := b.provider.Sync(*b.state); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -513,6 +525,10 @@ func (b *Balancer) handleAgentLeave(m serf.Member) {
 	}
 
 	b.DeleteDestination(dst)
+}
+
+func (b *Balancer) isAnycast() bool {
+	return b.config.ClusterMode == "anycast"
 }
 
 func (b *Balancer) collectStats() {

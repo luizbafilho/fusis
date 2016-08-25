@@ -50,15 +50,16 @@ type BalancerConfig struct {
 	PublicInterface  string
 	PrivateInterface string
 
-	Name       string
-	Bootstrap  bool
-	Join       []string
-	Provider   Provider
-	Stats      Stats
-	ConfigPath string
-	Ports      map[string]int
-	DevMode    bool
-	Bgp        Bgp
+	Name        string
+	Bootstrap   bool
+	Join        []string
+	Provider    Provider
+	Stats       Stats
+	ConfigPath  string
+	Ports       map[string]int
+	DevMode     bool
+	ClusterMode string `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
+	Bgp         Bgp
 }
 
 type AgentConfig struct {

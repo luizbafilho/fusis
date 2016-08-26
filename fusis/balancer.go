@@ -263,15 +263,12 @@ func (b *Balancer) handleStateChange() error {
 		if err := b.bgpMngr.Sync(*b.state); err != nil {
 			return err
 		}
+	} else if !b.IsLeader() {
+		return nil
+	}
 
-		if err := b.provider.Sync(*b.state); err != nil {
-			return err
-		}
-
-	} else if b.IsLeader() {
-		if err := b.provider.Sync(*b.state); err != nil {
-			return err
-		}
+	if err := b.provider.Sync(*b.state); err != nil {
+		return err
 	}
 
 	return nil

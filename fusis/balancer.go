@@ -296,14 +296,17 @@ func (b *Balancer) JoinPool() error {
 }
 
 func (b *Balancer) watchLeaderChanges() {
-	log.Infof("Watching to Leader changes")
+	if b.isAnycast() {
+		return
+	}
 
 	for {
 		isLeader := <-b.raft.LeaderCh()
 		b.Lock()
 		if isLeader {
-			b.flushVips()
-			b.setVips()
+			if err := b.provider.Sync(*b.state); err != nil {
+				log.Fatal("Could not sync Vips", err)
+			}
 		} else {
 			b.flushVips()
 		}

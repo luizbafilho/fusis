@@ -1,6 +1,7 @@
 package command
 
 import (
+	"fmt"
 	"os"
 
 	log "github.com/Sirupsen/logrus"
@@ -30,7 +31,7 @@ func NewBalancerCommand() *cobra.Command {
 		PreRun: func(cmd *cobra.Command, args []string) {
 			viper.Unmarshal(&conf)
 		},
-		RunE: balancerCommandFunc,
+		Run: balancerCommandFunc,
 	}
 
 	setupBalancerCmdFlags(cmd)
@@ -43,7 +44,7 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&conf.Name, "name", "n", hostname, "Node name (unique in the cluster)")
 	cmd.Flags().StringVarP(&conf.PublicInterface, "public-iface", "", "eth0", "Public network interface")
 	cmd.Flags().StringVarP(&conf.PrivateInterface, "private-iface", "", "eth0", "Private network interface")
-	cmd.Flags().StringVarP(&conf.ConfigPath, "config-path", "", "/etc/fusis", "Configuration directory")
+	cmd.Flags().StringVarP(&conf.DataPath, "config-path", "", "/etc/fusis", "Configuration directory")
 	cmd.Flags().BoolVar(&conf.Bootstrap, "bootstrap", false, "Starts balancer in boostrap mode")
 	cmd.Flags().BoolVar(&conf.DevMode, "dev", false, "Initialize balancer in dev mode")
 	cmd.Flags().StringVar(&conf.ClusterMode, "cluster-mode", "unicast", "Defines Cluster Mode to Unicast or Anycast")
@@ -55,10 +56,16 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	}
 }
 
-func balancerCommandFunc(cmd *cobra.Command, args []string) error {
+func balancerCommandFunc(cmd *cobra.Command, args []string) {
 	if err := net.SetIpForwarding(); err != nil {
 		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")
 		log.Fatal(err)
+	}
+
+	err := conf.Validate()
+	if err != nil {
+		fmt.Println("Error: Invalid configuration file.", err)
+		os.Exit(1)
 	}
 
 	balancer, err := fusis.NewBalancer(&conf)
@@ -74,6 +81,4 @@ func balancerCommandFunc(cmd *cobra.Command, args []string) error {
 	go apiService.Serve()
 
 	waitSignals(balancer)
-
-	return nil
 }

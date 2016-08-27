@@ -578,6 +578,12 @@
 			"revisionTime": "2016-02-16T01:41:29Z"
 		},
 		{
+			"checksumSHA1": "8BDz0TECuLmaDOLplhC9UH9D000=",
+			"path": "gopkg.in/go-playground/validator.v9",
+			"revision": "9ba3297c49e35d1ffa40c7ff6e7ef60c4b6ed359",
+			"revisionTime": "2016-08-23T20:10:39Z"
+		},
+		{
 			"checksumSHA1": "WiyCOMvfzRdymImAJ3ME6aoYUdM=",
 			"path": "gopkg.in/tomb.v2",
 			"revision": "14b3d72120e8d10ea6e6b7f87f7175734b1faab8",

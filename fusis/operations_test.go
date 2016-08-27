@@ -95,7 +95,7 @@ func defaultConfig() config.BalancerConfig {
 	return config.BalancerConfig{
 		PublicInterface: "eth0",
 		Name:            "Test",
-		ConfigPath:      dir,
+		DataPath:        dir,
 		Bootstrap:       true,
 		Ports: map[string]int{
 			"raft": getPort(),
@@ -113,7 +113,7 @@ func (s *FusisSuite) TestAddService(c *C) {
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -137,7 +137,7 @@ func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -174,7 +174,7 @@ func (s *FusisSuite) TestDeleteService(c *C) {
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -196,7 +196,7 @@ func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -245,7 +245,7 @@ func (s *FusisSuite) TestAddDestination(c *C) {
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -275,7 +275,7 @@ func (s *FusisSuite) TestDeleteDestination(c *C) {
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -304,7 +304,7 @@ func (s *FusisSuite) TestAddDeleteDestination(c *C) {
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -340,7 +340,7 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -393,7 +393,7 @@ func (s *FusisSuite) TestJoinPoolLeave(c *C) {
 	b, err := NewBalancer(&config)
 	c.Assert(err, IsNil)
 	defer b.Shutdown()
-	defer os.RemoveAll(config.ConfigPath)
+	defer os.RemoveAll(config.DataPath)
 
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
@@ -414,7 +414,7 @@ func (s *FusisSuite) TestJoinPoolLeave(c *C) {
 	s2, err := NewBalancer(&config2)
 	c.Assert(err, IsNil)
 	defer s2.Shutdown()
-	defer os.RemoveAll(config2.ConfigPath)
+	defer os.RemoveAll(config2.DataPath)
 
 	// Testing JoinPool
 	err = s2.JoinPool()

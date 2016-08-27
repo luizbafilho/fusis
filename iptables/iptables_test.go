@@ -105,7 +105,7 @@ func defaultConfig() *config.BalancerConfig {
 		PublicInterface:  "eth0",
 		PrivateInterface: "eth0",
 		Name:             "Test",
-		ConfigPath:       "/tmp/test",
+		DataPath:         "/tmp/test",
 		Bootstrap:        true,
 		Ipam: config.Ipam{
 			Ranges: []string{"192.168.0.0/28"},

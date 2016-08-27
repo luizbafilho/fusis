@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/asaskevich/govalidator"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
@@ -82,23 +81,10 @@ func (bs *BgpService) getCurrentBgpPaths(s state.State) (mapset.Set, error) {
 }
 
 func NewBgpService(conf *config.BalancerConfig) (*BgpService, error) {
-	err := validateConfig(conf)
-	if err != nil {
-		return nil, err
-	}
-
 	return &BgpService{
 		bgp:    gobgp.NewBgpServer(),
 		config: conf,
 	}, nil
-}
-
-func validateConfig(conf *config.BalancerConfig) error {
-	if _, err := govalidator.ValidateStruct(conf.Bgp); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (bs *BgpService) Serve() {

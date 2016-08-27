@@ -26,7 +26,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		PublicInterface:  "eth0",
 		PrivateInterface: "eth0",
 		Name:             "Test",
-		ConfigPath:       dir,
+		DataPath:         dir,
 		Bootstrap:        true,
 		Ports: map[string]int{
 			"raft": 20012,
@@ -80,7 +80,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		Port:      1040,
 		Protocol:  "tcp",
 		Scheduler: "rr",
-		Host:      "192.168.10.1",
+		Host:      "192.168.0.1",
 		Destinations: []types.Destination{
 			{
 				Name:      "myname1",
@@ -125,7 +125,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		Port:      1040,
 		Protocol:  "tcp",
 		Scheduler: "rr",
-		Host:      "192.168.10.1",
+		Host:      "192.168.0.1",
 		Destinations: []types.Destination{
 			{
 				Name:      "myname1",

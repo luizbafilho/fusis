@@ -73,7 +73,7 @@ func defaultConfig() config.BalancerConfig {
 	return config.BalancerConfig{
 		PublicInterface: "eth0",
 		Name:            "Test",
-		ConfigPath:      dir,
+		DataPath:        dir,
 		Bootstrap:       true,
 		Ports: map[string]int{
 			"raft": getPort(),

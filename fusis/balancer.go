@@ -179,7 +179,7 @@ func (b *Balancer) setupRaft() error {
 
 	raftConfig.ShutdownOnRemove = false
 	// Check for any existing peers.
-	peers, err := readPeersJSON(filepath.Join(b.config.ConfigPath, "peers.json"))
+	peers, err := readPeersJSON(filepath.Join(b.config.DataPath, "peers.json"))
 	if err != nil {
 		return err
 	}
@@ -218,12 +218,12 @@ func (b *Balancer) setupRaft() error {
 		b.raftPeers = &raft.StaticPeers{}
 	} else {
 		// Create peer storage.
-		peerStore := raft.NewJSONPeers(b.config.ConfigPath, transport)
+		peerStore := raft.NewJSONPeers(b.config.DataPath, transport)
 		b.raftPeers = peerStore
 
 		var snapshots *raft.FileSnapshotStore
 		// Create the snapshot store. This allows the Raft to truncate the log.
-		snapshots, err = raft.NewFileSnapshotStore(b.config.ConfigPath, retainSnapshotCount, os.Stderr)
+		snapshots, err = raft.NewFileSnapshotStore(b.config.DataPath, retainSnapshotCount, os.Stderr)
 		if err != nil {
 			return fmt.Errorf("file snapshot store: %s", err)
 		}
@@ -231,7 +231,7 @@ func (b *Balancer) setupRaft() error {
 
 		var logStore *raftboltdb.BoltStore
 		// Create the log store and stable store.
-		logStore, err = raftboltdb.NewBoltStore(filepath.Join(b.config.ConfigPath, "raft.db"))
+		logStore, err = raftboltdb.NewBoltStore(filepath.Join(b.config.DataPath, "raft.db"))
 		if err != nil {
 			return fmt.Errorf("new bolt store: %s", err)
 		}

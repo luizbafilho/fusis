@@ -46,6 +46,10 @@ type Neighbor struct {
 	PeerAs  uint32 `valid:"required" mapstructure:"peer-as"`
 }
 
+type Ipam struct {
+	Ranges []string
+}
+
 type BalancerConfig struct {
 	PublicInterface  string
 	PrivateInterface string
@@ -53,13 +57,13 @@ type BalancerConfig struct {
 	Name        string
 	Bootstrap   bool
 	Join        []string
-	Provider    Provider
 	Stats       Stats
 	ConfigPath  string
 	Ports       map[string]int
 	DevMode     bool
 	ClusterMode string `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
 	Bgp         Bgp
+	Ipam        Ipam
 }
 
 type AgentConfig struct {

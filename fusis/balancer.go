@@ -17,11 +17,12 @@ import (
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/iptables"
 	"github.com/luizbafilho/fusis/ipvs"
 	fusis_net "github.com/luizbafilho/fusis/net"
-	"github.com/luizbafilho/fusis/provider"
 	"github.com/luizbafilho/fusis/state"
+	"github.com/luizbafilho/fusis/vip"
 
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/raft"
@@ -50,20 +51,16 @@ type Balancer struct {
 	ipvsMngr      ipvs.Syncer
 	iptablesMngr  iptables.Syncer
 	bgpMngr       bgp.Syncer
+	vipMngr       vip.Syncer
+	ipam          ipam.Allocator
 
 	state      *state.State
-	provider   provider.Provider
 	shutdownCh chan bool
 }
 
 // NewBalancer initializes a new balancer
 //TODO: Graceful shutdown on initialization errors
 func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
-	provider, err := provider.New(config)
-	if err != nil {
-		return nil, err
-	}
-
 	state, err := state.New(config)
 	if err != nil {
 		return nil, err
@@ -74,15 +71,29 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
+	vipMngr, err := vip.New(config)
+	if err != nil {
+		return nil, err
+	}
+
 	iptablesMngr, err := iptables.New(config)
+	if err != nil {
+		return nil, err
+	}
+
+	ipam, err := ipam.New(state, config)
+	if err != nil {
+		return nil, err
+	}
 
 	balancer := &Balancer{
 		eventCh:      make(chan serf.Event, 64),
 		state:        state,
 		ipvsMngr:     ipvsMngr,
 		iptablesMngr: iptablesMngr,
-		provider:     provider,
+		vipMngr:      vipMngr,
 		config:       config,
+		ipam:         ipam,
 	}
 
 	if balancer.isAnycast() {
@@ -96,16 +107,18 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		go bgpMngr.Serve()
 	}
 
+	/* Setup Raft */
 	if err = balancer.setupRaft(); err != nil {
 		return nil, fmt.Errorf("error setting up Raft: %v", err)
 	}
 
+	/* Setup Serf */
 	if err = balancer.setupSerf(); err != nil {
 		return nil, fmt.Errorf("error setting up Serf: %v", err)
 	}
 
-	// Cleanup all VIPs on the network interface
-	if err := fusis_net.DelVips(balancer.config.Provider.Params["interface"]); err != nil {
+	/* Cleanup all VIPs on the network interface */
+	if err := fusis_net.DelVips(balancer.config.PublicInterface); err != nil {
 		return nil, fmt.Errorf("error cleaning up network vips: %v", err)
 	}
 
@@ -115,7 +128,6 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	return balancer, nil
 }
 
-// Start starts the balancer
 func (b *Balancer) setupSerf() error {
 	conf := serf.DefaultConfig()
 	conf.Init()
@@ -172,8 +184,8 @@ func (b *Balancer) setupRaft() error {
 		return err
 	}
 
-	// Allow the node to entry single-mode, potentially electing itself, if
-	// explicitly enabled and there is only 1 node in the cluster already.
+	/* Allow the node to entry single-mode, potentially electing itself, if
+	   explicitly enabled and there is only 1 node in the cluster already. */
 	if b.config.Bootstrap && len(peers) <= 1 {
 		log.Infof("enabling single-node mode")
 		raftConfig.EnableSingleNode = true
@@ -185,7 +197,7 @@ func (b *Balancer) setupRaft() error {
 		return err
 	}
 
-	// Setup Raft communication.
+	/* Setup Raft communication. */
 	raftAddr := &net.TCPAddr{IP: net.ParseIP(ip), Port: b.config.Ports["raft"]}
 	transport, err := raft.NewTCPTransport(raftAddr.String(), raftAddr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
@@ -228,7 +240,7 @@ func (b *Balancer) setupRaft() error {
 		stable = logStore
 	}
 
-	// Instantiate the Raft systems.
+	/* Instantiate the Raft systems. */
 	ra, err := raft.NewRaft(raftConfig, b.state, log, stable, snap, b.raftPeers, transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
@@ -267,7 +279,7 @@ func (b *Balancer) handleStateChange() error {
 		return nil
 	}
 
-	if err := b.provider.Sync(*b.state); err != nil {
+	if err := b.vipMngr.Sync(*b.state); err != nil {
 		return err
 	}
 
@@ -304,7 +316,7 @@ func (b *Balancer) watchLeaderChanges() {
 		isLeader := <-b.raft.LeaderCh()
 		b.Lock()
 		if isLeader {
-			if err := b.provider.Sync(*b.state); err != nil {
+			if err := b.vipMngr.Sync(*b.state); err != nil {
 				log.Fatal("Could not sync Vips", err)
 			}
 		} else {
@@ -335,16 +347,16 @@ func (b *Balancer) handleEvents() {
 	}
 }
 
-func (b *Balancer) setVips() {
-	// err := b.provider.SyncVIPs(b.state.Store)
-	// if err != nil {
-	// 	//TODO: Remove balancer from cluster when error occurs
-	// 	log.Error(err)
-	// }
-}
+// func (b *Balancer) setVips() {
+// 	// err := b.vipMngr.SyncVIPs(b.state.Store)
+// 	// if err != nil {
+// 	// 	//TODO: Remove balancer from cluster when error occurs
+// 	// 	log.Error(err)
+// 	// }
+// }
 
 func (b *Balancer) flushVips() {
-	if err := fusis_net.DelVips(b.config.Provider.Params["interface"]); err != nil {
+	if err := fusis_net.DelVips(b.config.PublicInterface); err != nil {
 		//TODO: Remove balancer from cluster when error occurs
 		log.Error(err)
 	}

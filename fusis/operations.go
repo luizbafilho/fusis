@@ -35,7 +35,7 @@ func (b *Balancer) AddService(svc *types.Service) error {
 		return err
 	}
 
-	if err = b.provider.AllocateVIP(svc, b.state); err != nil {
+	if err = b.ipam.AllocateVIP(svc); err != nil {
 		return err
 	}
 
@@ -45,7 +45,7 @@ func (b *Balancer) AddService(svc *types.Service) error {
 	}
 
 	if err = b.ApplyToRaft(c); err != nil {
-		if e := b.provider.ReleaseVIP(*svc); e != nil {
+		if e := b.ipam.ReleaseVIP(*svc); e != nil {
 			return e
 		}
 		return err

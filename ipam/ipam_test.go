@@ -1,10 +1,11 @@
-package provider_test
+package ipam_test
 
 import (
 	"testing"
 
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/provider"
+	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/state"
 
 	. "gopkg.in/check.v1"
@@ -13,19 +14,25 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type IpamSuite struct {
-	state *state.FusisStore
-	ipam  *provider.Ipam
+	state *state.State
+	ipam  ipam.Allocator
 }
 
 var _ = Suite(&IpamSuite{})
 
 func (s *IpamSuite) SetUpSuite(c *C) {
-	s.state = state.NewFusisStore()
+	var err error
+	config := &config.BalancerConfig{
+		Ipam: config.Ipam{
+			Ranges: []string{"192.168.0.0/28"},
+		},
+	}
 
-	ipam, err := provider.NewIpam("192.168.0.0/28")
+	s.state, err = state.New(config)
 	c.Assert(err, IsNil)
 
-	s.ipam = ipam
+	s.ipam, err = ipam.New(s.state, config)
+	c.Assert(err, IsNil)
 }
 
 func (s *IpamSuite) TearDownSuite(c *C) {
@@ -38,9 +45,9 @@ func (s *IpamSuite) TestIpAllocation(c *C) {
 	}
 	s.state.AddService(service)
 
-	ip, err := s.ipam.Allocate(s.state)
+	err := s.ipam.AllocateVIP(service)
 	c.Assert(err, IsNil)
-	c.Assert(ip, Equals, "192.168.0.1")
+	c.Assert(service.Host, Equals, "192.168.0.1")
 
 	service = &types.Service{
 		Name: "test2",
@@ -48,7 +55,7 @@ func (s *IpamSuite) TestIpAllocation(c *C) {
 	}
 	s.state.AddService(service)
 
-	ip, err = s.ipam.Allocate(s.state)
+	err = s.ipam.AllocateVIP(service)
 	c.Assert(err, IsNil)
-	c.Assert(ip, Equals, "192.168.0.3")
+	c.Assert(service.Host, Equals, "192.168.0.3")
 }

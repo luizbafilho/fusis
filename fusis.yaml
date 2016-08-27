@@ -1,10 +1,8 @@
 ---
 mode: "anycast"
-provider:
-  type: "none"
-  params:
-    interface: "eth0"
-    vip-range: "192.168.0.0/28"
+ipam:
+  ranges:
+    - "192.168.0.0/28"
 ports:
   raft: 4382
   serf: 7946

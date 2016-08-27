@@ -79,12 +79,8 @@ func defaultConfig() config.BalancerConfig {
 			"raft": getPort(),
 			"serf": getPort(),
 		},
-		Provider: config.Provider{
-			Type: "none",
-			Params: map[string]string{
-				"interface": "eth0",
-				"vip-range": "192.168.0.0/28",
-			},
+		Ipam: config.Ipam{
+			Ranges: []string{"192.168.0.0/28"},
 		},
 	}
 }

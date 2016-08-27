@@ -32,12 +32,8 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 			"raft": 20012,
 			"serf": 20013,
 		},
-		Provider: config.Provider{
-			Type: "none",
-			Params: map[string]string{
-				"interface": "eth0",
-				"vip-range": "192.168.10.0/24",
-			},
+		Ipam: config.Ipam{
+			Ranges: []string{"192.168.0.0/28"},
 		},
 	}
 	balancer, err := fusis.NewBalancer(&conf)

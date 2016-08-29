@@ -332,6 +332,18 @@
 			"revisionTime": "2016-08-07T22:01:42Z"
 		},
 		{
+			"checksumSHA1": "iUapa0w3JTUeJ3c5cR8jkAYk/pg=",
+			"path": "github.com/mdlayher/ethernet",
+			"revision": "28018267bba4d651e8e0fcbca8aae7c13f4ce4ae",
+			"revisionTime": "2015-08-27T22:29:03Z"
+		},
+		{
+			"checksumSHA1": "y+gDOCfiB5JRCF0Ei14UJ4vSxeQ=",
+			"path": "github.com/mdlayher/raw",
+			"revision": "b730b008e228b7a17bead43ec95edff75c2b082a",
+			"revisionTime": "2016-06-16T22:32:08Z"
+		},
+		{
 			"checksumSHA1": "vPVP92tVXlIUXXNAHSUsO9S8oyo=",
 			"path": "github.com/mikioh/ipaddr",
 			"revision": "3257bff21d87ec20c463800cd50847690c7fd053",

@@ -326,6 +326,12 @@
 			"revisionTime": "2016-01-26T18:01:36Z"
 		},
 		{
+			"checksumSHA1": "lJetLsOX0Tc2+7mcNYX54K6B/5Y=",
+			"path": "github.com/mdlayher/arp",
+			"revision": "eb9b2d30bd83227a2bad3ce2d9f712ed45115451",
+			"revisionTime": "2016-08-07T22:01:42Z"
+		},
+		{
 			"checksumSHA1": "vPVP92tVXlIUXXNAHSUsO9S8oyo=",
 			"path": "github.com/mikioh/ipaddr",
 			"revision": "3257bff21d87ec20c463800cd50847690c7fd053",

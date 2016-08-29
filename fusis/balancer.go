@@ -314,16 +314,29 @@ func (b *Balancer) watchLeaderChanges() {
 
 	for {
 		isLeader := <-b.raft.LeaderCh()
-		b.Lock()
 		if isLeader {
 			if err := b.vipMngr.Sync(*b.state); err != nil {
 				log.Fatal("Could not sync Vips", err)
 			}
+
+			if err := b.sendGratuitousARPReply(); err != nil {
+				log.Errorf("error sending Gratuitous ARP Reply")
+			}
+
 		} else {
 			b.flushVips()
 		}
-		b.Unlock()
 	}
+}
+
+func (b *Balancer) sendGratuitousARPReply() error {
+	for _, s := range b.GetServices() {
+		if err := fusis_net.SendGratuitousARPReply(s.Host, b.config.PublicInterface); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (b *Balancer) handleEvents() {

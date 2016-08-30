@@ -77,5 +77,19 @@ func (s *IpamSuite) TestIpAllocationMultiplesRanges(c *C) {
 	err := s.ipam.AllocateVIP(service)
 	c.Assert(err, IsNil)
 	c.Assert(service.Host, Equals, "192.168.0.1")
+}
+
+func (s *IpamSuite) TestCursorValidation(c *C) {
+	config := &config.BalancerConfig{}
+
+	i, err := ipam.New(s.state, config)
+	c.Assert(err, IsNil)
+
+	service := &types.Service{
+		Name: "test",
+	}
+
+	err = i.AllocateVIP(service)
+	c.Assert(err, Equals, ipam.ErrNoVipAvailable)
 
 }

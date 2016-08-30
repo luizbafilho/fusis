@@ -2,6 +2,7 @@ package ipam
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
@@ -26,7 +27,7 @@ var (
 
 //Init initilizes ipam module
 func New(state *state.State, config *config.BalancerConfig) (Allocator, error) {
-	rangeCursor, err := ipaddr.Parse(config.Ipam.Ranges[0])
+	rangeCursor, err := ipaddr.Parse(strings.Join(config.Ipam.Ranges, ","))
 	if err != nil {
 		return nil, err
 	}
@@ -37,6 +38,12 @@ func New(state *state.State, config *config.BalancerConfig) (Allocator, error) {
 //Allocate allocates a new avaliable ip
 func (i *Ipam) AllocateVIP(s *types.Service) error {
 	for pos := i.rangeCursor.Next(); pos != nil; pos = i.rangeCursor.Next() {
+		//TODO: make it compatible if IPv6
+		// Verifies if it is a base IP address. example: 10.0.100.0; 192.168.1.0
+		if pos.IP.To4()[3] == 0 {
+			pos = i.rangeCursor.Next()
+		}
+
 		assigned := i.ipIsAssigned(pos.IP.String(), i.state)
 
 		if !assigned {

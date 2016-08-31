@@ -1,0 +1,28 @@
+# Sample Fusis configuration file
+
+# name = "example"
+#
+# public-interface = "eth0"
+# private-interface = "eth1"
+# cluster-mode = "anycast"
+#
+# join = ["10.0.0.2", "186.23.22.1"]
+# data-path = "/etc/fusis"
+
+[ipam]
+ranges = ["192.168.0.0/28"]
+
+[ports]
+raft = 4382
+serf = 7946
+api = 8000
+
+[bgp]
+as = 100
+router-id = "192.168.151.182"
+
+  [[bgp.neighbors]]
+  address = "192.168.151.178"
+  peer-as = 100
+
+

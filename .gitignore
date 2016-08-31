@@ -5,4 +5,4 @@ coverage*
 *.db
 tags
 net/net
-fusis.json
+fusis.toml

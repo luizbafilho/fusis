@@ -46,7 +46,7 @@ func initConfig() {
 	}
 
 	viper.SetConfigName("fusis") // name of config file (without extension)
-	viper.SetConfigType("yaml")
+	viper.SetConfigType("toml")
 	viper.AddConfigPath("$HOME/.fusis")
 	viper.AddConfigPath(".") // adding home directory as first search path
 	viper.AutomaticEnv()     // read in environment variables that match
@@ -54,7 +54,10 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("======> Using config file:", viper.ConfigFileUsed())
+	} else {
+		log.Fatal("error reading config file", err)
 	}
+
 }
 
 type Node interface {

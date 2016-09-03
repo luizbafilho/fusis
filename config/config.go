@@ -39,7 +39,7 @@ type BalancerConfig struct {
 	ClusterMode string `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
 	Bgp         Bgp
 	Ipam        Ipam
-	Stats       Stats
+	Metrics     Metrics
 }
 
 type AgentConfig struct {
@@ -69,10 +69,11 @@ type Ipam struct {
 	Ranges []string `validate:"dive,cidrv4"`
 }
 
-type Stats struct {
-	Type     string
-	Interval uint16
-	Params   map[string]string
+type Metrics struct {
+	Publisher string
+	Interval  uint16
+	Params    map[string]interface{}
+	Extras    map[string]string
 }
 
 type Ports struct {

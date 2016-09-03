@@ -79,6 +79,12 @@
 			"revisionTime": "2016-08-05T00:47:13Z"
 		},
 		{
+			"checksumSHA1": "vg41Q7MPlkYzwJR4d5IxpfyhfLU=",
+			"path": "github.com/fatih/structs",
+			"revision": "73c4e3dc02a78deaba8640d5f3a8c236ec1352bf",
+			"revisionTime": "2016-03-17T09:28:53Z"
+		},
+		{
 			"checksumSHA1": "bCpjl/Rc/xPTtW4U0F7f/X+4ahk=",
 			"path": "github.com/gin-gonic/gin",
 			"revision": "3d002e382355cafc15d706b92899b1961d5b79e9",

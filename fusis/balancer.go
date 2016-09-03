@@ -20,6 +20,7 @@ import (
 	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/iptables"
 	"github.com/luizbafilho/fusis/ipvs"
+	"github.com/luizbafilho/fusis/metrics"
 	fusis_net "github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/vip"
@@ -53,6 +54,7 @@ type Balancer struct {
 	bgpMngr       bgp.Syncer
 	vipMngr       vip.Syncer
 	ipam          ipam.Allocator
+	metrics       metrics.Collector
 
 	state      *state.State
 	shutdownCh chan bool
@@ -86,6 +88,8 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
+	metrics := metrics.NewMetrics(state, config)
+
 	balancer := &Balancer{
 		eventCh:      make(chan serf.Event, 64),
 		state:        state,
@@ -94,6 +98,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		vipMngr:      vipMngr,
 		config:       config,
 		ipam:         ipam,
+		metrics:      metrics,
 	}
 
 	if balancer.isAnycast() {
@@ -124,6 +129,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 
 	go balancer.watchLeaderChanges()
 	go balancer.watchState()
+	go metrics.Monitor()
 
 	return balancer, nil
 }

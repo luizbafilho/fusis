@@ -4,13 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
-	"log/syslog"
 	"sync"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/Sirupsen/logrus/hooks/syslog"
-	"github.com/bshuster-repo/logrus-logstash-hook"
 	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
@@ -50,57 +46,10 @@ func (c Command) String() string {
 
 // New creates a new Engine
 func New(config *config.BalancerConfig) (*State, error) {
-
-	// statsLogger := NewStatsLogger(config)
-
 	return &State{
 		Store:     NewFusisStore(),
 		changesCh: make(chan chan error),
-		// store:   fstate,
-		// StatsLogger: statsLogger,
 	}, nil
-}
-
-func NewStatsLogger(config *config.BalancerConfig) *logrus.Logger {
-	logger := logrus.New()
-
-	if config.Stats.Type == "" {
-		return nil
-	}
-
-	switch config.Stats.Type {
-	case "logstash":
-		addLogstashLoggerHook(logger, config)
-	case "syslog":
-		addSyslogLoggerHook(logger, config)
-	default:
-		log.Fatal("Unknown stats logger. Please configure properly logstash or syslog.")
-	}
-
-	return logger
-}
-
-func addSyslogLoggerHook(logger *logrus.Logger, config *config.BalancerConfig) {
-
-	protocol := config.Stats.Params["protocol"]
-	address := config.Stats.Params["address"]
-
-	hook, err := logrus_syslog.NewSyslogHook(protocol, address, syslog.LOG_INFO, "")
-	if err != nil {
-		log.Fatalf("Unable to connect to local syslog daemon. Err: %v", err)
-	}
-
-	logger.Hooks.Add(hook)
-}
-
-func addLogstashLoggerHook(logger *logrus.Logger, config *config.BalancerConfig) {
-	url := fmt.Sprintf("%s:%v", config.Stats.Params["host"], config.Stats.Params["port"])
-	hook, err := logrus_logstash.NewHook(config.Stats.Params["protocol"], url, "Fusis")
-	if err != nil {
-		log.Fatalf("unable to connect to logstash. Err: %v", err)
-	}
-
-	logger.Hooks.Add(hook)
 }
 
 func (s *State) ChangesCh() chan chan error {
@@ -164,27 +113,6 @@ func (s *State) Restore(rc io.ReadCloser) error {
 	return <-rsp
 }
 
-// func (s *State) CollectStats(tick time.Time) {
-// 	e.StatsLogger.Info("logging stats")
-// 	for _, s := range s.GetServices() {
-// 		srv := s.syncService(&s)
-//
-// 		hosts := []string{}
-// 		for _, dst := range srv.Destinations {
-// 			hosts = append(hosts, dst.Host)
-// 		}
-//
-// 		e.StatsLogger.WithFields(logrus.Fields{
-// 			"time":     tick,
-// 			"service":  s.Name,
-// 			"Protocol": s.Protocol,
-// 			"Port":     s.Port,
-// 			"hosts":    strings.Join(hosts, ","),
-// 			"client":   "fusis",
-// 		}).Info("Fusis router stats")
-// 	}
-// }
-
 func (f *fusisSnapshot) Persist(sink raft.SnapshotSink) error {
 	logrus.Infoln("Persisting Fusis state")
 	err := func() error {
@@ -218,11 +146,3 @@ func (f *fusisSnapshot) Persist(sink raft.SnapshotSink) error {
 func (f *fusisSnapshot) Release() {
 	logrus.Info("Calling release")
 }
-
-// func (s *State) syncService(svc *types.Service) types.Service {
-// 	service, err := gipvs.GetService(ipvs.ToIpvsService(svc))
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	return ipvs.FromService(service)
-// }

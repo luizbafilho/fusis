@@ -78,13 +78,20 @@ func ToIpvsService(s *types.Service) *gipvs.Service {
 		destinations = append(destinations, toIpvsDestination(&dest))
 	}
 
-	return &gipvs.Service{
+	service := &gipvs.Service{
 		Address:      net.ParseIP(s.Host),
 		Port:         s.Port,
 		Protocol:     stringToIPProto(s.Protocol),
 		Scheduler:    s.Scheduler,
 		Destinations: destinations,
 	}
+
+	if s.Persistent > 0 {
+		service.Flags = gipvs.SFPersistent
+		service.Timeout = s.Persistent
+	}
+
+	return service
 }
 
 func toIpvsDestination(d *types.Destination) *gipvs.Destination {
@@ -93,31 +100,6 @@ func toIpvsDestination(d *types.Destination) *gipvs.Destination {
 		Port:    d.Port,
 		Weight:  d.Weight,
 		Flags:   stringToDestinationFlags(d.Mode),
-	}
-}
-
-func getServiceStats(s *gipvs.Service) *types.ServiceStats {
-
-	return &types.ServiceStats{
-		Connections: s.Statistics.Connections,
-		PacketsIn:   s.Statistics.PacketsIn,
-		PacketsOut:  s.Statistics.PacketsOut,
-		BytesIn:     s.Statistics.BytesIn,
-		BytesOut:    s.Statistics.BytesOut,
-		CPS:         s.Statistics.CPS,
-		PPSIn:       s.Statistics.PPSIn,
-		PPSOut:      s.Statistics.PPSOut,
-		BPSIn:       s.Statistics.BPSIn,
-		BPSOut:      s.Statistics.BPSOut,
-	}
-}
-
-func getDestinationStats(d *gipvs.Destination) *types.DestinationStats {
-
-	return &types.DestinationStats{
-		ActiveConns:   d.Statistics.ActiveConns,
-		InactiveConns: d.Statistics.InactiveConns,
-		PersistConns:  d.Statistics.PersistConns,
 	}
 }
 
@@ -133,7 +115,6 @@ func FromService(s *gipvs.Service) types.Service {
 		Protocol:     ipProtoToString(s.Protocol),
 		Scheduler:    s.Scheduler,
 		Destinations: destinations,
-		Stats:        getServiceStats(s),
 	}
 }
 
@@ -143,6 +124,5 @@ func fromDestination(d *gipvs.Destination) types.Destination {
 		Port:   d.Port,
 		Weight: d.Weight,
 		Mode:   destinationFlagsToString(d.Flags),
-		Stats:  getDestinationStats(d),
 	}
 }

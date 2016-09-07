@@ -106,7 +106,7 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 		}
 	}
 
-	c := &state.Command{
+	c = &state.Command{
 		Op:          state.AddDestinationOp,
 		Service:     svc,
 		Destination: dst,

@@ -1,4 +1,4 @@
-package ipvs_test
+package ipvs
 
 import (
 	"io/ioutil"
@@ -7,7 +7,6 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/state"
 	. "gopkg.in/check.v1"
 )
@@ -62,10 +61,10 @@ func (s *IpvsSuite) SetUpTest(c *C) {
 }
 
 func (s *IpvsSuite) TearDownSuite(c *C) {
-	i, err := ipvs.New()
-	c.Assert(err, IsNil)
-	err = i.Flush()
-	c.Assert(err, IsNil)
+	// i, err := New()
+	// c.Assert(err, IsNil)
+	// err = i.Flush()
+	// c.Assert(err, IsNil)
 }
 
 func defaultConfig() config.BalancerConfig {

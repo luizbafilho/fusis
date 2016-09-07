@@ -13,8 +13,8 @@ var (
 )
 
 var (
-	NAT    = "nat"
-	ROUTE  = "route"
+	NAT    = "masq"
+	ROUTE  = "droute"
 	TUNNEL = "tunnel"
 )
 

@@ -80,12 +80,11 @@ func (s *S) TestServiceCreate(c *check.C) {
 	err = json.Unmarshal(data, &result)
 	c.Assert(err, check.IsNil)
 	c.Assert(result, check.DeepEquals, types.Service{
-		Name:         "ahoy",
-		Port:         1040,
-		Mode:         "nat",
-		Protocol:     "tcp",
-		Scheduler:    "rr",
-		Destinations: []types.Destination{},
+		Name:      "ahoy",
+		Port:      1040,
+		Mode:      "nat",
+		Protocol:  "tcp",
+		Scheduler: "rr",
 	})
 	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
 	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/ahoy`)
@@ -271,7 +270,7 @@ func (s *S) TestDestinationDelete(c *check.C) {
 	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
 	srv, err = s.bal.GetService("myservice")
 	c.Assert(err, check.IsNil)
-	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
+	c.Assert(s.bal.GetDestinations(srv), check.DeepEquals, []types.Destination{{
 		Name:      "mydest2",
 		Host:      "h2",
 		ServiceId: "myservice",
@@ -283,7 +282,7 @@ func (s *S) TestDestinationDelete(c *check.C) {
 	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
 	srv, err = s.bal.GetService("myservice")
 	c.Assert(err, check.IsNil)
-	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{})
+	c.Assert(s.bal.GetDestinations(srv), check.DeepEquals, []types.Destination{})
 }
 
 func (s *S) TestDestinationDeleteNotFound(c *check.C) {

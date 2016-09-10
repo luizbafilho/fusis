@@ -73,7 +73,6 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(services, check.HasLen, 1)
 	svc := *services[0]
-	sort.Sort(types.DestinationList(svc.Destinations))
 	c.Assert(svc, check.DeepEquals, types.Service{
 		Name:      "myservice",
 		Mode:      "nat",
@@ -81,31 +80,33 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		Protocol:  "tcp",
 		Scheduler: "rr",
 		Host:      "192.168.0.1",
-		Destinations: []types.Destination{
-			{
-				Name:      "myname1",
-				Host:      "10.0.0.1",
-				Port:      1234,
-				Weight:    1,
-				Mode:      "nat",
-				ServiceId: "myservice",
-			},
-			{
-				Name:      "myname2",
-				Host:      "10.0.0.2",
-				Port:      1234,
-				Weight:    1,
-				Mode:      "nat",
-				ServiceId: "myservice",
-			},
-			{
-				Name:      "myname3",
-				Host:      "10.0.0.1",
-				Port:      1235,
-				Weight:    1,
-				Mode:      "nat",
-				ServiceId: "myservice",
-			},
+	})
+	dsts := balancer.GetDestinations(&svc)
+	sort.Sort(types.DestinationList(dsts))
+	c.Assert(dsts, check.DeepEquals, []types.Destination{
+		{
+			Name:      "myname1",
+			Host:      "10.0.0.1",
+			Port:      1234,
+			Weight:    1,
+			Mode:      "nat",
+			ServiceId: "myservice",
+		},
+		{
+			Name:      "myname2",
+			Host:      "10.0.0.2",
+			Port:      1234,
+			Weight:    1,
+			Mode:      "nat",
+			ServiceId: "myservice",
+		},
+		{
+			Name:      "myname3",
+			Host:      "10.0.0.1",
+			Port:      1235,
+			Weight:    1,
+			Mode:      "nat",
+			ServiceId: "myservice",
 		},
 	})
 	err = client.DeleteDestination("myservice", "myname2")
@@ -126,15 +127,15 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		Protocol:  "tcp",
 		Scheduler: "rr",
 		Host:      "192.168.0.1",
-		Destinations: []types.Destination{
-			{
-				Name:      "myname1",
-				Host:      "10.0.0.1",
-				Port:      1234,
-				Weight:    1,
-				Mode:      "nat",
-				ServiceId: "myservice",
-			},
+	})
+	c.Assert(balancer.GetDestinations(services[0]), check.DeepEquals, []types.Destination{
+		{
+			Name:      "myname1",
+			Host:      "10.0.0.1",
+			Port:      1234,
+			Weight:    1,
+			Mode:      "nat",
+			ServiceId: "myservice",
 		},
 	})
 	err = client.DeleteService("myserviceX")

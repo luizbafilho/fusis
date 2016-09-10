@@ -23,6 +23,7 @@ type Balancer interface {
 	DeleteService(string) error
 	AddDestination(*types.Service, *types.Destination) error
 	GetDestination(string) (*types.Destination, error)
+	GetDestinations(svc *types.Service) []types.Destination
 	DeleteDestination(*types.Destination) error
 	IsLeader() bool
 	GetLeader() string

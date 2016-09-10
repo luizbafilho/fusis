@@ -8,7 +8,8 @@ import (
 )
 
 type testBalancer struct {
-	services []types.Service
+	services     []types.Service
+	destinations []types.Destination
 }
 
 type FakeFusisServer struct {
@@ -78,11 +79,12 @@ func (b *testBalancer) AddDestination(srv *types.Service, dest *types.Destinatio
 	for i := range b.services {
 		if b.services[i].Name == srv.Name { // Found service
 			foundSrv = &b.services[i]
-			for j := range foundSrv.Destinations {
-				if foundSrv.Destinations[j].Name == dest.Name {
+			dsts := b.GetDestinations(&b.services[i])
+			for j := range dsts {
+				if dsts[j].Name == dest.Name {
 					return types.ErrDestinationAlreadyExists
 				}
-				if foundSrv.Destinations[j].Host == dest.Host && foundSrv.Destinations[j].Port == dest.Port {
+				if dsts[j].Host == dest.Host && dsts[j].Port == dest.Port {
 					return types.ErrDestinationAlreadyExists
 				}
 			}
@@ -91,28 +93,38 @@ func (b *testBalancer) AddDestination(srv *types.Service, dest *types.Destinatio
 	if foundSrv == nil {
 		return types.ErrServiceNotFound
 	}
-	foundSrv.Destinations = append(foundSrv.Destinations, *dest)
+	b.destinations = append(b.destinations, *dest)
 	return nil
 }
 
 func (b *testBalancer) GetDestination(id string) (*types.Destination, error) {
-	for i := range b.services {
-		srv := &b.services[i]
-		for j := range srv.Destinations {
-			if srv.Destinations[j].Name == id {
-				return &srv.Destinations[j], nil
-			}
+	for j := range b.destinations {
+		if b.destinations[j].Name == id {
+			return &b.destinations[j], nil
 		}
 	}
 	return nil, types.ErrDestinationNotFound
 }
 
+func (b *testBalancer) GetDestinations(svc *types.Service) []types.Destination {
+	dsts := []types.Destination{}
+
+	for _, d := range b.destinations {
+		if d.ServiceId == svc.GetId() {
+			dsts = append(dsts, d)
+		}
+	}
+
+	return dsts
+}
+
 func (b *testBalancer) DeleteDestination(dest *types.Destination) error {
 	for i := range b.services {
 		srv := &b.services[i]
-		for j := range srv.Destinations {
-			if srv.Destinations[j].Name == dest.Name {
-				srv.Destinations = append(srv.Destinations[:j], srv.Destinations[j+1:]...)
+		dsts := b.GetDestinations(srv)
+		for j := range dsts {
+			if dsts[j].Name == dest.Name {
+				b.destinations = append(dsts[:j], dsts[j+1:]...)
 				return nil
 			}
 		}

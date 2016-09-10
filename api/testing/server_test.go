@@ -101,7 +101,7 @@ func (s *S) TestTestBalancerAddDestination(c *check.C) {
 
 	srv, err = bal.GetService("srv1")
 	c.Assert(err, check.IsNil)
-	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
+	c.Assert(bal.GetDestinations(srv), check.DeepEquals, []types.Destination{{
 		Name:      "dst1",
 		ServiceId: "srv1",
 	}})
@@ -166,7 +166,7 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 
 	srv, err = bal.GetService("srv1")
 	c.Assert(err, check.IsNil)
-	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{{
+	c.Assert(bal.GetDestinations(srv), check.DeepEquals, []types.Destination{{
 		Name:      "dst2",
 		ServiceId: "srv1",
 		Host:      "192.2.2.2",
@@ -178,5 +178,5 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 
 	srv, err = bal.GetService("srv1")
 	c.Assert(err, check.IsNil)
-	c.Assert(srv.Destinations, check.DeepEquals, []types.Destination{})
+	c.Assert(bal.GetDestinations(srv), check.DeepEquals, []types.Destination{})
 }

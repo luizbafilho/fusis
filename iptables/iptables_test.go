@@ -50,22 +50,20 @@ func (s *IptablesSuite) TestSync(c *C) {
 	c.Assert(err, IsNil)
 
 	s1 := &types.Service{
-		Name:         "test",
-		Host:         "10.0.1.1",
-		Port:         80,
-		Mode:         "nat",
-		Protocol:     "tcp",
-		Destinations: []types.Destination{},
+		Name:     "test",
+		Host:     "10.0.1.1",
+		Port:     80,
+		Mode:     "nat",
+		Protocol: "tcp",
 	}
 	state.AddService(s1)
 
 	state.AddService(&types.Service{
-		Name:         "test2",
-		Host:         "10.0.1.2",
-		Port:         80,
-		Protocol:     "tcp",
-		Mode:         "nat",
-		Destinations: []types.Destination{},
+		Name:     "test2",
+		Host:     "10.0.1.2",
+		Port:     80,
+		Protocol: "tcp",
+		Mode:     "nat",
 	})
 
 	toSource, err := net.GetIpByInterface("eth0")

@@ -41,7 +41,7 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 		return
 	}
 	//Guarantees that no one tries to create a destination together with a service
-	newService.Destinations = []types.Destination{}
+	// newService.Destinations = []types.Destination{}
 
 	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
 		c.Error(errs)

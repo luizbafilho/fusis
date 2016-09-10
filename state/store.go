@@ -14,6 +14,7 @@ type Store interface {
 	DeleteService(svc *types.Service)
 
 	GetDestination(name string) (*types.Destination, error)
+	GetDestinations(svc *types.Service) []types.Destination
 	AddDestination(dst *types.Destination)
 	DeleteDestination(dst *types.Destination)
 	CollectStats(tick time.Time)
@@ -38,7 +39,7 @@ func (s *FusisStore) GetServices() []types.Service {
 
 	services := []types.Service{}
 	for _, v := range s.Services {
-		s.getDestinations(&v)
+		// s.getDestinations(&v)
 		services = append(services, v)
 	}
 	return services
@@ -52,18 +53,19 @@ func (s *FusisStore) GetService(name string) (*types.Service, error) {
 	if svc.Name == "" {
 		return nil, types.ErrServiceNotFound
 	}
-	s.getDestinations(&svc)
+	// s.getDestinations(&svc)
 	return &svc, nil
 }
 
-func (s *FusisStore) getDestinations(svc *types.Service) {
+func (s *FusisStore) GetDestinations(svc *types.Service) []types.Destination {
 	dsts := []types.Destination{}
 	for _, d := range s.Destinations {
 		if d.ServiceId == svc.GetId() {
 			dsts = append(dsts, d)
 		}
 	}
-	svc.Destinations = dsts
+
+	return dsts
 }
 
 func (s *FusisStore) AddService(svc *types.Service) {

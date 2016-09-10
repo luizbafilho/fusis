@@ -25,14 +25,13 @@ func (e ErrNotFound) Error() string {
 }
 
 type Service struct {
-	Name         string `valid:"required"`
-	Host         string
-	Port         uint16 `valid:"required"`
-	Protocol     string `valid:"required"`
-	Scheduler    string `valid:"required"`
-	Mode         string `valid:"required"`
-	Persistent   uint32
-	Destinations []Destination
+	Name       string `valid:"required"`
+	Host       string
+	Port       uint16 `valid:"required"`
+	Protocol   string `valid:"required"`
+	Scheduler  string `valid:"required"`
+	Mode       string `valid:"required"`
+	Persistent uint32
 }
 
 type Destination struct {

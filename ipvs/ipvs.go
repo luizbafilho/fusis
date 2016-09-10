@@ -2,10 +2,10 @@ package ipvs
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/deckarep/golang-set"
 	gipvs "github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/state"
@@ -34,109 +34,142 @@ func New() (*Ipvs, error) {
 	return ipvs, nil
 }
 
-type destDiffResult struct {
-	toAdd    []*types.Destination
-	toRemove []*types.Destination
-	toUpdate []*types.Destination
-}
+// Sync sync all ipvs rules present in state to kernel
+func (ipvs *Ipvs) Sync(state state.State) error {
+	ipvs.Lock()
+	defer ipvs.Unlock()
 
-func (ipvs *Ipvs) diffDestinations(old, new *types.Service) destDiffResult {
-	oldDests := old.Destinations
-	newDests := new.Destinations
-	toAddMap := make(map[string]*types.Destination)
-	for i, d := range newDests {
-		toAddMap[d.KernelKey()] = &newDests[i]
-	}
-	var toAdd, toRemove, toUpdate []*types.Destination
-	for i, d := range oldDests {
-		key := d.KernelKey()
-		if newDest, isPresent := toAddMap[key]; isPresent {
-			toUpdate = append(toUpdate, newDest)
-			delete(toAddMap, key)
-		} else {
-			toRemove = append(toRemove, &oldDests[i])
-		}
-	}
-	for _, d := range toAddMap {
-		toAdd = append(toAdd, d)
-	}
-	return destDiffResult{
-		toAdd:    toAdd,
-		toRemove: toRemove,
-		toUpdate: toUpdate,
-	}
-}
-
-func (ipvs Ipvs) Sync(state state.State) error {
-	oldServices, err := gipvs.GetServices()
+	stateSet := ipvs.getStateServicesSet(state)
+	currentSet, err := ipvs.getCurrentServicesSet()
 	if err != nil {
 		return err
 	}
-	newServices := state.GetServices()
-	toAddMap := make(map[string]*types.Service)
-	for i, s := range newServices {
-		toAddMap[s.KernelKey()] = &newServices[i]
-	}
-	var toAdd, toRemove []*types.Service
-	var toMerge [][]*types.Service
-	for _, gipvsSvc := range oldServices {
-		s := FromService(gipvsSvc)
-		key := s.KernelKey()
-		if newService, isPresent := toAddMap[key]; isPresent {
-			toMerge = append(toMerge, []*types.Service{&s, newService})
-			delete(toAddMap, key)
-		} else {
-			toRemove = append(toRemove, &s)
+
+	rulesToAdd := stateSet.Difference(currentSet)
+	rulesToRemove := currentSet.Difference(stateSet)
+
+	// Adding services and destinations missing
+	for r := range rulesToAdd.Iter() {
+		service := r.(types.Service)
+		dsts := state.GetDestinations(&service)
+
+		if err := ipvs.addServiceAndDestinations(service, dsts); err != nil {
+			return err
 		}
 	}
-	for _, s := range toAddMap {
-		toAdd = append(toAdd, s)
-	}
-	var errors []string
-	for _, s := range toAdd {
-		err = gipvs.AddService(*ToIpvsService(s))
+
+	// Cleaning rules
+	for r := range rulesToRemove.Iter() {
+		service := r.(types.Service)
+		err := gipvs.DeleteService(*ToIpvsService(&service))
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error adding service %#v: %s", s, err))
+			return err
 		}
 	}
-	for _, s := range toRemove {
-		err = gipvs.DeleteService(*ToIpvsService(s))
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("error deleting service %#v: %s", s, err))
+
+	// Syncing destination rules
+	for _, s := range state.GetServices() {
+		if err := ipvs.syncDestinations(state, s); err != nil {
+			return err
 		}
 	}
-	for _, services := range toMerge {
-		oldService := services[0]
-		newService := services[1]
-		newGipvsService := *ToIpvsService(newService)
-		err = gipvs.UpdateService(newGipvsService)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("error updating service %#v: %s", newService, err))
-		}
-		result := ipvs.diffDestinations(oldService, newService)
-		for _, d := range result.toAdd {
-			err = gipvs.AddDestination(newGipvsService, *toIpvsDestination(d))
-			if err != nil {
-				errors = append(errors, fmt.Sprintf("error adding destination %#v: %s", d, err))
-			}
-		}
-		for _, d := range result.toRemove {
-			err = gipvs.DeleteDestination(newGipvsService, *toIpvsDestination(d))
-			if err != nil {
-				errors = append(errors, fmt.Sprintf("error deleting destination %#v: %s", d, err))
-			}
-		}
-		for _, d := range result.toUpdate {
-			err = gipvs.UpdateDestination(newGipvsService, *toIpvsDestination(d))
-			if err != nil {
-				errors = append(errors, fmt.Sprintf("error deleting destination %#v: %s", d, err))
-			}
-		}
-	}
-	if len(errors) > 0 {
-		return fmt.Errorf("multiple errors: %s", strings.Join(errors, " | "))
-	}
+
 	return nil
+}
+
+func (ipvs *Ipvs) syncDestinations(state state.State, svc types.Service) error {
+	stateSet := ipvs.getStateDestinationsSet(state, svc)
+	currentSet, err := ipvs.getCurrentDestinationsSet(svc)
+	if err != nil {
+		return err
+	}
+
+	rulesToAdd := stateSet.Difference(currentSet)
+	rulesToRemove := currentSet.Difference(stateSet)
+
+	for r := range rulesToAdd.Iter() {
+		destination := r.(types.Destination)
+		if err := gipvs.AddDestination(*ToIpvsService(&svc), *toIpvsDestination(&destination)); err != nil {
+			return err
+		}
+	}
+
+	for r := range rulesToRemove.Iter() {
+		destination := r.(types.Destination)
+		err := gipvs.DeleteDestination(*ToIpvsService(&svc), *toIpvsDestination(&destination))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (ipvs *Ipvs) addServiceAndDestinations(svc types.Service, dsts []types.Destination) error {
+	ipvsService := *ToIpvsService(&svc)
+	err := gipvs.AddService(ipvsService)
+	if err != nil {
+		return err
+	}
+
+	for _, d := range dsts {
+		err := gipvs.AddDestination(ipvsService, *toIpvsDestination(&d))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (ipvs *Ipvs) getStateServicesSet(state state.State) mapset.Set {
+	stateSet := mapset.NewSet()
+	for _, s := range state.GetServices() {
+		s.Name = ""
+		s.Mode = ""
+		stateSet.Add(s)
+	}
+
+	return stateSet
+}
+
+func (ipvs *Ipvs) getCurrentServicesSet() (mapset.Set, error) {
+	svcs, err := gipvs.GetServices()
+	if err != nil {
+		return nil, err
+	}
+
+	currentSet := mapset.NewSet()
+	for _, s := range svcs {
+		currentSet.Add(FromService(s))
+	}
+
+	return currentSet, nil
+}
+
+func (ipvs *Ipvs) getStateDestinationsSet(state state.State, svc types.Service) mapset.Set {
+	stateSet := mapset.NewSet()
+	for _, d := range state.GetDestinations(&svc) {
+		d.Name = ""
+		d.ServiceId = ""
+		stateSet.Add(d)
+	}
+
+	return stateSet
+}
+
+func (ipvs *Ipvs) getCurrentDestinationsSet(svc types.Service) (mapset.Set, error) {
+	currentSet := mapset.NewSet()
+	ipvsSvc, err := gipvs.GetService(ToIpvsService(&svc))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, d := range ipvsSvc.Destinations {
+		currentSet.Add(fromDestination(d))
+	}
+
+	return currentSet, nil
 }
 
 // Flush flushes all services and destinations from the IPVS table.

@@ -88,23 +88,23 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 	b.Lock()
 	defer b.Unlock()
 
-	stateSvc, err := b.state.GetService(svc.GetId())
-	if err != nil {
-		return err
-	}
+	// stateSvc, err := b.state.GetService(svc.GetId())
+	// if err != nil {
+	// 	return err
+	// }
 
-	_, err = b.state.GetDestination(dst.GetId())
+	_, err := b.state.GetDestination(dst.GetId())
 	if err == nil {
 		return types.ErrDestinationAlreadyExists
 	} else if err != types.ErrDestinationNotFound {
 		return err
 	}
 
-	for _, existDst := range stateSvc.Destinations {
-		if existDst.Host == dst.Host && existDst.Port == dst.Port {
-			return types.ErrDestinationAlreadyExists
-		}
-	}
+	// for _, existDst := range stateSvc.Destinations {
+	// 	if existDst.Host == dst.Host && existDst.Port == dst.Port {
+	// 		return types.ErrDestinationAlreadyExists
+	// 	}
+	// }
 
 	c := &state.Command{
 		Op:          state.AddDestinationOp,

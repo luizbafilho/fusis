@@ -104,9 +104,10 @@ func (s *State) Restore(rc io.ReadCloser) error {
 	// Hashicorp docs.
 	for _, srv := range services {
 		s.AddService(&srv)
-		for _, d := range srv.Destinations {
-			s.AddDestination(&d)
-		}
+		//TODO: add destination
+		// for _, d := range srv.Destinations {
+		// 	s.AddDestination(&d)
+		// }
 	}
 	rsp := make(chan error)
 	s.changesCh <- rsp

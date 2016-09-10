@@ -35,12 +35,11 @@ func (s *EngineSuite) SetUpSuite(c *C) {
 	c.Assert(s.config, Not(IsNil))
 
 	s.service = &types.Service{
-		Name:         "test",
-		Host:         "10.0.1.1",
-		Port:         80,
-		Scheduler:    "lc",
-		Protocol:     "tcp",
-		Destinations: []types.Destination{},
+		Name:      "test",
+		Host:      "10.0.1.1",
+		Port:      80,
+		Scheduler: "lc",
+		Protocol:  "tcp",
 	}
 
 	s.destination = &types.Destination{
@@ -212,7 +211,7 @@ func (s *EngineSuite) TestSnapshotRestore(c *C) {
 	err = eng.Restore(sink)
 	c.Assert(err, IsNil)
 
-	s.service.Destinations = []types.Destination{*s.destination}
+	// s.service.Destinations = []types.Destination{*s.destination}
 
 	c.Assert(eng.Store.GetServices(), DeepEquals, []types.Service{*s.service})
 }

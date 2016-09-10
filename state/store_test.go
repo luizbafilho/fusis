@@ -10,7 +10,7 @@ func (s *StateSuite) TestGetService(c *C) {
 	s.state.AddDestination(s.destination)
 
 	svcs := s.state.GetServices()
-	s.service.Destinations = []types.Destination{*s.destination}
+	// s.service.Destinations = []types.Destination{*s.destination}
 	c.Assert(svcs[0], DeepEquals, *s.service)
 
 	svc, err := s.state.GetService(s.service.Name)

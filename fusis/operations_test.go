@@ -37,12 +37,11 @@ var _ = Suite(&FusisSuite{})
 func (s *FusisSuite) SetUpSuite(c *C) {
 	// logrus.SetOutput(ioutil.Discard)
 	s.service = &types.Service{
-		Name:         "test",
-		Host:         "10.0.1.1",
-		Port:         80,
-		Scheduler:    "lc",
-		Protocol:     "tcp",
-		Destinations: []types.Destination{},
+		Name:      "test",
+		Host:      "10.0.1.1",
+		Port:      80,
+		Scheduler: "lc",
+		Protocol:  "tcp",
 	}
 
 	s.destination = &types.Destination{
@@ -213,11 +212,10 @@ func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
 			defer wg.Done()
 			name := fmt.Sprintf("test-%d", i)
 			bErr := b.AddService(&types.Service{
-				Name:         name,
-				Port:         80,
-				Scheduler:    "lc",
-				Protocol:     "tcp",
-				Destinations: []types.Destination{},
+				Name:      name,
+				Port:      80,
+				Scheduler: "lc",
+				Protocol:  "tcp",
 			})
 			c.Assert(bErr, IsNil)
 			bErr = b.DeleteService(name)
@@ -253,17 +251,14 @@ func (s *FusisSuite) TestAddDestination(c *C) {
 	})
 	dst, err := b.GetDestination(s.destination.GetId())
 	c.Assert(err, Equals, types.ErrDestinationNotFound)
-	err = b.AddDestination(s.service, s.destination)
-	c.Assert(err, Equals, types.ErrServiceNotFound)
 	err = b.AddService(s.service)
 	c.Assert(err, IsNil)
 	err = b.AddDestination(s.service, s.destination)
 	c.Assert(err, IsNil)
 	err = b.AddDestination(s.service, s.destination)
 	c.Assert(err, Equals, types.ErrDestinationAlreadyExists)
-	svc, err := b.GetService(s.service.GetId())
-	c.Assert(err, IsNil)
-	c.Assert(svc.Destinations, DeepEquals, []types.Destination{*s.destination})
+	dsts := b.GetDestinations(s.service)
+	c.Assert(dsts, DeepEquals, []types.Destination{*s.destination})
 	dst, err = b.GetDestination(s.destination.GetId())
 	c.Assert(err, IsNil)
 	c.Assert(dst, DeepEquals, s.destination)
@@ -291,9 +286,8 @@ func (s *FusisSuite) TestDeleteDestination(c *C) {
 	c.Assert(err, IsNil)
 	err = b.DeleteDestination(s.destination)
 	c.Assert(err, IsNil)
-	svc, err := b.GetService(s.service.GetId())
-	c.Assert(err, IsNil)
-	c.Assert(svc.Destinations, DeepEquals, []types.Destination{})
+	dsts := b.GetDestinations(s.service)
+	c.Assert(dsts, DeepEquals, []types.Destination{})
 	_, err = b.GetDestination(s.destination.GetId())
 	c.Assert(err, Equals, types.ErrDestinationNotFound)
 }
@@ -329,9 +323,8 @@ func (s *FusisSuite) TestAddDeleteDestination(c *C) {
 	c.Assert(err, IsNil)
 	err = b.DeleteDestination(newDst)
 	c.Assert(err, IsNil)
-	svc, err := b.GetService(s.service.GetId())
-	c.Assert(err, IsNil)
-	c.Assert(svc.Destinations, DeepEquals, []types.Destination{*s.destination})
+	dsts := b.GetDestinations(s.service)
+	c.Assert(dsts, DeepEquals, []types.Destination{*s.destination})
 }
 
 func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
@@ -380,9 +373,8 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 		}
 	}
 	c.Assert(count, Equals, 1)
-	svc, err := b.GetService(s.service.GetId())
-	c.Assert(err, IsNil)
-	c.Assert(svc.Destinations, DeepEquals, []types.Destination{*s.destination})
+	dsts := b.GetDestinations(s.service)
+	c.Assert(dsts, DeepEquals, []types.Destination{*s.destination})
 	dst, err := b.GetDestination(s.destination.GetId())
 	c.Assert(err, IsNil)
 	c.Assert(dst, DeepEquals, s.destination)

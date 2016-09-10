@@ -23,6 +23,13 @@ func (b *Balancer) GetServices() []types.Service {
 	return b.state.GetServices()
 }
 
+func (b *Balancer) GetDestinations(svc *types.Service) []types.Destination {
+	b.Lock()
+	defer b.Unlock()
+
+	return b.state.GetDestinations(svc)
+}
+
 // AddService ...
 func (b *Balancer) AddService(svc *types.Service) error {
 	b.Lock()
@@ -88,11 +95,6 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 	b.Lock()
 	defer b.Unlock()
 
-	// stateSvc, err := b.state.GetService(svc.GetId())
-	// if err != nil {
-	// 	return err
-	// }
-
 	_, err := b.state.GetDestination(dst.GetId())
 	if err == nil {
 		return types.ErrDestinationAlreadyExists
@@ -100,11 +102,11 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 		return err
 	}
 
-	// for _, existDst := range stateSvc.Destinations {
-	// 	if existDst.Host == dst.Host && existDst.Port == dst.Port {
-	// 		return types.ErrDestinationAlreadyExists
-	// 	}
-	// }
+	for _, existDst := range b.state.GetDestinations(svc) {
+		if existDst.Host == dst.Host && existDst.Port == dst.Port {
+			return types.ErrDestinationAlreadyExists
+		}
+	}
 
 	c := &state.Command{
 		Op:          state.AddDestinationOp,

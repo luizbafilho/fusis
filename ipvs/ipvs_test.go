@@ -38,6 +38,9 @@ func matchState(c *C, services1 []*gipvs.Service, state state.Store) {
 	cmp := make([]*gipvs.Service, len(stateServices))
 	for i, s := range stateServices {
 		cmp[i] = ipvs.ToIpvsService(&s)
+		for _, d := range state.GetDestinations(&s) {
+			cmp[i].Destinations = append(cmp[i].Destinations, ipvs.ToIpvsDestination(&d))
+		}
 	}
 	sort.Sort(serviceList(services1))
 	sort.Sort(serviceList(cmp))
@@ -48,12 +51,11 @@ func (s *IpvsSuite) TestIpvsSyncState(c *C) {
 	i, err := ipvs.New()
 	c.Assert(err, IsNil)
 	srv2 := &types.Service{
-		Name:         "test1",
-		Host:         "10.0.9.9",
-		Port:         80,
-		Scheduler:    "lc",
-		Protocol:     "tcp",
-		Destinations: []types.Destination{},
+		Name:      "test1",
+		Host:      "10.0.9.9",
+		Port:      80,
+		Scheduler: "lc",
+		Protocol:  "tcp",
 	}
 	dst2 := &types.Destination{
 		Name:   "test1",

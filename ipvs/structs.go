@@ -75,7 +75,7 @@ func destinationFlagsToString(flags gipvs.DestinationFlags) string {
 func ToIpvsService(s *types.Service) *gipvs.Service {
 	destinations := []*gipvs.Destination{}
 	// for _, dest := range s.Destinations {
-	// 	destinations = append(destinations, toIpvsDestination(&dest))
+	// 	destinations = append(destinations, ToIpvsDestination(&dest))
 	// }
 
 	service := &gipvs.Service{
@@ -94,7 +94,7 @@ func ToIpvsService(s *types.Service) *gipvs.Service {
 	return service
 }
 
-func toIpvsDestination(d *types.Destination) *gipvs.Destination {
+func ToIpvsDestination(d *types.Destination) *gipvs.Destination {
 	return &gipvs.Destination{
 		Address: net.ParseIP(d.Host),
 		Port:    d.Port,

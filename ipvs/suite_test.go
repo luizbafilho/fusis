@@ -33,12 +33,11 @@ func getPort() int {
 func (s *IpvsSuite) SetUpSuite(c *C) {
 	logrus.SetOutput(ioutil.Discard)
 	s.service = &types.Service{
-		Name:         "test",
-		Host:         "10.0.1.1",
-		Port:         80,
-		Scheduler:    "lc",
-		Protocol:     "tcp",
-		Destinations: []types.Destination{},
+		Name:      "test",
+		Host:      "10.0.1.1",
+		Port:      80,
+		Scheduler: "lc",
+		Protocol:  "tcp",
 	}
 
 	s.destination = &types.Destination{

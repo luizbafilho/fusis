@@ -89,14 +89,14 @@ func (ipvs *Ipvs) syncDestinations(state state.State, svc types.Service) error {
 
 	for r := range rulesToAdd.Iter() {
 		destination := r.(types.Destination)
-		if err := gipvs.AddDestination(*ToIpvsService(&svc), *toIpvsDestination(&destination)); err != nil {
+		if err := gipvs.AddDestination(*ToIpvsService(&svc), *ToIpvsDestination(&destination)); err != nil {
 			return err
 		}
 	}
 
 	for r := range rulesToRemove.Iter() {
 		destination := r.(types.Destination)
-		err := gipvs.DeleteDestination(*ToIpvsService(&svc), *toIpvsDestination(&destination))
+		err := gipvs.DeleteDestination(*ToIpvsService(&svc), *ToIpvsDestination(&destination))
 		if err != nil {
 			return err
 		}
@@ -113,7 +113,7 @@ func (ipvs *Ipvs) addServiceAndDestinations(svc types.Service, dsts []types.Dest
 	}
 
 	for _, d := range dsts {
-		err := gipvs.AddDestination(ipvsService, *toIpvsDestination(&d))
+		err := gipvs.AddDestination(ipvsService, *ToIpvsDestination(&d))
 		if err != nil {
 			return err
 		}

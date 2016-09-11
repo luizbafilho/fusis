@@ -9,13 +9,27 @@ import (
 	"github.com/luizbafilho/fusis/api/types"
 )
 
+type ServiceResponse struct {
+	types.Service
+	Destinations []types.Destination
+}
+
 func (as ApiService) serviceList(c *gin.Context) {
 	services := as.balancer.GetServices()
 	if len(services) == 0 {
 		c.Status(http.StatusNoContent)
 		return
 	}
-	c.JSON(http.StatusOK, services)
+
+	response := []ServiceResponse{}
+	for _, s := range services {
+		response = append(response, ServiceResponse{
+			Service:      s,
+			Destinations: as.balancer.GetDestinations(&s),
+		})
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (as ApiService) serviceGet(c *gin.Context) {
@@ -30,7 +44,13 @@ func (as ApiService) serviceGet(c *gin.Context) {
 		}
 		return
 	}
-	c.JSON(http.StatusOK, service)
+
+	response := ServiceResponse{
+		Service:      *service,
+		Destinations: as.balancer.GetDestinations(service),
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (as ApiService) serviceCreate(c *gin.Context) {

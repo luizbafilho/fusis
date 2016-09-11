@@ -92,10 +92,13 @@ func WaitForResult(test testFn, error errorFn) {
 func defaultConfig() config.BalancerConfig {
 	dir := tmpDir()
 	return config.BalancerConfig{
-		PublicInterface: "eth0",
-		Name:            "Test",
-		DataPath:        dir,
-		Bootstrap:       true,
+		Interfaces: config.Interfaces{
+			Inbound:  "eth0",
+			Outbound: "eth0",
+		},
+		Name:      "Test",
+		DataPath:  dir,
+		Bootstrap: true,
 		Ports: map[string]int{
 			"raft": getPort(),
 			"serf": getPort(),

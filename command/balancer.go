@@ -1,10 +1,12 @@
 package command
 
 import (
+	"crypto/rand"
 	"fmt"
 	"os"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/k0kubun/pp"
 
 	"github.com/luizbafilho/fusis/api"
 	"github.com/luizbafilho/fusis/config"
@@ -30,24 +32,31 @@ func NewBalancerCommand() *cobra.Command {
 	and add routes to them in the Load Balancer.`,
 		PreRun: func(cmd *cobra.Command, args []string) {
 			viper.Unmarshal(&conf)
+			pp.Println(conf)
 		},
 		Run: balancerCommandFunc,
 	}
 
+	setupDefaultOptions()
 	setupBalancerCmdFlags(cmd)
 
 	return cmd
 }
 
+func setupDefaultOptions() {
+	viper.SetDefault("Interfaces", map[string]string{
+		"Inbound":  "eth0",
+		"Outbound": "eth1",
+	})
+
+	viper.SetDefault("ClusterMode", "unicast")
+	viper.SetDefault("DataPath", "/etc/fusis")
+	viper.SetDefault("Name", randStr())
+}
+
 func setupBalancerCmdFlags(cmd *cobra.Command) {
-	hostname, _ := os.Hostname()
-	cmd.Flags().StringVarP(&conf.Name, "name", "n", hostname, "Node name (unique in the cluster)")
-	cmd.Flags().StringVarP(&conf.PublicInterface, "public-iface", "", "eth0", "Public network interface")
-	cmd.Flags().StringVarP(&conf.PrivateInterface, "private-iface", "", "eth0", "Private network interface")
-	cmd.Flags().StringVarP(&conf.DataPath, "config-path", "", "/etc/fusis", "Configuration directory")
 	cmd.Flags().BoolVar(&conf.Bootstrap, "bootstrap", false, "Starts balancer in boostrap mode")
 	cmd.Flags().BoolVar(&conf.DevMode, "dev", false, "Initialize balancer in dev mode")
-	cmd.Flags().StringVar(&conf.ClusterMode, "cluster-mode", "unicast", "Defines Cluster Mode to Unicast or Anycast")
 	cmd.Flags().StringSliceVarP(&conf.Join, "join", "j", []string{}, "Join balancer pool")
 
 	err := viper.BindPFlags(cmd.Flags())
@@ -81,4 +90,15 @@ func balancerCommandFunc(cmd *cobra.Command, args []string) {
 	go apiService.Serve()
 
 	waitSignals(balancer)
+}
+
+func randStr() string {
+	dictionary := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+	var bytes = make([]byte, 15)
+	rand.Read(bytes)
+	for k, v := range bytes {
+		bytes[k] = dictionary[v%byte(len(dictionary))]
+	}
+	return string(bytes)
 }

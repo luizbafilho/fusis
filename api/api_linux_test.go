@@ -23,11 +23,13 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 	conf := config.BalancerConfig{
-		PublicInterface:  "eth0",
-		PrivateInterface: "eth0",
-		Name:             "Test",
-		DataPath:         dir,
-		Bootstrap:        true,
+		Interfaces: config.Interfaces{
+			Inbound:  "eth0",
+			Outbound: "eth0",
+		},
+		Name:      "Test",
+		DataPath:  dir,
+		Bootstrap: true,
 		Ports: map[string]int{
 			"raft": 20012,
 			"serf": 20013,

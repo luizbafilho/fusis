@@ -19,7 +19,7 @@ type Syncer interface {
 
 func New(config *config.BalancerConfig) (Syncer, error) {
 	return &VipMngr{
-		iface: config.PublicInterface,
+		iface: config.Interfaces.Inbound,
 	}, nil
 }
 

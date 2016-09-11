@@ -149,7 +149,7 @@ func (i IptablesMngr) getNatServices(s state.State) []types.Service {
 }
 
 func (i IptablesMngr) serviceToSnatRule(svc types.Service) (*SnatRule, error) {
-	privateIp, err := net.GetIpByInterface(i.config.PrivateInterface)
+	privateIp, err := net.GetIpByInterface(i.config.Interfaces.Outbound)
 	if err != nil {
 		return nil, err
 	}

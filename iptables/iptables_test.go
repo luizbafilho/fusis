@@ -100,11 +100,13 @@ func (s *IptablesSuite) TestSync(c *C) {
 
 func defaultConfig() *config.BalancerConfig {
 	return &config.BalancerConfig{
-		PublicInterface:  "eth0",
-		PrivateInterface: "eth0",
-		Name:             "Test",
-		DataPath:         "/tmp/test",
-		Bootstrap:        true,
+		Interfaces: config.Interfaces{
+			Inbound:  "eth0",
+			Outbound: "eth0",
+		},
+		Name:      "Test",
+		DataPath:  "/tmp/test",
+		Bootstrap: true,
 		Ipam: config.Ipam{
 			Ranges: []string{"192.168.0.0/28"},
 		},

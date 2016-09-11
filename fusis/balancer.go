@@ -123,7 +123,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	}
 
 	/* Cleanup all VIPs on the network interface */
-	if err := fusis_net.DelVips(balancer.config.PublicInterface); err != nil {
+	if err := fusis_net.DelVips(balancer.config.Interfaces.Inbound); err != nil {
 		return nil, fmt.Errorf("error cleaning up network vips: %v", err)
 	}
 
@@ -337,7 +337,7 @@ func (b *Balancer) watchLeaderChanges() {
 
 func (b *Balancer) sendGratuitousARPReply() error {
 	for _, s := range b.GetServices() {
-		if err := fusis_net.SendGratuitousARPReply(s.Host, b.config.PublicInterface); err != nil {
+		if err := fusis_net.SendGratuitousARPReply(s.Host, b.config.Interfaces.Inbound); err != nil {
 			return err
 		}
 	}
@@ -375,7 +375,7 @@ func (b *Balancer) handleEvents() {
 // }
 
 func (b *Balancer) flushVips() {
-	if err := fusis_net.DelVips(b.config.PublicInterface); err != nil {
+	if err := fusis_net.DelVips(b.config.Interfaces.Inbound); err != nil {
 		//TODO: Remove balancer from cluster when error occurs
 		log.Error(err)
 	}

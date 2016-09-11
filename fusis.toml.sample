@@ -2,12 +2,15 @@
 
 # name = "example"
 #
-# public-interface = "eth0"
-# private-interface = "eth1"
 # cluster-mode = "anycast"
 #
 # join = ["10.0.0.2", "186.23.22.1"]
 # data-path = "/etc/fusis"
+#
+
+[interfaces]
+Inbound = "eth0"
+Outbound = "eth1"
 
 [ipam]
 ranges = ["192.168.0.0/28"]

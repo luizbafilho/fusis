@@ -2,40 +2,15 @@ package config
 
 import "github.com/luizbafilho/fusis/net"
 
-/* Sample Config
-
-ipam:
-	ranges:
-		- "192.168.0.0/28"
-ports:
-	raft: 4382
-	serf: 7946
-stats:
-	interval: 5
-	type: "syslog"
-	params:
-		protocol: "udp"
-		host: "logstash_ip_or_domain_address"
-		port: "8515"
-bgp:
-	as: 100
-	router-id: "192.168.151.176"
-	neighbors:
-		-
-			address: "192.168.151.178"
-			peer-as: 100
-
-*/
 type BalancerConfig struct {
-	PublicInterface  string `validate:"required"`
-	PrivateInterface string
+	Interfaces
 
 	Name        string `validate:"required"`
 	Ports       map[string]int
 	Join        []string
 	DevMode     bool
 	Bootstrap   bool
-	DataPath    string
+	DataPath    string `mapstructure:"data-path"`
 	ClusterMode string `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
 	Bgp         Bgp
 	Ipam        Ipam
@@ -52,6 +27,11 @@ type AgentConfig struct {
 	Weight   int32
 	Mode     string
 	Service  string
+}
+
+type Interfaces struct {
+	Inbound  string `validate:"required"`
+	Outbound string
 }
 
 type Bgp struct {
@@ -83,7 +63,7 @@ type Ports struct {
 }
 
 func (c *BalancerConfig) GetIpByInterface() (string, error) {
-	return net.GetIpByInterface(c.PublicInterface)
+	return net.GetIpByInterface(c.Interfaces.Inbound)
 }
 
 func (c *AgentConfig) GetIpByInterface() (string, error) {

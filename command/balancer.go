@@ -6,7 +6,6 @@ import (
 	"os"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/k0kubun/pp"
 
 	"github.com/luizbafilho/fusis/api"
 	"github.com/luizbafilho/fusis/config"
@@ -32,7 +31,6 @@ func NewBalancerCommand() *cobra.Command {
 	and add routes to them in the Load Balancer.`,
 		PreRun: func(cmd *cobra.Command, args []string) {
 			viper.Unmarshal(&conf)
-			pp.Println(conf)
 		},
 		Run: balancerCommandFunc,
 	}

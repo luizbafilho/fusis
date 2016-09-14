@@ -36,7 +36,7 @@ func (config BalancerConfig) Validate() error {
 	/* Validate Join nodes param */
 	if !config.Bootstrap {
 		if len(config.Join) == 0 {
-			return fmt.Errorf("You need to specify join nodes")
+			return fmt.Errorf("You need to specify join nodes or start in Bootstrap mode.")
 		}
 
 		for _, v := range config.Join {

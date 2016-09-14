@@ -11,7 +11,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var agentConfig config.AgentConfig
+var (
+	agentConfig config.AgentConfig
+	configFile  string
+)
 
 var agentCmd = &cobra.Command{
 	Use:   "agent",
@@ -59,6 +62,7 @@ func setupConfig() {
 	agentCmd.Flags().StringVarP(&agentConfig.Mode, "mode", "m", "nat", "host IP address")
 	agentCmd.Flags().StringVar(&agentConfig.Service, "service", "", "service id")
 	agentCmd.Flags().StringVar(&agentConfig.Interface, "iface", "eth0", "Network interface")
+	agentCmd.Flags().StringVar(&configFile, "config", "", "specify a configuration file")
 
 	err := viper.BindPFlags(agentCmd.Flags())
 	if err != nil {

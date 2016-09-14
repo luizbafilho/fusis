@@ -56,6 +56,7 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&conf.Bootstrap, "bootstrap", false, "Starts balancer in boostrap mode")
 	cmd.Flags().BoolVar(&conf.DevMode, "dev", false, "Initialize balancer in dev mode")
 	cmd.Flags().StringSliceVarP(&conf.Join, "join", "j", []string{}, "Join balancer pool")
+	cmd.Flags().StringVar(&configFile, "config", "", "specify a configuration file")
 
 	err := viper.BindPFlags(cmd.Flags())
 	if err != nil {

@@ -41,8 +41,8 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	if cfgFile != "" { // enable ability to specify config file via flag
-		viper.SetConfigFile(cfgFile)
+	if configFile != "" { // enable ability to specify config file via flag
+		viper.SetConfigFile(configFile)
 	}
 
 	viper.SetConfigName("fusis") // name of config file (without extension)

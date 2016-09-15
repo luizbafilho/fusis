@@ -1,17 +1,25 @@
 package config
 
-import "github.com/luizbafilho/fusis/net"
+import (
+	"github.com/hashicorp/logutils"
+	"github.com/luizbafilho/fusis/net"
+)
+
+var (
+	LOG_LEVELS = []logutils.LogLevel{"DEBUG", "INFO", "WARN", "ERROR"}
+)
 
 type BalancerConfig struct {
 	Interfaces
 
-	Name        string `validate:"required"`
-	Ports       map[string]int
-	Join        []string
-	DevMode     bool
-	Bootstrap   bool
-	DataPath    string `mapstructure:"data-path"`
-	ClusterMode string `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
+	Name        string         `mapstructure:"name" validate:"required"`
+	Ports       map[string]int `mapstructure:"ports"`
+	Join        []string       `mapstructure:"join"`
+	DevMode     bool           `mapstructure:"dev-mode"`
+	Bootstrap   bool           `mapstructure:"bootstrap"`
+	LogLevel    string         `mapstructure:"log-level"`
+	DataPath    string         `mapstructure:"data-path"`
+	ClusterMode string         `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
 	Bgp         Bgp
 	Ipam        Ipam
 	Metrics     Metrics

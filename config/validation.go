@@ -1,7 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/hashicorp/logutils"
 
 	"gopkg.in/go-playground/validator.v8"
 )
@@ -19,6 +23,11 @@ type Validater interface {
 }
 
 func (config BalancerConfig) Validate() error {
+	/* Validate LogLevel config */
+	if err := validateLogLevel(config.LogLevel); err != nil {
+		return err
+	}
+
 	/* Validate BGP config */
 	if config.ClusterMode == "anycast" {
 		if err := config.Bgp.Validate(); err != nil {
@@ -47,6 +56,16 @@ func (config BalancerConfig) Validate() error {
 	}
 
 	return nil
+}
+
+func validateLogLevel(level string) error {
+	err := errors.New("invalid log level")
+	for _, l := range LOG_LEVELS {
+		if l == logutils.LogLevel(strings.ToUpper(level)) {
+			return nil
+		}
+	}
+	return err
 }
 
 func (bgp Bgp) Validate() error {

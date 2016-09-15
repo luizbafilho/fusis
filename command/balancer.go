@@ -42,14 +42,15 @@ func NewBalancerCommand() *cobra.Command {
 }
 
 func setupDefaultOptions() {
-	viper.SetDefault("Interfaces", map[string]string{
+	viper.SetDefault("interfaces", map[string]string{
 		"Inbound":  "eth0",
 		"Outbound": "eth1",
 	})
 
-	viper.SetDefault("ClusterMode", "unicast")
-	viper.SetDefault("DataPath", "/etc/fusis")
-	viper.SetDefault("Name", randStr())
+	viper.SetDefault("cluster-mode", "unicast")
+	viper.SetDefault("data-path", "/etc/fusis")
+	viper.SetDefault("name", randStr())
+	viper.SetDefault("log-level", "warn")
 }
 
 func setupBalancerCmdFlags(cmd *cobra.Command) {

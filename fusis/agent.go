@@ -10,8 +10,7 @@ import (
 )
 
 type Agent struct {
-	serf *serf.Serf
-	// eventCh is used for Serf to deliver events on
+	serf    *serf.Serf
 	eventCh chan serf.Event
 	config  *config.AgentConfig
 }

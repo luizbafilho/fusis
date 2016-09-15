@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -148,8 +149,10 @@ func (b *Balancer) setupSerf() error {
 		return err
 	}
 
+	// Memberlist Config
 	conf.MemberlistConfig.BindAddr = bindAddr
 	conf.MemberlistConfig.BindPort = b.config.Ports["serf"]
+	conf.MemberlistConfig.LogOutput = b.getLibLogOutput()
 
 	conf.NodeName = b.config.Name
 	conf.EventCh = b.eventCh
@@ -167,12 +170,14 @@ func (b *Balancer) setupSerf() error {
 }
 
 func (b *Balancer) getLibLogOutput() io.Writer {
-	logger := log.StandardLogger()
+	minLevel := strings.ToUpper(b.config.LogLevel)
+	level, _ := log.ParseLevel(minLevel)
+	log.SetLevel(level)
 
 	filter := &logutils.LevelFilter{
-		Levels:   []logutils.LogLevel{"DEBUG", "INFO", "WARN", "ERROR"},
-		MinLevel: logutils.LogLevel("INFO"),
-		Writer:   logger.Out,
+		Levels:   config.LOG_LEVELS,
+		MinLevel: logutils.LogLevel(minLevel),
+		Writer:   log.StandardLogger().Out,
 	}
 
 	return filter

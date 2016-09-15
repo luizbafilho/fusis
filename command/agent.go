@@ -1,8 +1,6 @@
 package command
 
 import (
-	"os"
-
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/luizbafilho/fusis/config"
@@ -49,19 +47,18 @@ func runAgentCmd(cmd *cobra.Command, args []string) {
 
 func init() {
 	FusisCmd.AddCommand(agentCmd)
+	setupDefaultAgentOptions()
 	setupConfig()
 }
 
+func setupDefaultAgentOptions() {
+	viper.SetDefault("name", randStr())
+	viper.SetDefault("address", "")
+	viper.SetDefault("weight", 1)
+	viper.SetDefault("interface", "eth0")
+}
+
 func setupConfig() {
-	hostname, _ := os.Hostname()
-	agentCmd.Flags().StringVarP(&agentConfig.Balancer, "balancer", "b", "", "master balancer IP address")
-	agentCmd.Flags().StringVarP(&agentConfig.Name, "name", "n", hostname, "node name (unique in the cluster)")
-	agentCmd.Flags().StringVar(&agentConfig.Address, "host", "", "host IP address")
-	agentCmd.Flags().Uint16VarP(&agentConfig.Port, "port", "p", 80, "port number")
-	agentCmd.Flags().Int32VarP(&agentConfig.Weight, "weight", "w", 1, "host weigth")
-	agentCmd.Flags().StringVarP(&agentConfig.Mode, "mode", "m", "nat", "host IP address")
-	agentCmd.Flags().StringVar(&agentConfig.Service, "service", "", "service id")
-	agentCmd.Flags().StringVar(&agentConfig.Interface, "iface", "eth0", "Network interface")
 	agentCmd.Flags().StringVar(&configFile, "config", "", "specify a configuration file")
 
 	err := viper.BindPFlags(agentCmd.Flags())

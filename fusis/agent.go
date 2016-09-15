@@ -57,15 +57,11 @@ func (a *Agent) getInfo() string {
 		log.Fatal("Unable to get agent host address", err)
 	}
 
-	if a.config.Address != "" {
-		address = a.config.Address
-	}
-
 	dst := types.Destination{
 		Name:      a.config.Name,
 		Host:      address,
 		Port:      a.config.Port,
-		Weight:    1,
+		Weight:    a.config.Weight,
 		Mode:      a.config.Mode,
 		ServiceId: a.config.Service,
 	}

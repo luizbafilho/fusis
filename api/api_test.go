@@ -156,7 +156,7 @@ func (s *S) TestServiceDeleteNotFound(c *check.C) {
 func (s *S) TestDestinationCreate(c *check.C) {
 	err := s.bal.AddService(&types.Service{Name: "myservice"})
 	c.Assert(err, check.IsNil)
-	body := strings.NewReader(`{"name": "myname", "host": "myhost", "port": 1234}`)
+	body := strings.NewReader(`{"name": "myname", "address": "myhost", "port": 1234}`)
 	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
 	c.Assert(err, check.IsNil)
 	resp, err := http.DefaultClient.Do(req)
@@ -194,9 +194,9 @@ func (s *S) TestDestinationCreateValidationError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(result, check.DeepEquals, map[string]map[string]string{
 		"errors": {
-			"Name": "non zero value required",
-			"Port": "non zero value required",
-			"Host": "non zero value required",
+			"Name":    "non zero value required",
+			"Port":    "non zero value required",
+			"Address": "non zero value required",
 		},
 	})
 	c.Assert(resp.StatusCode, check.Equals, http.StatusBadRequest)
@@ -231,7 +231,7 @@ func (s *S) TestDestinationCreateConflict(c *check.C) {
 	}
 	err = s.bal.AddDestination(srv, dst)
 	c.Assert(err, check.IsNil)
-	body := strings.NewReader(`{"name": "mydest", "host": "myhost", "port": 1234}`)
+	body := strings.NewReader(`{"name": "mydest", "address": "myhost", "port": 1234}`)
 	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
 	c.Assert(err, check.IsNil)
 	resp, err := http.DefaultClient.Do(req)

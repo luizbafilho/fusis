@@ -30,7 +30,7 @@ type AgentConfig struct {
 
 	Balancer string
 	Name     string
-	Host     string
+	Address  string
 	Port     uint16
 	Weight   int32
 	Mode     string

@@ -56,7 +56,7 @@ func setupConfig() {
 	hostname, _ := os.Hostname()
 	agentCmd.Flags().StringVarP(&agentConfig.Balancer, "balancer", "b", "", "master balancer IP address")
 	agentCmd.Flags().StringVarP(&agentConfig.Name, "name", "n", hostname, "node name (unique in the cluster)")
-	agentCmd.Flags().StringVar(&agentConfig.Host, "host", "", "host IP address")
+	agentCmd.Flags().StringVar(&agentConfig.Address, "host", "", "host IP address")
 	agentCmd.Flags().Uint16VarP(&agentConfig.Port, "port", "p", 80, "port number")
 	agentCmd.Flags().Int32VarP(&agentConfig.Weight, "weight", "w", 1, "host weigth")
 	agentCmd.Flags().StringVarP(&agentConfig.Mode, "mode", "m", "nat", "host IP address")

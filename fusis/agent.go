@@ -52,18 +52,18 @@ func (a *Agent) Start() error {
 }
 
 func (a *Agent) getInfo() string {
-	host, err := a.config.GetIpByInterface()
+	address, err := a.config.GetIpByInterface()
 	if err != nil {
 		log.Fatal("Unable to get agent host address", err)
 	}
 
-	if a.config.Host != "" {
-		host = a.config.Host
+	if a.config.Address != "" {
+		address = a.config.Address
 	}
 
 	dst := types.Destination{
 		Name:      a.config.Name,
-		Host:      host,
+		Host:      address,
 		Port:      a.config.Port,
 		Weight:    1,
 		Mode:      a.config.Mode,

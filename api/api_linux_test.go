@@ -59,17 +59,17 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	c.Assert(err, check.IsNil)
 	_, err = client.CreateService(types.Service{Name: "myservice", Port: 1050, Mode: "nat", Protocol: "tcp", Scheduler: "rr"})
 	c.Assert(err, check.Equals, types.ErrServiceAlreadyExists)
-	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname1", Host: "10.0.0.1", Port: 1234, Mode: "nat"})
+	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname1", Address: "10.0.0.1", Port: 1234, Mode: "nat"})
 	c.Assert(err, check.IsNil)
-	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname2", Host: "10.0.0.2", Port: 1234, Mode: "nat"})
+	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname2", Address: "10.0.0.2", Port: 1234, Mode: "nat"})
 	c.Assert(err, check.IsNil)
-	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname3", Host: "10.0.0.1", Port: 1235, Mode: "nat"})
+	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname3", Address: "10.0.0.1", Port: 1235, Mode: "nat"})
 	c.Assert(err, check.IsNil)
-	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname3", Host: "10.0.0.1", Port: 1235, Mode: "nat"})
+	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname3", Address: "10.0.0.1", Port: 1235, Mode: "nat"})
 	c.Assert(err, check.Equals, types.ErrDestinationAlreadyExists)
-	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname4", Host: "10.0.0.1", Port: 1234, Mode: "nat"})
+	_, err = client.AddDestination(types.Destination{ServiceId: "myservice", Name: "myname4", Address: "10.0.0.1", Port: 1234, Mode: "nat"})
 	c.Assert(err, check.Equals, types.ErrDestinationAlreadyExists)
-	_, err = client.AddDestination(types.Destination{ServiceId: "myserviceX", Name: "myname3", Host: "10.0.0.1", Port: 1235, Mode: "nat"})
+	_, err = client.AddDestination(types.Destination{ServiceId: "myserviceX", Name: "myname3", Address: "10.0.0.1", Port: 1235, Mode: "nat"})
 	c.Assert(err, check.Equals, types.ErrServiceNotFound)
 	services, err := client.GetServices()
 	c.Assert(err, check.IsNil)
@@ -88,7 +88,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	c.Assert(dsts, check.DeepEquals, []types.Destination{
 		{
 			Name:      "myname1",
-			Host:      "10.0.0.1",
+			Address:   "10.0.0.1",
 			Port:      1234,
 			Weight:    1,
 			Mode:      "nat",
@@ -96,7 +96,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		},
 		{
 			Name:      "myname2",
-			Host:      "10.0.0.2",
+			Address:   "10.0.0.2",
 			Port:      1234,
 			Weight:    1,
 			Mode:      "nat",
@@ -104,7 +104,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		},
 		{
 			Name:      "myname3",
-			Host:      "10.0.0.1",
+			Address:   "10.0.0.1",
 			Port:      1235,
 			Weight:    1,
 			Mode:      "nat",
@@ -133,7 +133,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 	c.Assert(balancer.GetDestinations(services[0]), check.DeepEquals, []types.Destination{
 		{
 			Name:      "myname1",
-			Host:      "10.0.0.1",
+			Address:   "10.0.0.1",
 			Port:      1234,
 			Weight:    1,
 			Mode:      "nat",

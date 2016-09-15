@@ -44,7 +44,7 @@ func (s *EngineSuite) SetUpSuite(c *C) {
 
 	s.destination = &types.Destination{
 		Name:      "test",
-		Host:      "192.168.1.1",
+		Address:   "192.168.1.1",
 		Port:      80,
 		Mode:      "nat",
 		Weight:    1,

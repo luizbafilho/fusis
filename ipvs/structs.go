@@ -96,7 +96,7 @@ func ToIpvsService(s *types.Service) *gipvs.Service {
 
 func ToIpvsDestination(d *types.Destination) *gipvs.Destination {
 	return &gipvs.Destination{
-		Address: net.ParseIP(d.Host),
+		Address: net.ParseIP(d.Address),
 		Port:    d.Port,
 		Weight:  d.Weight,
 		Flags:   stringToDestinationFlags(d.Mode),
@@ -120,9 +120,9 @@ func FromService(s *gipvs.Service) types.Service {
 
 func fromDestination(d *gipvs.Destination) types.Destination {
 	return types.Destination{
-		Host:   d.Address.String(),
-		Port:   d.Port,
-		Weight: d.Weight,
-		Mode:   destinationFlagsToString(d.Flags),
+		Address: d.Address.String(),
+		Port:    d.Port,
+		Weight:  d.Weight,
+		Mode:    destinationFlagsToString(d.Flags),
 	}
 }

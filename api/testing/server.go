@@ -84,7 +84,7 @@ func (b *testBalancer) AddDestination(srv *types.Service, dest *types.Destinatio
 				if dsts[j].Name == dest.Name {
 					return types.ErrDestinationAlreadyExists
 				}
-				if dsts[j].Host == dest.Host && dsts[j].Port == dest.Port {
+				if dsts[j].Address == dest.Address && dsts[j].Port == dest.Port {
 					return types.ErrDestinationAlreadyExists
 				}
 			}

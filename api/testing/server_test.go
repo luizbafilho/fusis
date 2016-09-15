@@ -138,7 +138,7 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 	dst := &types.Destination{
 		Name:      "dst1",
 		ServiceId: "srv1",
-		Host:      "192.1.1.1",
+		Address:   "192.1.1.1",
 	}
 	err = bal.AddDestination(srv, dst)
 	c.Assert(err, check.IsNil)
@@ -146,7 +146,7 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 	dst2 := &types.Destination{
 		Name:      "dst2",
 		ServiceId: "srv1",
-		Host:      "192.2.2.2",
+		Address:   "192.2.2.2",
 	}
 	err = bal.AddDestination(srv, dst2)
 	c.Assert(err, check.IsNil)
@@ -161,7 +161,7 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 	c.Assert(dst, check.DeepEquals, &types.Destination{
 		Name:      "dst2",
 		ServiceId: "srv1",
-		Host:      "192.2.2.2",
+		Address:   "192.2.2.2",
 	})
 
 	srv, err = bal.GetService("srv1")
@@ -169,7 +169,7 @@ func (s *S) TestTestBalancerDeleteDestination(c *check.C) {
 	c.Assert(bal.GetDestinations(srv), check.DeepEquals, []types.Destination{{
 		Name:      "dst2",
 		ServiceId: "srv1",
-		Host:      "192.2.2.2",
+		Address:   "192.2.2.2",
 	}})
 
 	dst.Name = "dst1"

@@ -103,7 +103,7 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 	}
 
 	for _, existDst := range b.state.GetDestinations(svc) {
-		if existDst.Host == dst.Host && existDst.Port == dst.Port {
+		if existDst.Address == dst.Address && existDst.Port == dst.Port {
 			return types.ErrDestinationAlreadyExists
 		}
 	}

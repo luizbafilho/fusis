@@ -36,7 +36,7 @@ type Service struct {
 
 type Destination struct {
 	Name      string `valid:"required"`
-	Host      string `valid:"required"`
+	Address   string `valid:"required"`
 	Port      uint16 `valid:"required"`
 	Weight    int32
 	Mode      string `valid:"required"`
@@ -60,7 +60,7 @@ func (svc Service) KernelKey() string {
 }
 
 func (dst Destination) KernelKey() string {
-	return fmt.Sprintf("%s-%d", dst.Host, dst.Port)
+	return fmt.Sprintf("%s-%d", dst.Address, dst.Port)
 }
 
 type DestinationList []Destination

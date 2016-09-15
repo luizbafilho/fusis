@@ -58,11 +58,11 @@ func (s *IpvsSuite) TestIpvsSyncState(c *C) {
 		Protocol:  "tcp",
 	}
 	dst2 := &types.Destination{
-		Name:   "test1",
-		Host:   "192.168.9.9",
-		Port:   80,
-		Mode:   "nat",
-		Weight: 1,
+		Name:    "test1",
+		Address: "192.168.9.9",
+		Port:    80,
+		Mode:    "nat",
+		Weight:  1,
 	}
 	s.state.AddService(s.service)
 	s.state.AddDestination(s.destination)

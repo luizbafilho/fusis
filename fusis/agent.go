@@ -59,7 +59,7 @@ func (a *Agent) getInfo() string {
 
 	dst := types.Destination{
 		Name:      a.config.Name,
-		Host:      address,
+		Address:   address,
 		Port:      a.config.Port,
 		Weight:    a.config.Weight,
 		Mode:      a.config.Mode,

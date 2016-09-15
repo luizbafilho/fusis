@@ -46,7 +46,7 @@ func (s *FusisSuite) SetUpSuite(c *C) {
 
 	s.destination = &types.Destination{
 		Name:      "test",
-		Host:      "192.168.1.1",
+		Address:   "192.168.1.1",
 		Port:      80,
 		Mode:      "nat",
 		Weight:    1,
@@ -313,7 +313,7 @@ func (s *FusisSuite) TestAddDeleteDestination(c *C) {
 	c.Assert(err, IsNil)
 	newDst := &types.Destination{
 		Name:      "test-1",
-		Host:      "192.168.1.1",
+		Address:   "192.168.1.1",
 		Port:      80,
 		Mode:      "nat",
 		Weight:    1,
@@ -354,7 +354,7 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 			errs[i] = b.AddDestination(s.service, s.destination)
 			newDst := &types.Destination{
 				Name:      fmt.Sprintf("test-%d", i),
-				Host:      "192.168.1.1",
+				Address:   "192.168.1.1",
 				Port:      81 + uint16(i),
 				Mode:      "nat",
 				Weight:    1,

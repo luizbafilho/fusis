@@ -60,7 +60,7 @@ func (bs *BgpService) getStateBgpPaths(s state.State) mapset.Set {
 	paths := mapset.NewSet()
 
 	for _, v := range s.GetServices() {
-		paths.Add(v.Host)
+		paths.Add(v.Address)
 	}
 
 	return paths

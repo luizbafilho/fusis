@@ -342,7 +342,7 @@ func (b *Balancer) watchLeaderChanges() {
 
 func (b *Balancer) sendGratuitousARPReply() error {
 	for _, s := range b.GetServices() {
-		if err := fusis_net.SendGratuitousARPReply(s.Host, b.config.Interfaces.Inbound); err != nil {
+		if err := fusis_net.SendGratuitousARPReply(s.Address, b.config.Interfaces.Inbound); err != nil {
 			return err
 		}
 	}

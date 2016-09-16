@@ -79,7 +79,7 @@ func ToIpvsService(s *types.Service) *gipvs.Service {
 	// }
 
 	service := &gipvs.Service{
-		Address:      net.ParseIP(s.Host),
+		Address:      net.ParseIP(s.Address),
 		Port:         s.Port,
 		Protocol:     stringToIPProto(s.Protocol),
 		Scheduler:    s.Scheduler,
@@ -110,7 +110,7 @@ func FromService(s *gipvs.Service) types.Service {
 	}
 
 	return types.Service{
-		Host:      s.Address.String(),
+		Address:   s.Address.String(),
 		Port:      s.Port,
 		Protocol:  ipProtoToString(s.Protocol),
 		Scheduler: s.Scheduler,

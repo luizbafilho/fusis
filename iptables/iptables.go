@@ -155,7 +155,7 @@ func (i IptablesMngr) serviceToSnatRule(svc types.Service) (*SnatRule, error) {
 	}
 
 	rule := &SnatRule{
-		vaddr:    svc.Host,
+		vaddr:    svc.Address,
 		vport:    strconv.Itoa(int(svc.Port)),
 		toSource: privateIp,
 	}

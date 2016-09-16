@@ -36,7 +36,7 @@ func (s *EngineSuite) SetUpSuite(c *C) {
 
 	s.service = &types.Service{
 		Name:      "test",
-		Host:      "10.0.1.1",
+		Address:   "10.0.1.1",
 		Port:      80,
 		Scheduler: "lc",
 		Protocol:  "tcp",

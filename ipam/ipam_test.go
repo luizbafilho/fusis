@@ -41,24 +41,24 @@ func (s *IpamSuite) TearDownSuite(c *C) {
 
 func (s *IpamSuite) TestIpAllocation(c *C) {
 	service := &types.Service{
-		Name: "test",
-		Host: "10.0.1.2",
+		Name:    "test",
+		Address: "10.0.1.2",
 	}
 	s.state.AddService(service)
 
 	err := s.ipam.AllocateVIP(service)
 	c.Assert(err, IsNil)
-	c.Assert(service.Host, Equals, "10.0.1.1")
+	c.Assert(service.Address, Equals, "10.0.1.1")
 
 	service = &types.Service{
-		Name: "test2",
-		Host: "10.0.1.1",
+		Name:    "test2",
+		Address: "10.0.1.1",
 	}
 	s.state.AddService(service)
 
 	err = s.ipam.AllocateVIP(service)
 	c.Assert(err, IsNil)
-	c.Assert(service.Host, Equals, "10.0.1.3")
+	c.Assert(service.Address, Equals, "10.0.1.3")
 }
 
 func (s *IpamSuite) TestIpAllocationMultiplesRanges(c *C) {
@@ -66,8 +66,8 @@ func (s *IpamSuite) TestIpAllocationMultiplesRanges(c *C) {
 
 	for i, v := range ips {
 		s.state.AddService(&types.Service{
-			Name: fmt.Sprintf("test%s", i),
-			Host: v,
+			Name:    fmt.Sprintf("test%s", i),
+			Address: v,
 		})
 	}
 
@@ -76,7 +76,7 @@ func (s *IpamSuite) TestIpAllocationMultiplesRanges(c *C) {
 	}
 	err := s.ipam.AllocateVIP(service)
 	c.Assert(err, IsNil)
-	c.Assert(service.Host, Equals, "192.168.0.1")
+	c.Assert(service.Address, Equals, "192.168.0.1")
 }
 
 func (s *IpamSuite) TestCursorValidation(c *C) {

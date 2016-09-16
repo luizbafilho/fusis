@@ -81,7 +81,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		Port:      1040,
 		Protocol:  "tcp",
 		Scheduler: "rr",
-		Host:      "192.168.0.1",
+		Address:   "192.168.0.1",
 	})
 	dsts := balancer.GetDestinations(&svc)
 	sort.Sort(types.DestinationList(dsts))
@@ -128,7 +128,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 		Port:      1040,
 		Protocol:  "tcp",
 		Scheduler: "rr",
-		Host:      "192.168.0.1",
+		Address:   "192.168.0.1",
 	})
 	c.Assert(balancer.GetDestinations(services[0]), check.DeepEquals, []types.Destination{
 		{

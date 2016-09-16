@@ -52,7 +52,7 @@ func (s *IpvsSuite) TestIpvsSyncState(c *C) {
 	c.Assert(err, IsNil)
 	srv2 := &types.Service{
 		Name:      "test1",
-		Host:      "10.0.9.9",
+		Address:   "10.0.9.9",
 		Port:      80,
 		Scheduler: "lc",
 		Protocol:  "tcp",

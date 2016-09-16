@@ -26,7 +26,7 @@ func (e ErrNotFound) Error() string {
 
 type Service struct {
 	Name       string `valid:"required"`
-	Host       string
+	Address    string
 	Port       uint16 `valid:"required"`
 	Protocol   string `valid:"required"`
 	Scheduler  string `valid:"required"`
@@ -56,7 +56,7 @@ func (dst Destination) GetId() string {
 }
 
 func (svc Service) KernelKey() string {
-	return fmt.Sprintf("%s-%d-%s", svc.Host, svc.Port, svc.Protocol)
+	return fmt.Sprintf("%s-%d-%s", svc.Address, svc.Port, svc.Protocol)
 }
 
 func (dst Destination) KernelKey() string {

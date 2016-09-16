@@ -51,7 +51,7 @@ func (s *IptablesSuite) TestSync(c *C) {
 
 	s1 := &types.Service{
 		Name:     "test",
-		Host:     "10.0.1.1",
+		Address:  "10.0.1.1",
 		Port:     80,
 		Mode:     "nat",
 		Protocol: "tcp",
@@ -60,7 +60,7 @@ func (s *IptablesSuite) TestSync(c *C) {
 
 	state.AddService(&types.Service{
 		Name:     "test2",
-		Host:     "10.0.1.2",
+		Address:  "10.0.1.2",
 		Port:     80,
 		Protocol: "tcp",
 		Mode:     "nat",

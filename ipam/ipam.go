@@ -58,7 +58,7 @@ func (i *Ipam) AllocateVIP(s *types.Service) error {
 
 		if !assigned {
 			i.rangeCursor.Set(i.rangeCursor.First())
-			s.Host = pos.IP.String()
+			s.Address = pos.IP.String()
 			return nil
 		}
 	}
@@ -75,7 +75,7 @@ func (i *Ipam) ipIsAssigned(e string, state state.Store) bool {
 	services := state.GetServices()
 
 	for _, a := range services {
-		if a.Host == e {
+		if a.Address == e {
 			return true
 		}
 

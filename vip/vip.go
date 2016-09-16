@@ -72,7 +72,7 @@ func (n VipMngr) getStateVips(state state.State) mapset.Set {
 
 	svcs := state.GetServices()
 	for _, s := range svcs {
-		vips = append(vips, s.Host)
+		vips = append(vips, s.Address)
 	}
 
 	set := mapset.NewSet()

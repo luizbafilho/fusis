@@ -58,6 +58,15 @@ func DelVips(iface string) error {
 	return nil
 }
 
+func SetLinkUp(iface string) error {
+	link, err := netlink.LinkByName(iface)
+	if err != nil {
+		return err
+	}
+
+	return netlink.LinkSetUp(link)
+}
+
 func GetVips(iface string) ([]netlink.Addr, error) {
 	link, err := netlink.LinkByName(iface)
 	if err != nil {

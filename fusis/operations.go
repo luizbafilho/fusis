@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/health"
 	"github.com/luizbafilho/fusis/state"
 )
 
@@ -134,6 +135,33 @@ func (b *Balancer) DeleteDestination(dst *types.Destination) error {
 		Op:          state.DelDestinationOp,
 		Service:     svc,
 		Destination: dst,
+	}
+
+	return b.ApplyToRaft(c)
+}
+
+func (b *Balancer) AddCheck(dst *types.Destination) error {
+	c := &state.Command{
+		Op:          state.AddCheckOp,
+		Destination: dst,
+	}
+
+	return b.ApplyToRaft(c)
+}
+
+func (b *Balancer) DelCheck(dst *types.Destination) error {
+	c := &state.Command{
+		Op:          state.DelCheckOp,
+		Destination: dst,
+	}
+
+	return b.ApplyToRaft(c)
+}
+
+func (b *Balancer) UpdateCheck(check health.Check) error {
+	c := &state.Command{
+		Op:    state.UpdateCheckOp,
+		Check: &check,
 	}
 
 	return b.ApplyToRaft(c)

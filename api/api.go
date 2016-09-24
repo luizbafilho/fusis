@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/health"
 )
 
 // ApiService ...
@@ -21,10 +22,16 @@ type Balancer interface {
 	AddService(*types.Service) error
 	GetService(string) (*types.Service, error)
 	DeleteService(string) error
+
 	AddDestination(*types.Service, *types.Destination) error
 	GetDestination(string) (*types.Destination, error)
 	GetDestinations(svc *types.Service) []types.Destination
 	DeleteDestination(*types.Destination) error
+
+	AddCheck(dst *types.Destination) error
+	DelCheck(dst *types.Destination) error
+	UpdateCheck(check health.Check) error
+
 	IsLeader() bool
 	GetLeader() string
 }

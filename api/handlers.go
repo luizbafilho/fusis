@@ -152,6 +152,12 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		return
 	}
 
+	err = as.balancer.AddCheck(destination)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("AddCheck() failed: %v\n", err)})
+		return
+	}
+
 	c.Header("Location", fmt.Sprintf("/services/%s/destinations/%s", serviceName, destination.Name))
 	c.JSON(http.StatusCreated, destination)
 }
@@ -172,7 +178,13 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 	err = as.balancer.DeleteDestination(dst)
 	if err != nil {
 		c.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v\n", err)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v", err)})
+	}
+
+	err = as.balancer.DelCheck(dst)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DelCheck() failed: %v", err)})
+		return
 	}
 
 	c.Status(http.StatusNoContent)

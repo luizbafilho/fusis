@@ -34,6 +34,18 @@ type Service struct {
 	Persistent uint32
 }
 
+func (svc Service) GetId() string {
+	return svc.Name
+}
+
+func (svc Service) IsNat() bool {
+	return svc.Mode == NAT
+}
+
+func (svc Service) KernelKey() string {
+	return fmt.Sprintf("%s-%d-%s", svc.Address, svc.Port, svc.Protocol)
+}
+
 type Destination struct {
 	Name      string `valid:"required"`
 	Address   string `valid:"required"`
@@ -43,20 +55,8 @@ type Destination struct {
 	ServiceId string `valid:"required"`
 }
 
-func (svc Service) GetId() string {
-	return svc.Name
-}
-
-func (svc Service) IsNat() bool {
-	return svc.Mode == NAT
-}
-
 func (dst Destination) GetId() string {
 	return dst.Name
-}
-
-func (svc Service) KernelKey() string {
-	return fmt.Sprintf("%s-%d-%s", svc.Address, svc.Port, svc.Protocol)
 }
 
 func (dst Destination) KernelKey() string {

@@ -4,9 +4,9 @@ package state
 
 import "fmt"
 
-const _CommandOp_name = "AddServiceOpDelServiceOpAddDestinationOpDelDestinationOp"
+const _CommandOp_name = "AddServiceOpDelServiceOpAddDestinationOpDelDestinationOpAddCheckOpDelCheckOpUpdateCheckOp"
 
-var _CommandOp_index = [...]uint8{0, 12, 24, 40, 56}
+var _CommandOp_index = [...]uint8{0, 12, 24, 40, 56, 66, 76, 89}
 
 func (i CommandOp) String() string {
 	if i < 0 || i >= CommandOp(len(_CommandOp_index)-1) {

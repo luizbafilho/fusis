@@ -25,6 +25,7 @@ import (
 	fusis_net "github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/vip"
+	"github.com/pkg/errors"
 
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/raft"
@@ -130,6 +131,8 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 
 	go balancer.watchLeaderChanges()
 	go balancer.watchState()
+	go balancer.watchHealthChecks()
+
 	go metrics.Monitor()
 
 	return balancer, nil
@@ -295,6 +298,15 @@ func (b *Balancer) handleStateChange() error {
 	}
 
 	return nil
+}
+
+func (b *Balancer) watchHealthChecks() {
+	for {
+		check := <-b.state.HealthCheckCh()
+		if err := b.UpdateCheck(check); err != nil {
+			log.Error(errors.Wrap(err, "Updating Check failed"))
+		}
+	}
 }
 
 func (b *Balancer) IsLeader() bool {

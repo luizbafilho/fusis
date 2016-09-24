@@ -1,10 +1,11 @@
 package state
 
 import (
-	"sync"
+	"fmt"
 	"time"
 
 	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/health"
 )
 
 type Store interface {
@@ -17,39 +18,29 @@ type Store interface {
 	GetDestinations(svc *types.Service) []types.Destination
 	AddDestination(dst *types.Destination)
 	DeleteDestination(dst *types.Destination)
-	CollectStats(tick time.Time)
+
+	AddCheck(dst *types.Destination)
+	DeleteCheck(dst *types.Destination)
+	GetChecks() map[string]*health.Check
 }
 
-type FusisStore struct {
-	sync.Mutex
-	Services     map[string]types.Service
-	Destinations map[string]types.Destination
-}
-
-func NewFusisStore() *FusisStore {
-	return &FusisStore{
-		Services:     make(map[string]types.Service),
-		Destinations: make(map[string]types.Destination),
-	}
-}
-
-func (s *FusisStore) GetServices() []types.Service {
+func (s *State) GetServices() []types.Service {
 	s.Lock()
 	defer s.Unlock()
 
 	services := []types.Service{}
-	for _, v := range s.Services {
+	for _, v := range s.services {
 		// s.getDestinations(&v)
 		services = append(services, v)
 	}
 	return services
 }
 
-func (s *FusisStore) GetService(name string) (*types.Service, error) {
+func (s *State) GetService(name string) (*types.Service, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	svc := s.Services[name]
+	svc := s.services[name]
 	if svc.Name == "" {
 		return nil, types.ErrServiceNotFound
 	}
@@ -57,9 +48,9 @@ func (s *FusisStore) GetService(name string) (*types.Service, error) {
 	return &svc, nil
 }
 
-func (s *FusisStore) GetDestinations(svc *types.Service) []types.Destination {
+func (s *State) GetDestinations(svc *types.Service) []types.Destination {
 	dsts := []types.Destination{}
-	for _, d := range s.Destinations {
+	for _, d := range s.destinations {
 		if d.ServiceId == svc.GetId() {
 			dsts = append(dsts, d)
 		}
@@ -68,45 +59,77 @@ func (s *FusisStore) GetDestinations(svc *types.Service) []types.Destination {
 	return dsts
 }
 
-func (s *FusisStore) AddService(svc *types.Service) {
+func (s *State) AddService(svc *types.Service) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.Services[svc.GetId()] = *svc
+	s.services[svc.GetId()] = *svc
 }
 
-func (s *FusisStore) DeleteService(svc *types.Service) {
+func (s *State) DeleteService(svc *types.Service) {
 	s.Lock()
 	defer s.Unlock()
 
-	delete(s.Services, svc.GetId())
+	delete(s.services, svc.GetId())
 }
 
-func (s *FusisStore) GetDestination(name string) (*types.Destination, error) {
+func (s *State) GetDestination(name string) (*types.Destination, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	dst := s.Destinations[name]
+	dst := s.destinations[name]
 	if dst.Name == "" {
 		return nil, types.ErrDestinationNotFound
 	}
 	return &dst, nil
 }
 
-func (s *FusisStore) AddDestination(dst *types.Destination) {
+func (s *State) AddDestination(dst *types.Destination) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.Destinations[dst.GetId()] = *dst
+	s.destinations[dst.GetId()] = *dst
 }
 
-func (s *FusisStore) DeleteDestination(dst *types.Destination) {
+func (s *State) DeleteDestination(dst *types.Destination) {
 	s.Lock()
 	defer s.Unlock()
 
-	delete(s.Destinations, dst.GetId())
+	delete(s.destinations, dst.GetId())
 }
 
-func (s *FusisStore) CollectStats(tick time.Time) {
+func (s *State) AddCheck(dst *types.Destination) {
+	s.Lock()
+	defer s.Unlock()
 
+	check := health.Check{
+		UpdatesCh:     s.healhCheckCh,
+		Status:        health.BAD,
+		Interval:      5 * time.Second,
+		TCP:           fmt.Sprintf("%s:%d", dst.Address, dst.Port),
+		DestinationID: dst.GetId(),
+	}
+
+	s.checks[dst.GetId()] = &check
+
+	check.Start()
+}
+
+func (s *State) DeleteCheck(dst *types.Destination) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.checks[dst.GetId()].Stop()
+	delete(s.checks, dst.GetId())
+}
+
+func (s *State) UpdateCheck(check *health.Check) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.checks[check.DestinationID].Status = check.Status
+}
+
+func (s *State) GetChecks() map[string]*health.Check {
+	return s.checks
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/health"
 )
 
 //go:generate stringer -type=CommandOp
@@ -17,9 +18,13 @@ import (
 // State...
 type State struct {
 	sync.Mutex
-	Store
 
-	changesCh chan chan error
+	services     map[string]types.Service
+	destinations map[string]types.Destination
+	checks       map[string]*health.Check
+
+	changesCh    chan chan error
+	healhCheckCh chan health.Check
 }
 
 // Represents possible actions on engine
@@ -28,6 +33,9 @@ const (
 	DelServiceOp
 	AddDestinationOp
 	DelDestinationOp
+	AddCheckOp
+	DelCheckOp
+	UpdateCheckOp
 )
 
 type CommandOp int
@@ -37,6 +45,7 @@ type Command struct {
 	Op          CommandOp
 	Service     *types.Service
 	Destination *types.Destination
+	Check       *health.Check
 	Response    chan interface{} `json:"-"`
 }
 
@@ -47,13 +56,20 @@ func (c Command) String() string {
 // New creates a new Engine
 func New(config *config.BalancerConfig) (*State, error) {
 	return &State{
-		Store:     NewFusisStore(),
-		changesCh: make(chan chan error),
+		services:     make(map[string]types.Service),
+		destinations: make(map[string]types.Destination),
+		checks:       make(map[string]*health.Check),
+		changesCh:    make(chan chan error),
+		healhCheckCh: make(chan health.Check),
 	}, nil
 }
 
 func (s *State) ChangesCh() chan chan error {
 	return s.changesCh
+}
+
+func (s *State) HealthCheckCh() chan health.Check {
+	return s.healhCheckCh
 }
 
 // Apply actions to fsm
@@ -72,6 +88,12 @@ func (s *State) Apply(l *raft.Log) interface{} {
 		s.AddDestination(c.Destination)
 	case DelDestinationOp:
 		s.DeleteDestination(c.Destination)
+	case AddCheckOp:
+		s.AddCheck(c.Destination)
+	case DelCheckOp:
+		s.DeleteCheck(c.Destination)
+	case UpdateCheckOp:
+		s.UpdateCheck(c.Check)
 	}
 	rsp := make(chan error)
 	s.changesCh <- rsp

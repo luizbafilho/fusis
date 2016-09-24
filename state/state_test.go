@@ -155,21 +155,21 @@ func (s *EngineSuite) addDestination(c *C) {
 func (s *EngineSuite) TestApplyAddService(c *C) {
 	s.addService(c)
 
-	c.Assert(s.state.Store.GetServices(), DeepEquals, []types.Service{*s.service})
+	c.Assert(s.state.GetServices(), DeepEquals, []types.Service{*s.service})
 }
 
 func (s *EngineSuite) TestApplyDelService(c *C) {
 	s.addService(c)
 	s.delService(c)
 
-	c.Assert(s.state.Store.GetServices(), DeepEquals, []types.Service{})
+	c.Assert(s.state.GetServices(), DeepEquals, []types.Service{})
 }
 
 func (s *EngineSuite) TestApplyAddDestination(c *C) {
 	s.addService(c)
 	s.addDestination(c)
 
-	dst, err := s.state.Store.GetDestination(s.destination.Name)
+	dst, err := s.state.GetDestination(s.destination.Name)
 	c.Assert(err, IsNil)
 	c.Assert(dst, DeepEquals, s.destination)
 }
@@ -187,7 +187,7 @@ func (s *EngineSuite) TestApplyDelDestination(c *C) {
 	resp := s.state.Apply(makeLog(cmd, c))
 	c.Assert(resp, IsNil)
 
-	_, err := s.state.Store.GetDestination(s.destination.Name)
+	_, err := s.state.GetDestination(s.destination.Name)
 	c.Assert(err, Equals, types.ErrDestinationNotFound)
 }
 
@@ -213,5 +213,5 @@ func (s *EngineSuite) TestSnapshotRestore(c *C) {
 
 	// s.service.Destinations = []types.Destination{*s.destination}
 
-	c.Assert(eng.Store.GetServices(), DeepEquals, []types.Service{*s.service})
+	c.Assert(eng.GetServices(), DeepEquals, []types.Service{*s.service})
 }

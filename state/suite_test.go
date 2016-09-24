@@ -6,6 +6,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/state"
 	. "gopkg.in/check.v1"
@@ -42,7 +43,7 @@ func (s *StateSuite) SetUpSuite(c *C) {
 }
 
 func (s *StateSuite) SetUpTest(c *C) {
-	s.state = state.NewFusisStore()
+	s.state, _ = state.New(&config.BalancerConfig{})
 }
 
 func (s *StateSuite) TearDownSuite(c *C) {

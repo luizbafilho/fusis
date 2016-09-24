@@ -106,8 +106,6 @@ type fusisSnapshot struct {
 
 func (s *State) Snapshot() (raft.FSMSnapshot, error) {
 	logrus.Info("Snapshotting Fusis State")
-	s.Lock()
-	defer s.Unlock()
 
 	services := s.GetServices()
 

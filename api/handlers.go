@@ -147,14 +147,8 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 		if err == types.ErrDestinationAlreadyExists {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("UpsertDestination() failed: %v\n", err)})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("AddDestination() failed: %v", err)})
 		}
-		return
-	}
-
-	err = as.balancer.AddCheck(destination)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("AddCheck() failed: %v\n", err)})
 		return
 	}
 

@@ -115,7 +115,11 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 		Destination: dst,
 	}
 
-	return b.ApplyToRaft(c)
+	if err := b.ApplyToRaft(c); err != nil {
+		return err
+	}
+
+	return b.AddCheck(dst)
 }
 
 func (b *Balancer) DeleteDestination(dst *types.Destination) error {

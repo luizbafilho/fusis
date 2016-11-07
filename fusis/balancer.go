@@ -418,11 +418,13 @@ func (b *Balancer) handleAgentJoin(m serf.Member) {
 	var dst *types.Destination
 	if err := json.Unmarshal([]byte(m.Tags["info"]), &dst); err != nil {
 		log.Error("Unable to Unmarshal new destination info", err)
+		return
 	}
 
 	srv, err := b.GetService(dst.ServiceId)
 	if err != nil {
 		log.Error("handleAgentJoin: Unable to find service", err)
+		return
 	}
 
 	if err := b.AddDestination(srv, dst); err != nil {

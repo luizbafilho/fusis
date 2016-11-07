@@ -38,6 +38,7 @@ func (a *Agent) SetupRouteVip(vip string) error {
 		return err
 	}
 
+	log.Println("setup route vip. ", vip)
 	return net.AddIp(vip+"/32", a.config.Interface)
 }
 
@@ -100,7 +101,55 @@ func (a *Agent) Start() error {
 
 	a.serf = serf
 
+	go a.handleEvents()
+
 	return nil
+}
+
+func (a *Agent) handleEvents() {
+	for {
+		select {
+		case e := <-a.eventCh:
+			switch e.EventType() {
+			case serf.EventQuery:
+				query := e.(*serf.Query)
+				a.handleQuery(query)
+			default:
+				log.Warnf("Balancer: unhandled Serf Event: %#v", e)
+			}
+		}
+	}
+}
+
+func (a *Agent) handleQuery(query *serf.Query) {
+	payload := query.Payload
+	var config AgentInterfaceConfig
+	err := json.Unmarshal(payload, &config)
+	if err != nil {
+		log.Errorf("Balancer: Unable to Unmarshal: %s", payload)
+	}
+
+	log.Println("query received. %v", query)
+
+	switch query.Name {
+	case ConfigInterfaceAgentQuery:
+		a.configInterface(config)
+	}
+
+}
+
+func (a *Agent) configInterface(config AgentInterfaceConfig) {
+	var err error
+	switch config.Mode {
+	case types.TUNNEL:
+		err = a.SetupTunnelVip(config.ServiceAddress)
+	case types.ROUTE:
+		err = a.SetupRouteVip(config.ServiceAddress)
+	}
+
+	if err != nil {
+		log.Errorf("configuring network interface. Config: %v. Err: %v", config, err)
+	}
 }
 
 func (a *Agent) getInfo() string {

@@ -4,9 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/hashicorp/serf/serf"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/health"
 	"github.com/luizbafilho/fusis/state"
+	"github.com/pkg/errors"
+)
+
+const (
+	ConfigInterfaceAgentQuery = "config-interface-agent"
 )
 
 type ErrCrashError struct {
@@ -109,6 +116,10 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 		}
 	}
 
+	if err := b.setupDestination(svc, dst); err != nil {
+		return errors.Wrap(err, "setup destination failed")
+	}
+
 	c := &state.Command{
 		Op:          state.AddDestinationOp,
 		Service:     svc,
@@ -120,6 +131,30 @@ func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) er
 	}
 
 	return b.AddCheck(dst)
+}
+
+type AgentInterfaceConfig struct {
+	ServiceAddress string
+	Mode           string
+}
+
+func (b *Balancer) setupDestination(svc *types.Service, dst *types.Destination) error {
+	params := serf.QueryParam{
+		FilterNodes: []string{dst.Name},
+	}
+
+	config := AgentInterfaceConfig{
+		ServiceAddress: svc.Address,
+		Mode:           svc.Mode,
+	}
+
+	payload, _ := json.Marshal(config)
+	_, err := b.serf.Query(ConfigInterfaceAgentQuery, payload, &params)
+	if err != nil {
+		logrus.Errorf("Balancer: add-balancer event error: %v", err)
+		return err
+	}
+	return nil
 }
 
 func (b *Balancer) DeleteDestination(dst *types.Destination) error {

@@ -41,13 +41,19 @@ Vagrant.configure(2) do |config|
   end
 
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
-    sudo apt-get update
+    sudo apt-get update -y
     sudo apt-get install curl wget
 
     HOME=/home/vagrant
 
     echo "====> Installing docker"
-    sudo curl -fsSL https://get.docker.com/ | sh
+    sudo apt-get -y install apt-transport-https ca-certificates
+    sudo apt-key -y adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+    echo "deb https://apt.dockerproject.org/repo ubuntu-trusty main" | sudo tee /etc/apt/sources.list.d/docker.list
+    sudo apt-get update -y
+    sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual
+    sudo apt-get install -y docker-engine
+    sudo service docker start
     sudo usermod -aG docker vagrant
 
     echo "====> Installing vim-gnome"
@@ -57,11 +63,11 @@ Vagrant.configure(2) do |config|
     echo "====> Installing dependencies"
     sudo apt-get install -y zsh silversearcher-ag software-properties-common libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump xauth
     sudo add-apt-repository ppa:neovim-ppa/unstable
-    sudo apt-get update
-    sudo apt-get install neovim
+    sudo apt-get update -y
+    sudo apt-get install -y neovim
 
     echo "====> Installing Oh my ZSH"
-    curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 
     echo "====> Installing Go"
     curl -O https://storage.googleapis.com/golang/go1.6.3.linux-amd64.tar.gz

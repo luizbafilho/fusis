@@ -2,6 +2,7 @@ package ipvs
 
 import (
 	"fmt"
+	"os/exec"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
@@ -20,8 +21,17 @@ type Syncer interface {
 	Sync(state state.State) error
 }
 
+func loadIpvsModule() error {
+	return exec.Command("modprobe", "ip_vs").Run()
+}
+
 //New creates a new ipvs struct and flushes the IPVS Table
 func New() (*Ipvs, error) {
+	err := loadIpvsModule()
+	if err != nil {
+		return nil, err
+	}
+
 	log.Infof("Initialising IPVS Module...")
 	if err := gipvs.Init(); err != nil {
 		return nil, fmt.Errorf("IPVS initialisation failed: %v", err)

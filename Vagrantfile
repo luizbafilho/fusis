@@ -16,7 +16,7 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder "#{ENV['GOPATH']}/src", "/home/vagrant/gocode/src", type: "nfs"
 
   config.vm.provider "vmware_fusion" do |provider, override|
-    override.vm.box = "bento/ubuntu-14.04"
+    override.vm.box = "geerlingguy/ubuntu1404"
     provider.cpus = 4
     provider.memory = "2048"
   end
@@ -42,7 +42,7 @@ Vagrant.configure(2) do |config|
 
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
     sudo apt-get update -y
-    sudo apt-get install curl wget
+    sudo apt-get install curl wget python3-pip
 
     HOME=/home/vagrant
 

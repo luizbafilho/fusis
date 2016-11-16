@@ -1,24 +1,14 @@
 Fusis Balancer  [![Build Status](https://travis-ci.org/luizbafilho/fusis.svg?branch=master)](https://travis-ci.org/luizbafilho/fusis)
 ======
 
-Fusis Balancer is a dynamic Layer 4 Load Balancer powered by [IPVS](http://www.linuxvirtualserver.org/) and [Serf](https://www.serfdom.io/).
+Fusis Balancer is a software [Layer 4](https://en.wikipedia.org/wiki/Transport_layer) Load Balancer powered by Linux's [IPVS](http://www.linuxvirtualserver.org/). It exposes a HTTP API to manage your services dynamically.
 
-Running the Fusis Agent in your servers, lets the load balancer detect new nodes and route traffic to them.
-
-There is also a HTTP API to manage your services dynamically.
-
-### IPVS
-IPVS (IP Virtual Server) implements transport-layer load balancing directly in the Linux Kernel. It has been around since 1999 and is very stable/battle tested. Used by many companies such as Google, Facebook, Github, Soundcloud and so on.
-
-IPVS is a amazing piece of software that few people really got to know, probably because its not that easy to use as it requires some some network configuration and a deep knowledge of it in order to make it work correctly.
-
-### Serf
-Serf is solution for distributed cluster management, message delivery and failure detection. It's one of the bases of [Consul](https://www.consul.io/).
+A layer 3 balancer take decisions based only on IP address (source and destination), a layer 4 balancer can also see transport information like TCP and UDP ports. Being a software balancer, it's tailored to be easy to deploy and scale.
 
 ## Why?
-The whole goal of this project is to provide an easy way to use IPVS.
+The goal of this project is to provide a friendly way to use IPVS.
 
-Fusis Load Balancer will be responsible for detecting new/failed nodes and add/remove routes to them. It will automatically configure the network to do so.
+It will be responsible for detecting new/failed nodes and add/remove routes to them automatically configuring the network to do so.
 
 ## State
 This project it's under heavy development, it's not usable yet, but you can **Star** :star: the project and follow the updates.
@@ -117,7 +107,5 @@ You can change its log collection interval by passing the following command line
 
 ```bash
 # The argument --log-interval or -i. The value is in seconds
-$> sudo fusis balancer --bootstrap --log-interval 10 
+$> sudo fusis balancer --bootstrap --log-interval 10
  ```
- 
- 

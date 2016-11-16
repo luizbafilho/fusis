@@ -16,25 +16,25 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder "#{ENV['GOPATH']}/src", "/home/vagrant/gocode/src", type: "nfs"
 
   config.vm.provider "vmware_fusion" do |provider, override|
-    override.vm.box = "geerlingguy/ubuntu1404"
+    override.vm.box = "bento/ubuntu-16.04"
     provider.cpus = 4
     provider.memory = "2048"
   end
 
   config.vm.provider "virtualbox" do |provider, override|
-    override.vm.box = "ubuntu/trusty64"
+    override.vm.box = "ubuntu/xenial64"
     provider.cpus = 4
     provider.memory = "2048"
   end
 
   config.vm.provider "parallels" do |provider, override|
-    override.vm.box = "parallels/ubuntu-14.04"
+    override.vm.box = "bento/ubuntu-16.04"
     provider.cpus = 4
     provider.memory = "2048"
   end
 
   config.vm.provider "libvirt" do |provider, override|
-    override.vm.box = "sputnik13/trusty64"
+    override.vm.box = "yk0/ubuntu-xenial"
     provider.cpus = 4
     provider.memory = "2048"
     provider.driver = "kvm"

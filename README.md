@@ -21,31 +21,25 @@ This project it's under heavy development, it's not usable yet, but you can **St
 WIP
 
 ## Developing
+
+### VM setup with Vagrant
+1. Install [Vagrant](https://www.vagrantup.com)
+
+2. Build the VM
+```bash
+vagrant up
+```
+Watch the message at the end of vagrant provision process.
+It'll provide you with user, password and where the project code is.
+
 ### Linux setup
-1. Install **Go 1.5** or later
+1. Install **Go 1.6** or later
 
 2. Install libnl-3 (Debian based: `apt-get install libnl-3-dev libnl-genl-3-dev`)
 
 3. Get this project into $GOPATH:
   ``` bash
   go get -v github.com/luizbafilho/fusis
-  ```
-
-  And it's dependencies:
-  ``` bash
-  make deps
-  ```
-
-4. Enable IPVS via modprobe:
-  ``` bash
-  sudo modprobe ip_vs
-  ```
-
-  Optionally, install the IPVS command line tool (`apt-get install ipvsadm`)
-
-5. Enable ipv4 forwarding:
-  ``` bash
-  sudo sysctl -w net.ipv4.ip_forward=1
   ```
 
 ### Running the project

@@ -9,87 +9,101 @@ Vagrant.configure(2) do |config|
   config.ssh.forward_x11 = true
   config.ssh.forward_agent = true
 
+  config.vm.hostname = "fusis"
+
   config.vm.network "forwarded_port", guest: 8000, host: 8000
 
   config.vm.network "private_network", ip: "192.168.33.10"
 
-  config.vm.synced_folder "#{ENV['GOPATH']}/src", "/home/vagrant/gocode/src", type: "nfs"
+  config.vm.synced_folder File.dirname(__FILE__), "/home/vagrant/go/src/github.com/luizbafilho/fusis", type: "nfs"
 
   config.vm.provider "vmware_fusion" do |provider, override|
-    override.vm.box = "geerlingguy/ubuntu1404"
+    override.vm.box = "bento/ubuntu-16.04"
+    provider.name = 'fusis'
     provider.cpus = 4
     provider.memory = "2048"
   end
 
   config.vm.provider "virtualbox" do |provider, override|
-    override.vm.box = "ubuntu/trusty64"
+    override.vm.box = "bento/ubuntu-16.04"
+    provider.name = 'fusis'
     provider.cpus = 4
     provider.memory = "2048"
   end
 
   config.vm.provider "parallels" do |provider, override|
-    override.vm.box = "parallels/ubuntu-14.04"
+    override.vm.box = "bento/ubuntu-16.04"
+    provider.name = 'fusis'
     provider.cpus = 4
     provider.memory = "2048"
   end
 
   config.vm.provider "libvirt" do |provider, override|
-    override.vm.box = "sputnik13/trusty64"
+    override.vm.box = "yk0/ubuntu-xenial"
+    provider.name = 'fusis'
     provider.cpus = 4
     provider.memory = "2048"
     provider.driver = "kvm"
   end
 
-  config.vm.provision "shell", privileged: false, inline: <<-SHELL
-    sudo apt-get update -y
-    sudo apt-get install curl wget python3-pip
+  config.vm.provision "shell",
+    privileged: true,
+    keep_color: true,
+    name: 'Install dependencies',
+    env: { DEBIAN_FRONTEND: 'noninteractive' },
+    inline: <<-SHELL
 
-    HOME=/home/vagrant
+    echo '\033[0;32m''Add docker apt repo'
+    apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+    echo "deb https://apt.dockerproject.org/repo ubuntu-xenial main" > /etc/apt/sources.list.d/docker.list
 
-    echo "====> Installing docker"
-    sudo apt-get -y install apt-transport-https ca-certificates
-    sudo apt-key -y adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
-    echo "deb https://apt.dockerproject.org/repo ubuntu-trusty main" | sudo tee /etc/apt/sources.list.d/docker.list
-    sudo apt-get update -y
-    sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual
-    sudo apt-get install -y docker-engine
-    sudo service docker start
-    sudo usermod -aG docker vagrant
+    echo '\033[0;32m''Add golang apt repo'
+    add-apt-repository ppa:ubuntu-lxc/lxd-stable
 
-    echo "====> Installing vim-gnome"
-    sudo locale-gen UTF-8
-    sudo apt-get install -y vim-gnome
+    echo '\033[0;32m''Wait for apt lock' # doing this instead of disabling ubuntu auto update
+    while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
+      sleep 1
+    done
 
-    echo "====> Installing dependencies"
-    sudo apt-get install -y zsh silversearcher-ag software-properties-common libnl-3-dev libnl-genl-3-dev build-essential vim git cmake python-dev ipvsadm exuberant-ctags autojump xauth
-    sudo add-apt-repository ppa:neovim-ppa/unstable
-    sudo apt-get update -y
-    sudo apt-get install -y neovim
+    echo '\033[0;32m''Apt-get update and install packages'
+    apt-get -y update &&
+    apt-get install -y docker-engine libnl-3-dev libnl-genl-3-dev build-essential git ipvsadm golang
 
-    echo "====> Installing Oh my ZSH"
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+    echo '\033[0;32m''Start docker service'
+    service docker start
 
-    echo "====> Installing Go"
-    curl -O https://storage.googleapis.com/golang/go1.6.3.linux-amd64.tar.gz
-    tar -xvf go1.6.3.linux-amd64.tar.gz
-    sudo mv go /usr/local
-    echo export PATH=$PATH:/usr/local/go/bin >> $HOME/.zshrc
-    mkdir $HOME/gocode
-    echo export GOPATH=$HOME/gocode >> $HOME/.zshrc
-
-    echo "====> Installing tmux 2.1"
-    sudo apt-get build-dep -y tmux
-    git clone https://github.com/tmux/tmux.git
-    cd tmux
-    git checkout 2.1
-    sh autogen.sh
-    ./configure && make
-    sudo make install
-    wget https://gist.githubusercontent.com/luizbafilho/99c6ec91b0c3415df75b4c4cf7d0265a/raw/bb10b105f4809c3549e20777e1afdde9b50bc915/.tmux.conf -O  $HOME/.tmux.conf
-
-    echo "====> Downloading vimfiles"
-    mkdir $HOME/.config
-    git clone https://github.com/luizbafilho/vimfiles.git $HOME/.config/nvim
-    nvim +PlugInstall +qa! && echo "Done! :)"
+    echo '\033[0;32m''Ensure project folder tree has the right ownership'
+    f='/home/vagrant/go/src/github.com/luizbafilho'
+    while [[ $f != '/home/vagrant' ]]; do chown vagrant: $f; f=$(dirname $f); done;
   SHELL
+
+  config.vm.provision "shell",
+    privileged: false,
+    keep_color: true,
+    name: 'Configure development environment',
+    env: { HOME: '/home/vagrant', GOPATH: '/home/vagrant/go' },
+    inline: <<-SHELL
+
+    echo '\033[0;32m''Add go envs to .profile'
+    cat << EOF >> $HOME/.profile
+export GOPATH="$HOME/go"
+PATH="$GOPATH/bin:$PATH"
+EOF
+
+    echo '\033[0;32m''Link fusis in /home/vagrant for convinience'
+    ln -s $GOPATH/src/github.com/luizbafilho/fusis $HOME/fusis
+
+    echo '\033[0;32m''go get'
+    PATH="$GOPATH/bin:$PATH"
+    cd $GOPATH/src/github.com/luizbafilho/fusis
+    go get -v .
+  SHELL
+
+  config.vm.post_up_message = <<-MSG
+    Fusis VM ready!
+    your user is 'vagrant' with password 'vagrant'
+    your $GOPATH is /home/vagrant/go
+    Fusis code is in /home/vagrant/go/src/github.com/luizbafilho/fusis
+    for your convinience it's linked in /home/vagrant/fusis
+  MSG
 end

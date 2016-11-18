@@ -13,46 +13,36 @@ It will be responsible for detecting new/failed nodes and add/remove routes to t
 ## State
 This project it's under heavy development, it's not usable yet, but you can **Star** :star: the project and follow the updates.
 
-# Installation
+## Dependencies
+* Linux kernel >= 2.6.10 or with IPVS module installed
+* [libnl 3.X](https://www.infradead.org/~tgr/libnl/)
 
-There is compilation and runtime dependency on [libnl](https://www.infradead.org/~tgr/libnl/).
-On a Debian based system, you should be able to build it by running:
+## Quick Start
+WIP
 
-``` bash
-sudo apt-get install libnl-3-dev libnl-genl-3-dev
+## Developing
+
+### VM setup with Vagrant
+1. Install [Vagrant](https://www.vagrantup.com)
+
+2. Build the VM
+```bash
+vagrant up
 ```
+Watch the message at the end of vagrant provision process.
+It'll provide you with user, password and where the project code is.
 
-Get this project into GOPATH:
+### Linux setup
+1. Install **Go 1.6** or later
 
-``` bash
-go get -v github.com/luizbafilho/fusis
-```
+2. Install libnl-3 (Debian based: `apt-get install libnl-3-dev libnl-genl-3-dev`)
 
-And it's dependencies:
+3. Get this project into $GOPATH:
+  ``` bash
+  go get -v github.com/luizbafilho/fusis
+  ```
 
-``` bash
-make deps
-```
-You'll need **Go 1.5** or later;
-
-## Installing IPVS
-
-IPVS is a Kernel module. So, all you need to do is enable it via modprobe:
-``` bash
-sudo modprobe ip_vs
-```
-
-While you're at it, install the IPVS command line tool too:
-``` bash
-sudo apt-get install ipvsadm
-```
-
-And enable ipv4 forwarding with:
-``` bash
-sudo sysctl -w net.ipv4.ip_forward=1
-```
-
-## Running the project
+### Running the project
 
 Now that you have IPVS and fusis installed, run the project:
 
@@ -99,8 +89,7 @@ Content-Length: 94
 [{"Name":"","Host":"10.0.0.1","Port":80,"Protocol":"tcp","Scheduler":"rr","Destinations":[]}]
 ```
 
-## Logging
-
+### Logging
 Fusis uses [Logrus](https://github.com/Sirupsen/logrus) as its logging system.
 By default, Fusis logs to stdout every minute.
 You can change its log collection interval by passing the following command line argument:

@@ -47,7 +47,7 @@ It'll provide you with user, password and where the project code is.
 Now that you have IPVS and fusis installed, run the project:
 
 ``` bash
-# Remenber, fusis binary is at $GOPATH/bin/fusis. So, add it to your system PATH
+# Remember, fusis binary is at $GOPATH/bin/fusis, add it to your $PATH
 sudo fusis balancer --bootstrap
 ```
 You should see something like:
@@ -96,5 +96,5 @@ You can change its log collection interval by passing the following command line
 
 ```bash
 # The argument --log-interval or -i. The value is in seconds
-$> sudo fusis balancer --bootstrap --log-interval 10
+sudo fusis balancer --bootstrap --log-interval 10
  ```

@@ -82,10 +82,6 @@ func balancerCommandFunc(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	if len(conf.Join) > 0 {
-		balancer.JoinPool()
-	}
-
 	apiService := api.NewAPI(balancer)
 	go apiService.Serve()
 

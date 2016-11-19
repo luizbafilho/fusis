@@ -1,11 +1,8 @@
 package fusis
 
 import (
-	"encoding/json"
 	"fmt"
 
-	"github.com/Sirupsen/logrus"
-	"github.com/hashicorp/serf/serf"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/health"
 	"github.com/luizbafilho/fusis/state"
@@ -139,21 +136,21 @@ type AgentInterfaceConfig struct {
 }
 
 func (b *Balancer) setupDestination(svc *types.Service, dst *types.Destination) error {
-	params := serf.QueryParam{
-		FilterNodes: []string{dst.Name},
-	}
-
-	config := AgentInterfaceConfig{
-		ServiceAddress: svc.Address,
-		Mode:           svc.Mode,
-	}
-
-	payload, _ := json.Marshal(config)
-	_, err := b.serf.Query(ConfigInterfaceAgentQuery, payload, &params)
-	if err != nil {
-		logrus.Errorf("Balancer: add-balancer event error: %v", err)
-		return err
-	}
+	// params := serf.QueryParam{
+	// 	FilterNodes: []string{dst.Name},
+	// }
+	//
+	// config := AgentInterfaceConfig{
+	// 	ServiceAddress: svc.Address,
+	// 	Mode:           svc.Mode,
+	// }
+	//
+	// payload, _ := json.Marshal(config)
+	// _, err := b.serf.Query(ConfigInterfaceAgentQuery, payload, &params)
+	// if err != nil {
+	// 	logrus.Errorf("Balancer: add-balancer event error: %v", err)
+	// 	return err
+	// }
 	return nil
 }
 
@@ -207,17 +204,5 @@ func (b *Balancer) UpdateCheck(check health.Check) error {
 }
 
 func (b *Balancer) ApplyToRaft(cmd *state.Command) error {
-	bytes, err := json.Marshal(cmd)
-	if err != nil {
-		return err
-	}
-	f := b.raft.Apply(bytes, raftTimeout)
-	if err = f.Error(); err != nil {
-		return err
-	}
-	rsp := f.Response()
-	if err, ok := rsp.(error); ok {
-		return ErrCrashError{original: err}
-	}
 	return nil
 }

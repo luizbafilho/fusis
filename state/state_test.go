@@ -2,11 +2,9 @@ package state_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"io/ioutil"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipvs"
@@ -102,18 +100,6 @@ func (s *EngineSuite) readConfig() {
 	viper.Unmarshal(&s.config)
 }
 
-func makeLog(cmd *state.Command, c *C) *raft.Log {
-	bytes, err := json.Marshal(cmd)
-	c.Assert(err, IsNil)
-
-	return &raft.Log{
-		Index: 1,
-		Term:  1,
-		Type:  raft.LogCommand,
-		Data:  bytes,
-	}
-}
-
 func watchStateCh(state *state.State) {
 	for {
 		errCh := <-state.ChangesCh()
@@ -121,97 +107,55 @@ func watchStateCh(state *state.State) {
 	}
 }
 
-func (s *EngineSuite) addService(c *C) {
-	cmd := &state.Command{
-		Op:      state.AddServiceOp,
-		Service: s.service,
-	}
+func (s *StateSuite) TestGetService(c *C) {
+	s.state.AddService(s.service)
+	s.state.AddDestination(s.destination)
 
-	resp := s.state.Apply(makeLog(cmd, c))
-	c.Assert(resp, IsNil)
+	svcs := s.state.GetServices()
+	// s.service.Destinations = []types.Destination{*s.destination}
+	c.Assert(svcs[0], DeepEquals, *s.service)
+
+	svc, err := s.state.GetService(s.service.Name)
+	c.Assert(err, IsNil)
+	c.Assert(svc, DeepEquals, s.service)
+
+	_, err = s.state.GetService("unknown")
+	c.Assert(err, Equals, types.ErrServiceNotFound)
 }
 
-func (s *EngineSuite) delService(c *C) {
-	cmd := &state.Command{
-		Op:      state.DelServiceOp,
-		Service: s.service,
-	}
+func (s *StateSuite) TestAddService(c *C) {
+	s.state.AddService(s.service)
 
-	resp := s.state.Apply(makeLog(cmd, c))
-	c.Assert(resp, IsNil)
+	service, err := s.state.GetService(s.service.Name)
+	c.Assert(err, IsNil)
+	c.Assert(service, DeepEquals, s.service)
 }
 
-func (s *EngineSuite) addDestination(c *C) {
-	cmd := &state.Command{
-		Op:          state.AddDestinationOp,
-		Service:     s.service,
-		Destination: s.destination,
-	}
+func (s *StateSuite) TestDelService(c *C) {
+	s.state.AddService(s.service)
+	s.state.DeleteService(s.service)
 
-	resp := s.state.Apply(makeLog(cmd, c))
-	c.Assert(resp, IsNil)
+	services := s.state.GetServices()
+	c.Assert(len(services), Equals, 0)
+
+	_, err := s.state.GetService(s.service.Name)
+	c.Assert(err, Equals, types.ErrServiceNotFound)
 }
 
-func (s *EngineSuite) TestApplyAddService(c *C) {
-	s.addService(c)
-
-	c.Assert(s.state.GetServices(), DeepEquals, []types.Service{*s.service})
-}
-
-func (s *EngineSuite) TestApplyDelService(c *C) {
-	s.addService(c)
-	s.delService(c)
-
-	c.Assert(s.state.GetServices(), DeepEquals, []types.Service{})
-}
-
-func (s *EngineSuite) TestApplyAddDestination(c *C) {
-	s.addService(c)
-	s.addDestination(c)
+func (s *StateSuite) TestAddDestination(c *C) {
+	s.state.AddService(s.service)
+	s.state.AddDestination(s.destination)
 
 	dst, err := s.state.GetDestination(s.destination.Name)
 	c.Assert(err, IsNil)
 	c.Assert(dst, DeepEquals, s.destination)
 }
 
-func (s *EngineSuite) TestApplyDelDestination(c *C) {
-	s.addService(c)
-	s.addDestination(c)
-
-	cmd := &state.Command{
-		Op:          state.DelDestinationOp,
-		Service:     s.service,
-		Destination: s.destination,
-	}
-
-	resp := s.state.Apply(makeLog(cmd, c))
-	c.Assert(resp, IsNil)
+func (s *StateSuite) TestDelDestination(c *C) {
+	s.state.AddService(s.service)
+	s.state.AddDestination(s.destination)
+	s.state.DeleteDestination(s.destination)
 
 	_, err := s.state.GetDestination(s.destination.Name)
-	c.Assert(err, Equals, types.ErrDestinationNotFound)
-}
-
-func (s *EngineSuite) TestSnapshotRestore(c *C) {
-	s.addService(c)
-	s.addDestination(c)
-
-	snap, err := s.state.Snapshot()
-	c.Assert(err, IsNil)
-	defer snap.Release()
-
-	buf := bytes.NewBuffer(nil)
-	sink := &MockSink{buf, false}
-	err = snap.Persist(sink)
-	c.Assert(err, IsNil)
-
-	eng, err := state.New(s.config)
-	c.Assert(err, IsNil)
-	go watchStateCh(eng)
-
-	err = eng.Restore(sink)
-	c.Assert(err, IsNil)
-
-	// s.service.Destinations = []types.Destination{*s.destination}
-
-	c.Assert(eng.GetServices(), DeepEquals, []types.Service{*s.service})
+	c.Assert(err, DeepEquals, types.ErrDestinationNotFound)
 }

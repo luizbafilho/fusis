@@ -24,7 +24,7 @@ type Metrics struct {
 	publisher Publisher
 }
 
-func NewMetrics(state *state.State, config *config.BalancerConfig) Collector {
+func NewMetrics(state state.State, config *config.BalancerConfig) Collector {
 	return &Metrics{
 		config: config,
 	}

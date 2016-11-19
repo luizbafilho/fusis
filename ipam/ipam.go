@@ -17,7 +17,7 @@ type Allocator interface {
 
 type Ipam struct {
 	rangeCursor *ipaddr.Cursor
-	state       *state.State
+	state       state.State
 	config      *config.BalancerConfig
 }
 
@@ -26,7 +26,7 @@ var (
 )
 
 //Init initilizes ipam module
-func New(state *state.State, config *config.BalancerConfig) (Allocator, error) {
+func New(state state.State, config *config.BalancerConfig) (Allocator, error) {
 	var rangeCursor *ipaddr.Cursor
 	var err error
 
@@ -71,7 +71,7 @@ func (i *Ipam) ReleaseVIP(s types.Service) error {
 	return nil
 }
 
-func (i *Ipam) ipIsAssigned(e string, state state.Store) bool {
+func (i *Ipam) ipIsAssigned(e string, state state.State) bool {
 	services := state.GetServices()
 
 	for _, a := range services {

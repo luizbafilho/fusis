@@ -133,6 +133,12 @@
 			"revisionTime": "2016-02-10T07:30:59Z"
 		},
 		{
+			"checksumSHA1": "upi0QLM0VapSYkZxhVvFHQ1/VbU=",
+			"path": "github.com/hashicorp/consul/api",
+			"revision": "460bf5f71ef03adba83ed2b85c083a3f57b2f38e",
+			"revisionTime": "2016-11-18T16:04:36Z"
+		},
+		{
 			"checksumSHA1": "r0C2ftp/CvRQOLl1uouDCHjGO/E=",
 			"path": "github.com/hashicorp/go-msgpack/codec",
 			"revision": "fa3f63826f7c23912c15263591e65d54d080b458",
@@ -420,6 +426,12 @@
 			"path": "github.com/spf13/viper",
 			"revision": "c975dc1b4eacf4ec7fdbf0873638de5d090ba323",
 			"revisionTime": "2015-12-30T06:11:39Z"
+		},
+		{
+			"checksumSHA1": "jfIUoeCY4uLz1zCgnCxndi5/UNE=",
+			"path": "github.com/ugorji/go/codec",
+			"revision": "faddd6128c66c4708f45fdc007f575f75e592a3c",
+			"revisionTime": "2016-09-28T01:52:44Z"
 		},
 		{
 			"checksumSHA1": "g7HSA4wqCyly/k3fa3gx5PQWry4=",

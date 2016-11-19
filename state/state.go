@@ -1,22 +1,34 @@
 package state
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"sync"
+	"time"
 
-	"github.com/Sirupsen/logrus"
-	"github.com/hashicorp/raft"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/health"
+	"github.com/luizbafilho/fusis/store"
 )
 
-//go:generate stringer -type=CommandOp
+type State interface {
+	GetServices() []types.Service
+	GetService(name string) (*types.Service, error)
+	AddService(svc *types.Service)
+	DeleteService(svc *types.Service)
+
+	GetDestination(name string) (*types.Destination, error)
+	GetDestinations(svc *types.Service) []types.Destination
+	AddDestination(dst *types.Destination)
+	DeleteDestination(dst *types.Destination)
+
+	AddCheck(dst *types.Destination)
+	DeleteCheck(dst *types.Destination)
+	GetChecks() map[string]*health.Check
+}
 
 // State...
-type State struct {
+type FusisState struct {
 	sync.Mutex
 
 	services     map[string]types.Service
@@ -25,37 +37,13 @@ type State struct {
 
 	changesCh    chan chan error
 	healhCheckCh chan health.Check
-}
 
-// Represents possible actions on engine
-const (
-	AddServiceOp CommandOp = iota
-	DelServiceOp
-	AddDestinationOp
-	DelDestinationOp
-	AddCheckOp
-	DelCheckOp
-	UpdateCheckOp
-)
-
-type CommandOp int
-
-// Command represents a command in raft log
-type Command struct {
-	Op          CommandOp
-	Service     *types.Service
-	Destination *types.Destination
-	Check       *health.Check
-	Response    chan interface{} `json:"-"`
-}
-
-func (c Command) String() string {
-	return fmt.Sprintf("%v: Service: %#v Destination: %#v", c.Op, c.Service, c.Destination)
+	servicesCh chan []types.Service
 }
 
 // New creates a new Engine
-func New(config *config.BalancerConfig) (*State, error) {
-	return &State{
+func New(store store.Store, config *config.BalancerConfig) (State, error) {
+	return &FusisState{
 		services:     make(map[string]types.Service),
 		destinations: make(map[string]types.Destination),
 		checks:       make(map[string]*health.Check),
@@ -64,106 +52,120 @@ func New(config *config.BalancerConfig) (*State, error) {
 	}, nil
 }
 
-func (s *State) ChangesCh() chan chan error {
+func (s *FusisState) ChangesCh() chan chan error {
 	return s.changesCh
 }
 
-func (s *State) HealthCheckCh() chan health.Check {
+func (s *FusisState) HealthCheckCh() chan health.Check {
 	return s.healhCheckCh
 }
 
-// Apply actions to fsm
-func (s *State) Apply(l *raft.Log) interface{} {
-	var c Command
-	if err := json.Unmarshal(l.Data, &c); err != nil {
-		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
+func (s *FusisState) GetServices() []types.Service {
+	s.Lock()
+	defer s.Unlock()
+
+	services := []types.Service{}
+	for _, v := range s.services {
+		// s.getDestinations(&v)
+		services = append(services, v)
 	}
-	logrus.Infof("fusis: Action received to be aplied to fsm: %v", c)
-	switch c.Op {
-	case AddServiceOp:
-		s.AddService(c.Service)
-	case DelServiceOp:
-		s.DeleteService(c.Service)
-	case AddDestinationOp:
-		s.AddDestination(c.Destination)
-	case DelDestinationOp:
-		s.DeleteDestination(c.Destination)
-	case AddCheckOp:
-		s.AddCheck(c.Destination)
-	case DelCheckOp:
-		s.DeleteCheck(c.Destination)
-	case UpdateCheckOp:
-		s.UpdateCheck(c.Check)
-	}
-	rsp := make(chan error)
-	s.changesCh <- rsp
-	return <-rsp
+	return services
 }
 
-type fusisSnapshot struct {
-	Services []types.Service
-}
+func (s *FusisState) GetService(name string) (*types.Service, error) {
+	s.Lock()
+	defer s.Unlock()
 
-func (s *State) Snapshot() (raft.FSMSnapshot, error) {
-	logrus.Info("Snapshotting Fusis State")
-
-	services := s.GetServices()
-
-	return &fusisSnapshot{services}, nil
-}
-
-// Restore stores the key-value store to a previous state.
-func (s *State) Restore(rc io.ReadCloser) error {
-	logrus.Info("Restoring Fusis state")
-	var services []types.Service
-	if err := json.NewDecoder(rc).Decode(&services); err != nil {
-		return err
+	svc := s.services[name]
+	if svc.Name == "" {
+		return nil, types.ErrServiceNotFound
 	}
-
-	// Set the state from the snapshot, no lock required according to
-	// Hashicorp docs.
-	for _, srv := range services {
-		s.AddService(&srv)
-		//TODO: add destination
-		// for _, d := range srv.Destinations {
-		// 	s.AddDestination(&d)
-		// }
-	}
-	rsp := make(chan error)
-	s.changesCh <- rsp
-	return <-rsp
+	// s.getDestinations(&svc)
+	return &svc, nil
 }
 
-func (f *fusisSnapshot) Persist(sink raft.SnapshotSink) error {
-	logrus.Infoln("Persisting Fusis state")
-	err := func() error {
-		// Encode data.
-		b, err := json.Marshal(f.Services)
-		if err != nil {
-			return err
+func (s *FusisState) GetDestinations(svc *types.Service) []types.Destination {
+	dsts := []types.Destination{}
+	for _, d := range s.destinations {
+		if d.ServiceId == svc.GetId() {
+			dsts = append(dsts, d)
 		}
-
-		// Write data to sink.
-		if _, err := sink.Write(b); err != nil {
-			return err
-		}
-
-		// Close the sink.
-		if err := sink.Close(); err != nil {
-			return err
-		}
-
-		return nil
-	}()
-
-	if err != nil {
-		sink.Cancel()
-		return err
 	}
 
-	return nil
+	return dsts
 }
 
-func (f *fusisSnapshot) Release() {
-	logrus.Info("Calling release")
+func (s *FusisState) AddService(svc *types.Service) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.services[svc.GetId()] = *svc
+}
+
+func (s *FusisState) DeleteService(svc *types.Service) {
+	s.Lock()
+	defer s.Unlock()
+
+	delete(s.services, svc.GetId())
+}
+
+func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	dst := s.destinations[name]
+	if dst.Name == "" {
+		return nil, types.ErrDestinationNotFound
+	}
+	return &dst, nil
+}
+
+func (s *FusisState) AddDestination(dst *types.Destination) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.destinations[dst.GetId()] = *dst
+}
+
+func (s *FusisState) DeleteDestination(dst *types.Destination) {
+	s.Lock()
+	defer s.Unlock()
+
+	delete(s.destinations, dst.GetId())
+}
+
+func (s *FusisState) AddCheck(dst *types.Destination) {
+	s.Lock()
+	defer s.Unlock()
+
+	check := health.Check{
+		UpdatesCh:     s.healhCheckCh,
+		Status:        health.BAD,
+		Interval:      5 * time.Second,
+		TCP:           fmt.Sprintf("%s:%d", dst.Address, dst.Port),
+		DestinationID: dst.GetId(),
+	}
+
+	s.checks[dst.GetId()] = &check
+
+	check.Start()
+}
+
+func (s *FusisState) DeleteCheck(dst *types.Destination) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.checks[dst.GetId()].Stop()
+	delete(s.checks, dst.GetId())
+}
+
+func (s *FusisState) UpdateCheck(check *health.Check) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.checks[check.DestinationID].Status = check.Status
+}
+
+func (s *FusisState) GetChecks() map[string]*health.Check {
+	return s.checks
 }

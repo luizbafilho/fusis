@@ -5,9 +5,9 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/k0kubun/pp"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipam"
@@ -16,16 +16,10 @@ import (
 	"github.com/luizbafilho/fusis/metrics"
 	fusis_net "github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/state"
+	"github.com/luizbafilho/fusis/store"
 	"github.com/luizbafilho/fusis/vip"
-	"github.com/pkg/errors"
 
 	"github.com/hashicorp/logutils"
-)
-
-const (
-	retainSnapshotCount   = 2
-	raftTimeout           = 10 * time.Second
-	raftRemoveGracePeriod = 5 * time.Second
 )
 
 // Balancer represents the Load Balancer
@@ -40,14 +34,23 @@ type Balancer struct {
 	ipam         ipam.Allocator
 	metrics      metrics.Collector
 
-	state      *state.State
+	state      state.State
 	shutdownCh chan bool
 }
 
 // NewBalancer initializes a new balancer
 //TODO: Graceful shutdown on initialization errors
 func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
-	state, err := state.New(config)
+	store, err := store.New(config)
+	if err != nil {
+		return nil, err
+	}
+
+	if err != nil {
+		pp.Println(err)
+	}
+
+	state, err := state.New(store, config)
 	if err != nil {
 		return nil, err
 	}
@@ -124,35 +127,35 @@ func (b *Balancer) getLibLogOutput() io.Writer {
 }
 
 func (b *Balancer) watchState() {
-	for {
-		select {
-		case rsp := <-b.state.ChangesCh():
-			// TODO: this doesn't need to run all the time, we can implement
-			// some kind of throttling in the future waiting for a threashold of
-			// messages before applying the messages.
-			rsp <- b.handleStateChange()
-		}
-	}
+	// for {
+	// 	select {
+	// 	case rsp := <-b.state.ChangesCh():
+	// 		// TODO: this doesn't need to run all the time, we can implement
+	// 		// some kind of throttling in the future waiting for a threashold of
+	// 		// messages before applying the messages.
+	// 		rsp <- b.handleStateChange()
+	// 	}
+	// }
 }
 
 func (b *Balancer) handleStateChange() error {
-	if err := b.ipvsMngr.Sync(*b.state); err != nil {
+	if err := b.ipvsMngr.Sync(b.state); err != nil {
 		return err
 	}
 
-	if err := b.iptablesMngr.Sync(*b.state); err != nil {
+	if err := b.iptablesMngr.Sync(b.state); err != nil {
 		return err
 	}
 
 	if b.isAnycast() {
-		if err := b.bgpMngr.Sync(*b.state); err != nil {
+		if err := b.bgpMngr.Sync(b.state); err != nil {
 			return err
 		}
 	} else if !b.IsLeader() {
 		return nil
 	}
 
-	if err := b.vipMngr.Sync(*b.state); err != nil {
+	if err := b.vipMngr.Sync(b.state); err != nil {
 		return err
 	}
 
@@ -160,12 +163,12 @@ func (b *Balancer) handleStateChange() error {
 }
 
 func (b *Balancer) watchHealthChecks() {
-	for {
-		check := <-b.state.HealthCheckCh()
-		if err := b.UpdateCheck(check); err != nil {
-			log.Error(errors.Wrap(err, "Updating Check failed"))
-		}
-	}
+	// for {
+	// 	check := <-b.state.HealthCheckCh()
+	// 	if err := b.UpdateCheck(check); err != nil {
+	// 		log.Error(errors.Wrap(err, "Updating Check failed"))
+	// 	}
+	// }
 }
 
 func (b *Balancer) IsLeader() bool {

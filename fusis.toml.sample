@@ -20,6 +20,16 @@ raft = 4382
 serf = 7946
 api = 8000
 
+[metrics]
+publisher = "logstash"
+
+  [metrics.params]
+  host = "0.0.0.0"
+  port = 8989
+
+  [metrics.extras]
+  client = "fusis"
+
 [bgp]
 as = 100
 router-id = "192.168.151.182"

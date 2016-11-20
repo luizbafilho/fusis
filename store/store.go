@@ -42,6 +42,8 @@ type Store interface {
 
 	WatchDestinations() error
 	GetDestinationsCh() chan []types.Destination
+
+	GetKV() kv.Store
 }
 
 type FusisStore struct {
@@ -67,6 +69,10 @@ func New(config *config.BalancerConfig) (Store, error) {
 	dstsCh := make(chan []types.Destination)
 
 	return &FusisStore{kv, svcsCh, dstsCh}, nil
+}
+
+func (s *FusisStore) GetKV() kv.Store {
+	return s.kv
 }
 
 func (s *FusisStore) AddService(svc *types.Service) error {

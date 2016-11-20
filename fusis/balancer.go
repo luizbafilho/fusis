@@ -5,8 +5,10 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/docker/leadership"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipam"
@@ -35,6 +37,7 @@ type Balancer struct {
 
 	store      store.Store
 	state      state.State
+	candidate  *leadership.Candidate
 	shutdownCh chan bool
 }
 
@@ -100,7 +103,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, fmt.Errorf("error cleaning up network vips: %v", err)
 	}
 
-	// go balancer.watchLeaderChanges()
+	go balancer.watchLeaderChanges()
 	go balancer.watchState()
 	// go balancer.watchHealthChecks()
 
@@ -169,35 +172,41 @@ func (b *Balancer) watchHealthChecks() {
 }
 
 func (b *Balancer) IsLeader() bool {
-	fmt.Println("Implement")
-	return true
+	return b.candidate.IsLeader()
 }
 
 func (b *Balancer) GetLeader() string {
-	fmt.Println("Implement")
+	fmt.Println("Get Leader: Implement")
 	return ""
 }
 
 func (b *Balancer) watchLeaderChanges() {
-	// if b.isAnycast() {
-	// 	return
-	// }
-	//
-	// for {
-	// 	isLeader := <-b.raft.LeaderCh()
-	// 	if isLeader {
-	// 		if err := b.vipMngr.Sync(*b.state); err != nil {
-	// 			log.Fatal("Could not sync Vips", err)
-	// 		}
-	//
-	// 		if err := b.sendGratuitousARPReply(); err != nil {
-	// 			log.Errorf("error sending Gratuitous ARP Reply")
-	// 		}
-	//
-	// 	} else {
-	// 		b.flushVips()
-	// 	}
-	// }
+	candidate := leadership.NewCandidate(b.store.GetKV(), "fusis/leader", b.config.Name, 20*time.Second)
+	b.candidate = candidate
+
+	electedCh, _ := b.candidate.RunForElection()
+	if b.isAnycast() {
+		return
+	}
+
+	for isElected := range electedCh {
+		// This loop will run every time there is a change in our leadership
+		// status.
+
+		if isElected {
+			log.Println("I won the election! I'm now the leader")
+			if err := b.vipMngr.Sync(b.state); err != nil {
+				log.Fatal("Could not sync Vips", err)
+			}
+
+			if err := b.sendGratuitousARPReply(); err != nil {
+				log.Errorf("error sending Gratuitous ARP Reply")
+			}
+		} else {
+			log.Println("Lost the election, let's try another time")
+			b.flushVips()
+		}
+	}
 }
 
 func (b *Balancer) sendGratuitousARPReply() error {

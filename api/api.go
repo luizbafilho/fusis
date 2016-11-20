@@ -77,7 +77,12 @@ func (as ApiService) registerRedirectMiddleware() {
 }
 
 func (as ApiService) Serve() {
-	as.Run("0.0.0.0:8000")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8000"
+	}
+
+	as.Run("0.0.0.0:" + port)
 }
 
 func getEnv() string {

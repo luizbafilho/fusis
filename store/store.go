@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/libkv"
@@ -24,19 +25,11 @@ func registryStores() {
 }
 
 type Store interface {
-	// GetServices() ([]types.Service, error)
-	// GetService(name string) (*types.Service, error)
 	AddService(svc *types.Service) error
 	DeleteService(svc *types.Service) error
-	//
-	// GetDestination(name string) (*types.Destination, error)
-	// GetDestinations(svc *types.Service) []types.Destination
 	AddDestination(svc *types.Service, dst *types.Destination) error
 	DeleteDestination(svc *types.Service, dst *types.Destination) error
 
-	// AddCheck(dst *types.Destination)
-	// DeleteCheck(dst *types.Destination)
-	// GetChecks() map[string]*health.Check
 	WatchServices()
 	GetServicesCh() chan []types.Service
 
@@ -44,7 +37,15 @@ type Store interface {
 	GetDestinationsCh() chan []types.Destination
 
 	GetKV() kv.Store
+
+	// AddCheck(dst *types.Destination)
+	// DeleteCheck(dst *types.Destination)
+	// GetChecks() map[string]*health.Check
 }
+
+var (
+	ErrUnsupportedStore = errors.New("unsupported store.")
+)
 
 type FusisStore struct {
 	kv kv.Store
@@ -54,11 +55,19 @@ type FusisStore struct {
 }
 
 func New(config *config.BalancerConfig) (Store, error) {
-	storeAddress := "192.168.151.187:8500"
+	u, err := url.Parse(config.StoreAddress)
+	if err != nil {
+		return nil, errors.Wrap(err, "error paring store address")
+	}
+
+	scheme := u.Scheme
+	if scheme != "consul" && scheme != "etcd" {
+		return nil, ErrUnsupportedStore
+	}
 
 	kv, err := libkv.NewStore(
-		"consul",
-		[]string{storeAddress},
+		kv.Backend(scheme),
+		[]string{u.Host},
 		nil,
 	)
 	if err != nil {

@@ -23,6 +23,8 @@ type BalancerConfig struct {
 	Bgp         Bgp
 	Ipam        Ipam
 	Metrics     Metrics
+
+	StoreAddress string `mapstructure:"store-address"`
 }
 
 type AgentConfig struct {

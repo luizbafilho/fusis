@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/k0kubun/pp"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipam"
@@ -34,6 +33,7 @@ type Balancer struct {
 	ipam         ipam.Allocator
 	metrics      metrics.Collector
 
+	store      store.Store
 	state      state.State
 	shutdownCh chan bool
 }
@@ -44,10 +44,6 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	store, err := store.New(config)
 	if err != nil {
 		return nil, err
-	}
-
-	if err != nil {
-		pp.Println(err)
 	}
 
 	state, err := state.New(store, config)
@@ -78,6 +74,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	metrics := metrics.NewMetrics(state, config)
 
 	balancer := &Balancer{
+		store:        store,
 		state:        state,
 		ipvsMngr:     ipvsMngr,
 		iptablesMngr: iptablesMngr,
@@ -127,15 +124,15 @@ func (b *Balancer) getLibLogOutput() io.Writer {
 }
 
 func (b *Balancer) watchState() {
-	// for {
-	// 	select {
-	// 	case rsp := <-b.state.ChangesCh():
-	// 		// TODO: this doesn't need to run all the time, we can implement
-	// 		// some kind of throttling in the future waiting for a threashold of
-	// 		// messages before applying the messages.
-	// 		rsp <- b.handleStateChange()
-	// 	}
-	// }
+	for {
+		select {
+		case _ = <-b.state.ChangesCh():
+			// TODO: this doesn't need to run all the time, we can implement
+			// some kind of throttling in the future waiting for a threashold of
+			// messages before applying the messages.
+			b.handleStateChange()
+		}
+	}
 }
 
 func (b *Balancer) handleStateChange() error {

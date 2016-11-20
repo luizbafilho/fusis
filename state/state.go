@@ -14,17 +14,19 @@ import (
 type State interface {
 	GetServices() []types.Service
 	GetService(name string) (*types.Service, error)
-	AddService(svc *types.Service)
+	AddService(svc types.Service)
 	DeleteService(svc *types.Service)
 
 	GetDestination(name string) (*types.Destination, error)
 	GetDestinations(svc *types.Service) []types.Destination
-	AddDestination(dst *types.Destination)
+	AddDestination(dst types.Destination)
 	DeleteDestination(dst *types.Destination)
 
 	AddCheck(dst *types.Destination)
 	DeleteCheck(dst *types.Destination)
 	GetChecks() map[string]*health.Check
+
+	ChangesCh() chan bool
 }
 
 // State...
@@ -35,29 +37,67 @@ type FusisState struct {
 	destinations map[string]types.Destination
 	checks       map[string]*health.Check
 
-	changesCh    chan chan error
+	changesCh    chan bool
 	healhCheckCh chan health.Check
 
-	servicesCh chan []types.Service
+	store store.Store
 }
+
+type Services map[string]types.Service
+type Destinations map[string]types.Destination
 
 // New creates a new Engine
 func New(store store.Store, config *config.BalancerConfig) (State, error) {
-	return &FusisState{
-		services:     make(map[string]types.Service),
-		destinations: make(map[string]types.Destination),
+	state := &FusisState{
+		services:     make(Services),
+		destinations: make(Destinations),
 		checks:       make(map[string]*health.Check),
-		changesCh:    make(chan chan error),
+		changesCh:    make(chan bool),
 		healhCheckCh: make(chan health.Check),
-	}, nil
+		store:        store,
+	}
+
+	state.watchStore()
+
+	return state, nil
 }
 
-func (s *FusisState) ChangesCh() chan chan error {
+func (s *FusisState) ChangesCh() chan bool {
 	return s.changesCh
 }
 
 func (s *FusisState) HealthCheckCh() chan health.Check {
 	return s.healhCheckCh
+}
+
+func (s *FusisState) watchStore() {
+	go s.store.WatchServices()
+	go s.store.WatchDestinations()
+
+	go s.handleServicesChange()
+	go s.handleDestinationsChange()
+}
+
+func (s *FusisState) handleServicesChange() {
+	for svcs := range s.store.GetServicesCh() {
+		s.services = Services{}
+		for _, svc := range svcs {
+			s.AddService(svc)
+		}
+
+		s.changesCh <- true
+	}
+}
+
+func (s *FusisState) handleDestinationsChange() {
+	for dsts := range s.store.GetDestinationsCh() {
+		s.destinations = Destinations{}
+		for _, dst := range dsts {
+			s.AddDestination(dst)
+		}
+
+		s.changesCh <- true
+	}
 }
 
 func (s *FusisState) GetServices() []types.Service {
@@ -66,21 +106,17 @@ func (s *FusisState) GetServices() []types.Service {
 
 	services := []types.Service{}
 	for _, v := range s.services {
-		// s.getDestinations(&v)
 		services = append(services, v)
 	}
 	return services
 }
 
 func (s *FusisState) GetService(name string) (*types.Service, error) {
-	s.Lock()
-	defer s.Unlock()
-
-	svc := s.services[name]
-	if svc.Name == "" {
+	svc, ok := s.services[name]
+	if !ok {
 		return nil, types.ErrServiceNotFound
 	}
-	// s.getDestinations(&svc)
+
 	return &svc, nil
 }
 
@@ -95,11 +131,11 @@ func (s *FusisState) GetDestinations(svc *types.Service) []types.Destination {
 	return dsts
 }
 
-func (s *FusisState) AddService(svc *types.Service) {
+func (s *FusisState) AddService(svc types.Service) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.services[svc.GetId()] = *svc
+	s.services[svc.GetId()] = svc
 }
 
 func (s *FusisState) DeleteService(svc *types.Service) {
@@ -120,11 +156,11 @@ func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
 	return &dst, nil
 }
 
-func (s *FusisState) AddDestination(dst *types.Destination) {
+func (s *FusisState) AddDestination(dst types.Destination) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.destinations[dst.GetId()] = *dst
+	s.destinations[dst.GetId()] = dst
 }
 
 func (s *FusisState) DeleteDestination(dst *types.Destination) {

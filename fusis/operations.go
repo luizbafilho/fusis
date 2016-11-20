@@ -35,18 +35,32 @@ func (b *Balancer) GetDestinations(svc *types.Service) []types.Destination {
 
 // AddService ...
 func (b *Balancer) AddService(svc *types.Service) error {
-	return nil
+	_, err := b.state.GetService(svc.GetId())
+	if err == nil {
+		return types.ErrServiceAlreadyExists
+	} else if err != types.ErrServiceNotFound {
+		return err
+	}
+
+	if err = b.ipam.AllocateVIP(svc); err != nil {
+		return err
+	}
+
+	return b.store.AddService(svc)
 }
 
 //GetService get a service
 func (b *Balancer) GetService(name string) (*types.Service, error) {
-	b.Lock()
-	defer b.Unlock()
 	return b.state.GetService(name)
 }
 
 func (b *Balancer) DeleteService(name string) error {
-	return nil
+	svc, err := b.state.GetService(name)
+	if err != nil {
+		return err
+	}
+
+	return b.store.DeleteService(svc)
 }
 
 func (b *Balancer) GetDestination(name string) (*types.Destination, error) {
@@ -56,7 +70,25 @@ func (b *Balancer) GetDestination(name string) (*types.Destination, error) {
 }
 
 func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) error {
-	return nil
+	_, err := b.state.GetDestination(dst.GetId())
+	if err == nil {
+		return types.ErrDestinationAlreadyExists
+	} else if err != types.ErrDestinationNotFound {
+		return err
+	}
+
+	for _, existDst := range b.state.GetDestinations(svc) {
+		if existDst.Address == dst.Address && existDst.Port == dst.Port {
+			return types.ErrDestinationAlreadyExists
+		}
+	}
+
+	//TODO: Configurate destination
+	// if err := b.setupDestination(svc, dst); err != nil {
+	// 	return errors.Wrap(err, "setup destination failed")
+	// }
+
+	return b.store.AddDestination(svc, dst)
 }
 
 type AgentInterfaceConfig struct {
@@ -84,7 +116,17 @@ func (b *Balancer) setupDestination(svc *types.Service, dst *types.Destination) 
 }
 
 func (b *Balancer) DeleteDestination(dst *types.Destination) error {
-	return nil
+	svc, err := b.state.GetService(dst.ServiceId)
+	if err != nil {
+		return err
+	}
+
+	_, err = b.state.GetDestination(dst.GetId())
+	if err != nil {
+		return err
+	}
+
+	return b.store.DeleteDestination(svc, dst)
 }
 
 func (b *Balancer) AddCheck(dst *types.Destination) error {

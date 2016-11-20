@@ -69,7 +69,6 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 		return
 	}
 
-	// If everthing is ok send it to Raft
 	err := as.balancer.AddService(&newService)
 	if err != nil {
 		c.Error(err)

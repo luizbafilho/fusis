@@ -9,7 +9,6 @@ import (
 	"github.com/deckarep/golang-set"
 	gipvs "github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/health"
 	"github.com/luizbafilho/fusis/state"
 )
 
@@ -159,18 +158,18 @@ func (ipvs *Ipvs) getCurrentServicesSet() (mapset.Set, error) {
 }
 
 func (ipvs *Ipvs) getStateDestinationsSet(state state.State, svc types.Service) mapset.Set {
-	checks := state.GetChecks()
+	// checks := state.GetChecks()
 	stateSet := mapset.NewSet()
 
 	// Filter healthy destinations
 	for _, d := range state.GetDestinations(&svc) {
-		if check, ok := checks[d.GetId()]; ok {
-			if check.Status == health.BAD {
-				continue
-			}
-		} else { // no healthcheck found
-			continue
-		}
+		// if check, ok := checks[d.GetId()]; ok {
+		// 	if check.Status == health.BAD {
+		// 		continue
+		// 	}
+		// } else { // no healthcheck found
+		// 	continue
+		// }
 
 		// Clean up to match services from kernel
 		d.Name = ""

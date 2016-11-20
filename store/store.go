@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/docker/libkv"
 	kv "github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/consul"
@@ -25,18 +26,18 @@ func registryStores() {
 type Store interface {
 	// GetServices() ([]types.Service, error)
 	// GetService(name string) (*types.Service, error)
-	AddService(svc types.Service) error
-	DeleteService(svc types.Service) error
+	AddService(svc *types.Service) error
+	DeleteService(svc *types.Service) error
 	//
 	// GetDestination(name string) (*types.Destination, error)
 	// GetDestinations(svc *types.Service) []types.Destination
-	AddDestination(svc types.Service, dst types.Destination) error
-	DeleteDestination(svc types.Service, dst types.Destination) error
+	AddDestination(svc *types.Service, dst *types.Destination) error
+	DeleteDestination(svc *types.Service, dst *types.Destination) error
 
 	// AddCheck(dst *types.Destination)
 	// DeleteCheck(dst *types.Destination)
 	// GetChecks() map[string]*health.Check
-	WatchServices() error
+	WatchServices()
 	GetServicesCh() chan []types.Service
 
 	WatchDestinations() error
@@ -68,7 +69,7 @@ func New(config *config.BalancerConfig) (Store, error) {
 	return &FusisStore{kv, svcsCh, dstsCh}, nil
 }
 
-func (s FusisStore) AddService(svc types.Service) error {
+func (s *FusisStore) AddService(svc *types.Service) error {
 	key := fmt.Sprintf("fusis/services/%s/config", svc.GetId())
 
 	value, err := json.Marshal(svc)
@@ -84,7 +85,7 @@ func (s FusisStore) AddService(svc types.Service) error {
 	return nil
 }
 
-func (s FusisStore) DeleteService(svc types.Service) error {
+func (s *FusisStore) DeleteService(svc *types.Service) error {
 	key := fmt.Sprintf("fusis/services/%s", svc.GetId())
 
 	err := s.kv.DeleteTree(key)
@@ -95,17 +96,17 @@ func (s FusisStore) DeleteService(svc types.Service) error {
 	return nil
 }
 
-func (s FusisStore) GetServicesCh() chan []types.Service {
+func (s *FusisStore) GetServicesCh() chan []types.Service {
 	return s.ServicesCh
 }
 
-func (s FusisStore) WatchServices() error {
+func (s *FusisStore) WatchServices() {
 	svcs := []types.Service{}
 
 	stopCh := make(<-chan struct{})
 	events, err := s.kv.WatchTree("fusis/services", stopCh)
 	if err != nil {
-		return err
+		logrus.Error(err)
 	}
 
 	for {
@@ -114,7 +115,7 @@ func (s FusisStore) WatchServices() error {
 			for _, pair := range entries {
 				svc := types.Service{}
 				if err := json.Unmarshal(pair.Value, &svc); err != nil {
-					return err
+					logrus.Error(err)
 				}
 
 				svcs = append(svcs, svc)
@@ -126,11 +127,9 @@ func (s FusisStore) WatchServices() error {
 			svcs = []types.Service{}
 		}
 	}
-
-	return nil
 }
 
-func (s FusisStore) AddDestination(svc types.Service, dst types.Destination) error {
+func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) error {
 	key := fmt.Sprintf("fusis/destinations/%s/%s", svc.GetId(), dst.GetId())
 
 	value, err := json.Marshal(dst)
@@ -146,7 +145,7 @@ func (s FusisStore) AddDestination(svc types.Service, dst types.Destination) err
 	return nil
 }
 
-func (s FusisStore) DeleteDestination(svc types.Service, dst types.Destination) error {
+func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destination) error {
 	key := fmt.Sprintf("fusis/destinations/%s/%s", svc.GetId(), dst.GetId())
 
 	err := s.kv.DeleteTree(key)
@@ -157,11 +156,11 @@ func (s FusisStore) DeleteDestination(svc types.Service, dst types.Destination) 
 	return nil
 }
 
-func (s FusisStore) GetDestinationsCh() chan []types.Destination {
+func (s *FusisStore) GetDestinationsCh() chan []types.Destination {
 	return s.DestinationsCh
 }
 
-func (s FusisStore) WatchDestinations() error {
+func (s *FusisStore) WatchDestinations() error {
 	dsts := []types.Destination{}
 
 	stopCh := make(<-chan struct{})
@@ -174,12 +173,12 @@ func (s FusisStore) WatchDestinations() error {
 		select {
 		case entries := <-events:
 			for _, pair := range entries {
-				svc := types.Destination{}
-				if err := json.Unmarshal(pair.Value, &svc); err != nil {
+				dst := types.Destination{}
+				if err := json.Unmarshal(pair.Value, &dst); err != nil {
 					return err
 				}
 
-				dsts = append(dsts, svc)
+				dsts = append(dsts, dst)
 			}
 
 			s.DestinationsCh <- dsts

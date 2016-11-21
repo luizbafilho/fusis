@@ -50,7 +50,7 @@ func (config BalancerConfig) Validate() error {
 
 		for _, v := range config.Join {
 			if err := validate.Field(v, "ip"); err != nil {
-				return fmt.Errorf("join parameter needs to be a valid IP v4")
+				return fmt.Errorf("Join parameter needs to be a valid IP v4")
 			}
 		}
 	}

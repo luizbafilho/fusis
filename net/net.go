@@ -133,7 +133,7 @@ func GetDefaultGateway() (*netlink.Route, error) {
 	}
 
 	if route.Gw == nil {
-		return nil, fmt.Errorf("default gateway not found")
+		return nil, fmt.Errorf("Default gateway not found")
 	}
 
 	return &route, nil

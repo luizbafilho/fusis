@@ -63,6 +63,6 @@ func setupConfig() {
 
 	err := viper.BindPFlags(agentCmd.Flags())
 	if err != nil {
-		log.Errorf("error binding pflags: %v", err)
+		log.Errorf("Error binding pflags: %v", err)
 	}
 }

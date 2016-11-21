@@ -16,7 +16,7 @@ type ErrCrashError struct {
 }
 
 func (e ErrCrashError) Error() string {
-	return fmt.Sprintf("unable to apply commited log, inconsistent routing state, leaving cluster. original error: %s", e.original)
+	return fmt.Sprintf("Unable to apply commited log, inconsistent routing state, leaving cluster. original error: %s", e.original)
 }
 
 // GetServices get all services

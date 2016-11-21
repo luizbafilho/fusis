@@ -148,7 +148,7 @@ func (a *Agent) configInterface(config AgentInterfaceConfig) {
 	}
 
 	if err != nil {
-		log.Errorf("configuring network interface. Config: %v. Err: %v", config, err)
+		log.Errorf("Error configuring network interface. Config: %v. Err: %v", config, err)
 	}
 }
 

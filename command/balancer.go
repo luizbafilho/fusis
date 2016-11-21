@@ -61,7 +61,7 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 
 	err := viper.BindPFlags(cmd.Flags())
 	if err != nil {
-		log.Errorf("error binding pflags: %v", err)
+		log.Errorf("Error binding pflags: %v", err)
 	}
 }
 

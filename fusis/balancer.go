@@ -100,7 +100,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 
 	/* Cleanup all VIPs on the network interface */
 	if err := fusis_net.DelVips(balancer.config.Interfaces.Inbound); err != nil {
-		return nil, fmt.Errorf("error cleaning up network vips: %v", err)
+		return nil, fmt.Errorf("Error cleaning up network vips: %v", err)
 	}
 
 	go balancer.watchLeaderChanges()
@@ -200,7 +200,7 @@ func (b *Balancer) watchLeaderChanges() {
 			}
 
 			if err := b.sendGratuitousARPReply(); err != nil {
-				log.Errorf("error sending Gratuitous ARP Reply")
+				log.Errorf("Error sending Gratuitous ARP Reply")
 			}
 		} else {
 			log.Println("Lost the election, let's try another time")

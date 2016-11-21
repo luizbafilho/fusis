@@ -140,7 +140,7 @@ func (bs *BgpService) GetPaths() ([]string, error) {
 	var lookupPrefix []*gobgp.LookupPrefix
 	_, dsts, err := bs.bgp.GetRib("", bgp.RF_IPv4_UC, lookupPrefix)
 	if err != nil {
-		return paths, fmt.Errorf("error getting bgp paths. %v", err)
+		return paths, fmt.Errorf("Error getting bgp paths. %v", err)
 	}
 
 	for k := range dsts {

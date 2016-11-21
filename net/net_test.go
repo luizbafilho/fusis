@@ -15,7 +15,7 @@ type NetSuite struct {
 	iface string
 }
 
-var _ = Suite(&NetSuite{"eth0"})
+var _ = Suite(&NetSuite{"lo"})
 
 func (s *NetSuite) SetUpSuite(c *C) {
 }
@@ -29,7 +29,7 @@ func (s *NetSuite) TearDownTest(c *C) {
 }
 
 func (s *NetSuite) TestAddIp(c *C) {
-	err := net.AddIp("192.168.0.1/32", "eth0")
+	err := net.AddIp("192.168.0.1/32", "lo")
 	c.Assert(err, IsNil)
 
 	addrs, err := net.GetVips(s.iface)
@@ -46,10 +46,10 @@ func (s *NetSuite) TestAddIp(c *C) {
 }
 
 func (s *NetSuite) TestDelIp(c *C) {
-	err := net.AddIp("192.168.0.1/32", "eth0")
+	err := net.AddIp("192.168.0.1/32", "lo")
 	c.Assert(err, IsNil)
 
-	err = net.DelIp("192.168.0.1/32", "eth0")
+	err = net.DelIp("192.168.0.1/32", "lo")
 	c.Assert(err, IsNil)
 
 	addrs, err := net.GetVips(s.iface)
@@ -66,9 +66,9 @@ func (s *NetSuite) TestDelIp(c *C) {
 }
 
 func (s *NetSuite) TestDelVips(c *C) {
-	err := net.AddIp("192.168.0.1/32", "eth0")
+	err := net.AddIp("192.168.0.1/32", "lo")
 	c.Assert(err, IsNil)
-	err = net.AddIp("192.168.0.2/32", "eth0")
+	err = net.AddIp("192.168.0.2/32", "lo")
 	c.Assert(err, IsNil)
 
 	err = net.DelVips(s.iface)
@@ -88,9 +88,9 @@ func (s *NetSuite) TestDelVips(c *C) {
 }
 
 func (s *NetSuite) TestGetVips(c *C) {
-	err := net.AddIp("192.168.0.1/32", "eth0")
+	err := net.AddIp("192.168.0.1/32", "lo")
 	c.Assert(err, IsNil)
-	err = net.AddIp("192.168.0.2/32", "eth0")
+	err = net.AddIp("192.168.0.2/32", "lo")
 	c.Assert(err, IsNil)
 
 	addrs, err := net.GetVips(s.iface)

@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 
+  log "github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/health"
@@ -76,13 +77,24 @@ func (as ApiService) registerRedirectMiddleware() {
 	as.Use(redirectMiddleware(as.balancer))
 }
 
+// Serve starts the api.
+// Binds IP using HOST env or 0.0.0.0
+// Binds to port using PORT env or 8000
 func (as ApiService) Serve() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8000"
 	}
 
-	as.Run("0.0.0.0:" + port)
+	host := os.Getenv("HOST")
+	if host == "" {
+		host = "0.0.0.0"
+	}
+
+  address := host + ":" + port
+
+  log.Infof("Starting on " + address)
+	as.Run(address)
 }
 
 func getEnv() string {

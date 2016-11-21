@@ -32,6 +32,11 @@ vagrant up
 Watch the message at the end of vagrant provision process.
 It'll provide you with user, password and where the project code is.
 
+3. Login
+```bash
+vagrant ssh
+```
+
 ### Linux setup
 1. Install **Go 1.6** or later
 

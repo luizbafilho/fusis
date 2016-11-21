@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	gipvs "github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api/types"
@@ -31,7 +30,6 @@ func New() (*Ipvs, error) {
 		return nil, err
 	}
 
-	log.Infof("Initialising IPVS Module...")
 	if err := gipvs.Init(); err != nil {
 		return nil, fmt.Errorf("IPVS initialisation failed: %v", err)
 	}

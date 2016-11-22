@@ -93,7 +93,7 @@ func (as ApiService) Serve() {
 
   address := host + ":" + port
 
-  log.Infof("Starting on " + address)
+  log.Infof("Listening on %s", address)
 	as.Run(address)
 }
 

@@ -15,7 +15,9 @@ Vagrant.configure(2) do |config|
 
   config.vm.network "private_network", ip: "192.168.33.10"
 
-  config.vm.synced_folder File.dirname(__FILE__), "/home/vagrant/go/src/github.com/luizbafilho/fusis", type: "nfs"
+  config.vm.synced_folder File.dirname(__FILE__),
+    "/home/vagrant/go/src/github.com/luizbafilho/fusis",
+    type: "nfs"
 
   config.vm.provider "vmware_fusion" do |provider, override|
     override.vm.box = "bento/ubuntu-16.04"
@@ -54,14 +56,24 @@ Vagrant.configure(2) do |config|
     inline: <<-SHELL
 
     echo '\033[0;32m''Add docker apt repo'
-    apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
-    echo "deb https://apt.dockerproject.org/repo ubuntu-xenial main" > /etc/apt/sources.list.d/docker.list
+    apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 \
+      --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+    echo "deb https://apt.dockerproject.org/repo ubuntu-xenial main" > \
+      /etc/apt/sources.list.d/docker.list
 
     echo '\033[0;32m''Add lxd apt repo'
     add-apt-repository ppa:ubuntu-lxc/lxd-stable
 
     echo '\033[0;32m''Add consul apt repo'
     add-apt-repository ppa:bcandrea/consul
+
+    echo '\033[0;32m''Add some custom acquire conf to apt.conf.d/99acquire''\e[0m'
+    echo << "EOF" > /etc/apt/apt.conf.d/99acquire
+Acquire::http::Timeout "2";
+Acquire::ftp::Timeout "2";
+Acquire::Retries "5";
+Acquire::Queue-Mode "host";
+EOF
 
     echo '\033[0;32m''Wait for apt lock' # doing this instead of disabling ubuntu auto update
     while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
@@ -70,7 +82,8 @@ Vagrant.configure(2) do |config|
 
     echo '\033[0;32m''Update apt and install packages'
     apt-get -y update &&
-    apt-get install -y docker-engine libnl-3-dev libnl-genl-3-dev build-essential git ipvsadm golang consul
+    apt-get install -y --allow-unauthenticated \
+      docker-engine libnl-3-dev libnl-genl-3-dev build-essential git ipvsadm golang consul
 
     echo '\033[0;32m''Start docker service'
     systemctl start docker
@@ -93,7 +106,8 @@ Vagrant.configure(2) do |config|
     inline: <<-SHELL
 
     echo '\033[0;32m''Add go envs to .profile'
-    cat << EOF >> $HOME/.profile
+    cat << "EOF" >> $HOME/.profile
+# Golang
 export GOPATH="$HOME/go"
 PATH="$GOPATH/bin:$PATH"
 EOF
@@ -101,9 +115,21 @@ EOF
     echo '\033[0;32m''Link fusis in /home/vagrant for convinience'
     ln -s $GOPATH/src/github.com/luizbafilho/fusis $HOME/fusis
 
+    echo '\033[0;32m''Create a sample config at /home/vagrant/.fusis/fusis.toml'
+    mkdir $HOME/.fusis
+    cat << EOF > $HOME/.fusis/fusis.toml
+store-address = "consul://127.0.0.1:8500"
+
+[interfaces]
+inbound = "$(ip r | grep '^192' | cut -f 3 -d ' ')"
+
+[ipam]
+ranges = ["192.168.0.0/24"]
+EOF
+
     echo '\033[0;32m''go get'
     PATH="$GOPATH/bin:$PATH"
-    cd $GOPATH/src/github.com/luizbafilho/fusis
+    cd $HOME/fusis
     go get -v .
   SHELL
 

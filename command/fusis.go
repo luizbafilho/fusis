@@ -45,11 +45,11 @@ func initConfig() {
 		viper.SetConfigFile(configFile)
 	}
 
-	viper.SetConfigName("fusis")        // name of config file (without extension)
+	viper.SetConfigName("fusis") // name of config file (without extension)
 	viper.SetConfigType("toml")
-  viper.AddConfigPath(".")            // adding current directory as first search path
+	viper.AddConfigPath(".")            // adding current directory as first search path
 	viper.AddConfigPath("$HOME/.fusis") // adding ~/.fusis as fallback
-  viper.AddConfigPath("/etc")         // adding /etc as next fallback
+	viper.AddConfigPath("/etc")         // adding /etc as next fallback
 	viper.AutomaticEnv()                // read in environment variables that match
 
 	// If a config file is found, read it in.
@@ -57,7 +57,7 @@ func initConfig() {
 		log.Infof("Using config from %s", viper.ConfigFileUsed())
 	} else {
 		log.Fatal("Error reading config file: fusis.toml", err)
-    log.Fatal("Searched: ./, ~/fusis and /etc")
+		log.Fatal("Searched: ./, ~/fusis and /etc")
 	}
 
 }

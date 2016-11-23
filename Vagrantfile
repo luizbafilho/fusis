@@ -48,6 +48,14 @@ Vagrant.configure(2) do |config|
     provider.driver = "kvm"
   end
 
+  config.vm.post_up_message = <<-MSG
+    Fusis VM ready!
+    your user is 'vagrant' with password 'vagrant'
+    your $GOPATH is /home/vagrant/go
+    Fusis code is in /home/vagrant/go/src/github.com/luizbafilho/fusis
+    for your convinience it's linked in /home/vagrant/fusis
+  MSG
+
   config.vm.provision "shell",
     privileged: true,
     keep_color: true,
@@ -64,14 +72,9 @@ Vagrant.configure(2) do |config|
     echo '\033[0;32m''Add lxd apt repo'
     add-apt-repository ppa:ubuntu-lxc/lxd-stable
 
-    echo '\033[0;32m''Add consul apt repo'
-    add-apt-repository ppa:bcandrea/consul
-
     echo '\033[0;32m''Add some custom acquire conf to apt.conf.d/99acquire''\e[0m'
-    echo << "EOF" > /etc/apt/apt.conf.d/99acquire
-Acquire::http::Timeout "2";
-Acquire::ftp::Timeout "2";
-Acquire::Retries "5";
+    cat << "EOF" > /etc/apt/apt.conf.d/99acquire
+Acquire::Retries "10";
 Acquire::Queue-Mode "host";
 EOF
 
@@ -83,13 +86,57 @@ EOF
     echo '\033[0;32m''Update apt and install packages'
     apt-get -y update &&
     apt-get install -y --allow-unauthenticated \
-      docker-engine libnl-3-dev libnl-genl-3-dev build-essential git ipvsadm golang consul
+      docker-engine libnl-3-dev libnl-genl-3-dev build-essential git ipvsadm golang unzip
 
-    echo '\033[0;32m''Start docker service'
+    echo '\033[0;32m''Ensure docker service is running'
     systemctl start docker
 
-    echo '\033[0;32m''Start consul service in dev mode'
-    echo 'CONSUL_FLAGS="-dev"' >> /etc/default/consul
+    # Unfortunately there is no upto date working consul package
+    echo '\033[0;32m''Manually installing consul and creating a service'
+    # create consul user and group
+    addgroup --system consul
+    adduser --system --no-create-home --ingroup consul consul
+    # download and install binary
+    curl -s -o consul.zip https://releases.hashicorp.com/consul/0.7.1/consul_0.7.1_linux_amd64.zip
+    unzip -o consul.zip -d /usr/bin
+    rm consul.zip
+    # create default environment
+    echo 'CONSUL_FLAGS="-dev"' > /etc/default/consul
+    # create folder to persist data, in case -dev flag is disabled
+    mkdir /var/lib/consul
+    chown -R consul: /var/lib/consul
+    # create configuration folder and configure data_dir and syslog
+    mkdir /etc/consul.d
+    cat << "EOF" > /etc/consul.d/20-agent.json
+{
+  "data_dir": "/var/lib/consul",
+  "enable_syslog": true
+}
+EOF
+    chown -R consul: /etc/consul.d
+    # create systemd service
+    cat << "EOF" > /lib/systemd/system/consul.service
+[Unit]
+Description=Consul agent
+After=network.target
+Documentation=man:consul(1)
+
+[Service]
+Type=simple
+Environment=GOMAXPROCS=2
+EnvironmentFile=/etc/default/consul
+ExecStart=/usr/bin/consul agent -config-dir=/etc/consul.d $CONSUL_FLAGS
+ExecReload=/bin/kill -HUP $MAINPID
+User=consul
+Group=consul
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    # enable and start systemd consul.service
     systemctl enable consul
     systemctl start consul
 
@@ -132,12 +179,4 @@ EOF
     cd $HOME/fusis
     go get -v .
   SHELL
-
-  config.vm.post_up_message = <<-MSG
-    Fusis VM ready!
-    your user is 'vagrant' with password 'vagrant'
-    your $GOPATH is /home/vagrant/go
-    Fusis code is in /home/vagrant/go/src/github.com/luizbafilho/fusis
-    for your convinience it's linked in /home/vagrant/fusis
-  MSG
 end

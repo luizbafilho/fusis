@@ -31,16 +31,12 @@ type Store interface {
 	DeleteDestination(svc *types.Service, dst *types.Destination) error
 
 	WatchServices()
-	GetServicesCh() chan []types.Service
+	SubscribeServices(ch chan []types.Service)
 
-	WatchDestinations() error
-	GetDestinationsCh() chan []types.Destination
+	WatchDestinations()
+	SubscribeDestinations(ch chan []types.Destination)
 
 	GetKV() kv.Store
-
-	// AddCheck(dst *types.Destination)
-	// DeleteCheck(dst *types.Destination)
-	// GetChecks() map[string]*health.Check
 }
 
 var (
@@ -50,8 +46,8 @@ var (
 type FusisStore struct {
 	kv kv.Store
 
-	ServicesCh     chan []types.Service
-	DestinationsCh chan []types.Destination
+	servicesChannels    []chan []types.Service
+	destinationChannels []chan []types.Destination
 }
 
 func New(config *config.BalancerConfig) (Store, error) {
@@ -74,10 +70,15 @@ func New(config *config.BalancerConfig) (Store, error) {
 		return nil, errors.Wrap(err, "Cannot create store consul")
 	}
 
-	svcsCh := make(chan []types.Service)
-	dstsCh := make(chan []types.Destination)
+	svcsChs := []chan []types.Service{}
+	dstsChs := []chan []types.Destination{}
 
-	return &FusisStore{kv, svcsCh, dstsCh}, nil
+	fusisStore := &FusisStore{kv, svcsChs, dstsChs}
+
+	go fusisStore.WatchServices()
+	go fusisStore.WatchDestinations()
+
+	return fusisStore, nil
 }
 
 func (s *FusisStore) GetKV() kv.Store {
@@ -111,8 +112,8 @@ func (s *FusisStore) DeleteService(svc *types.Service) error {
 	return nil
 }
 
-func (s *FusisStore) GetServicesCh() chan []types.Service {
-	return s.ServicesCh
+func (s *FusisStore) SubscribeServices(updateCh chan []types.Service) {
+	s.servicesChannels = append(s.servicesChannels, updateCh)
 }
 
 func (s *FusisStore) WatchServices() {
@@ -136,7 +137,9 @@ func (s *FusisStore) WatchServices() {
 				svcs = append(svcs, svc)
 			}
 
-			s.ServicesCh <- svcs
+			for _, ch := range s.servicesChannels {
+				ch <- svcs
+			}
 
 			//Cleaning up services slice
 			svcs = []types.Service{}
@@ -171,17 +174,17 @@ func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destinatio
 	return nil
 }
 
-func (s *FusisStore) GetDestinationsCh() chan []types.Destination {
-	return s.DestinationsCh
+func (s *FusisStore) SubscribeDestinations(updateCh chan []types.Destination) {
+	s.destinationChannels = append(s.destinationChannels, updateCh)
 }
 
-func (s *FusisStore) WatchDestinations() error {
+func (s *FusisStore) WatchDestinations() {
 	dsts := []types.Destination{}
 
 	stopCh := make(<-chan struct{})
 	events, err := s.kv.WatchTree("fusis/destinations", stopCh)
 	if err != nil {
-		return err
+		errors.Wrap(err, "failed watching fusis/destinations")
 	}
 
 	for {
@@ -190,34 +193,18 @@ func (s *FusisStore) WatchDestinations() error {
 			for _, pair := range entries {
 				dst := types.Destination{}
 				if err := json.Unmarshal(pair.Value, &dst); err != nil {
-					return err
+					errors.Wrap(err, "failed unmarshall of destinations")
 				}
 
 				dsts = append(dsts, dst)
 			}
 
-			s.DestinationsCh <- dsts
+			for _, ch := range s.destinationChannels {
+				ch <- dsts
+			}
 
 			//Cleaning up destinations slice
 			dsts = []types.Destination{}
 		}
 	}
-
-	return nil
 }
-
-// func (s FusisStore) GetServices() ([]types.Service, error) {
-// 	svcs := []types.Service{}
-//
-// 	entries, err := s.kv.List("fusis/services")
-// 	for _, pair := range entries {
-// 		svc := types.Service{}
-// 		if err := json.Unmarshal(pair.Value, &svc); err != nil {
-// 			return svcs, err
-// 		}
-//
-// 		svcs = append(svcs, svc)
-// 	}
-//
-// 	return svcs, err
-// }

@@ -1,13 +1,10 @@
 package state
 
 import (
-	"fmt"
 	"sync"
-	"time"
 
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/health"
 	"github.com/luizbafilho/fusis/store"
 )
 
@@ -22,10 +19,6 @@ type State interface {
 	AddDestination(dst types.Destination)
 	DeleteDestination(dst *types.Destination)
 
-	AddCheck(dst *types.Destination)
-	DeleteCheck(dst *types.Destination)
-	GetChecks() map[string]*health.Check
-
 	ChangesCh() chan bool
 }
 
@@ -35,10 +28,8 @@ type FusisState struct {
 
 	services     map[string]types.Service
 	destinations map[string]types.Destination
-	checks       map[string]*health.Check
 
-	changesCh    chan bool
-	healhCheckCh chan health.Check
+	changesCh chan bool
 
 	store store.Store
 }
@@ -51,9 +42,7 @@ func New(store store.Store, config *config.BalancerConfig) (State, error) {
 	state := &FusisState{
 		services:     make(Services),
 		destinations: make(Destinations),
-		checks:       make(map[string]*health.Check),
 		changesCh:    make(chan bool),
-		healhCheckCh: make(chan health.Check),
 		store:        store,
 	}
 
@@ -66,20 +55,18 @@ func (s *FusisState) ChangesCh() chan bool {
 	return s.changesCh
 }
 
-func (s *FusisState) HealthCheckCh() chan health.Check {
-	return s.healhCheckCh
-}
-
 func (s *FusisState) watchStore() {
-	go s.store.WatchServices()
-	go s.store.WatchDestinations()
-
 	go s.handleServicesChange()
 	go s.handleDestinationsChange()
 }
 
 func (s *FusisState) handleServicesChange() {
-	for svcs := range s.store.GetServicesCh() {
+	updateCh := make(chan []types.Service)
+	s.store.SubscribeServices(updateCh)
+
+	for {
+		svcs := <-updateCh
+
 		s.services = Services{}
 		for _, svc := range svcs {
 			s.AddService(svc)
@@ -90,7 +77,11 @@ func (s *FusisState) handleServicesChange() {
 }
 
 func (s *FusisState) handleDestinationsChange() {
-	for dsts := range s.store.GetDestinationsCh() {
+	updateCh := make(chan []types.Destination)
+	s.store.SubscribeDestinations(updateCh)
+
+	for {
+		dsts := <-updateCh
 		s.destinations = Destinations{}
 		for _, dst := range dsts {
 			s.AddDestination(dst)
@@ -168,40 +159,4 @@ func (s *FusisState) DeleteDestination(dst *types.Destination) {
 	defer s.Unlock()
 
 	delete(s.destinations, dst.GetId())
-}
-
-func (s *FusisState) AddCheck(dst *types.Destination) {
-	s.Lock()
-	defer s.Unlock()
-
-	check := health.Check{
-		UpdatesCh:     s.healhCheckCh,
-		Status:        health.BAD,
-		Interval:      5 * time.Second,
-		TCP:           fmt.Sprintf("%s:%d", dst.Address, dst.Port),
-		DestinationID: dst.GetId(),
-	}
-
-	s.checks[dst.GetId()] = &check
-
-	check.Start()
-}
-
-func (s *FusisState) DeleteCheck(dst *types.Destination) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.checks[dst.GetId()].Stop()
-	delete(s.checks, dst.GetId())
-}
-
-func (s *FusisState) UpdateCheck(check *health.Check) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.checks[check.DestinationID].Status = check.Status
-}
-
-func (s *FusisState) GetChecks() map[string]*health.Check {
-	return s.checks
 }

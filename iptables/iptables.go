@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"log"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
@@ -184,7 +184,7 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
 	out, err := exec.Command(i.path, "--wait", "--list", "-t", "nat").Output()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error executing iptables", err)
 	}
 
 	r, _ := regexp.Compile(`vaddr\s([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\svport\s(\d+)\sto:([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})`)

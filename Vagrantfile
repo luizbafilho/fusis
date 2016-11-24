@@ -50,10 +50,8 @@ Vagrant.configure(2) do |config|
 
   config.vm.post_up_message = <<-MSG
     Fusis VM ready!
-    your user is 'vagrant' with password 'vagrant'
-    your $GOPATH is /home/vagrant/go
-    Fusis code is in /home/vagrant/go/src/github.com/luizbafilho/fusis
-    for your convinience it's linked in /home/vagrant/fusis
+    To login run `vagrant ssh`
+    The user is 'vagrant' with password 'vagrant'
   MSG
 
   config.vm.provision "shell",
@@ -66,7 +64,7 @@ Vagrant.configure(2) do |config|
     echo '\033[0;32m''Add docker apt repo'
     apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 \
       --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
-    echo "deb https://apt.dockerproject.org/repo ubuntu-xenial main" > \
+    echo "deb http://apt.dockerproject.org/repo ubuntu-xenial main" > \
       /etc/apt/sources.list.d/docker.list
 
     echo '\033[0;32m''Add lxd apt repo'
@@ -74,8 +72,11 @@ Vagrant.configure(2) do |config|
 
     echo '\033[0;32m''Add some custom acquire conf to apt.conf.d/99acquire''\e[0m'
     cat << "EOF" > /etc/apt/apt.conf.d/99acquire
-Acquire::Retries "10";
 Acquire::Queue-Mode "host";
+Acquire::Retries "10";
+Acquire::http::Timeout "10";
+Acquire::https::Timeout "10";
+Acquire::ftp::Timeout "10";
 EOF
 
     echo '\033[0;32m''Wait for apt lock' # doing this instead of disabling ubuntu auto update
@@ -140,6 +141,19 @@ EOF
     systemctl enable consul
     systemctl start consul
 
+    echo '\033[0;32m''Add a welcome message on login'
+    cat << "EOF" > /etc/update-motd.d/20-fusis
+#!/bin/sh
+printf "\n"
+echo '\033[0;32m''Welcome to Fusis development VM!''\e[0m'
+echo 'Your $GOPATH is /home/vagrant/go'
+echo 'Fusis code is in /home/vagrant/go/src/github.com/luizbafilho/fusis'
+echo "For your convinience it's linked in /home/vagrant/fusis"
+echo 'Build fusis with `make` and start `make run`'
+printf "\n"
+EOF
+    chmod +x /etc/update-motd.d/20-fusis
+
     echo '\033[0;32m''Ensure project folder tree has the right ownership'
     f='/home/vagrant/go/src/github.com/luizbafilho'
     while [[ $f != '/home/vagrant' ]]; do chown vagrant: $f; f=$(dirname $f); done;
@@ -169,6 +183,7 @@ store-address = "consul://127.0.0.1:8500"
 
 [interfaces]
 inbound = "$(ip r | grep '^192' | cut -f 3 -d ' ')"
+outbound = "$(ip r | grep '^default' | cut -f 5 -d ' ')"
 
 [ipam]
 ranges = ["192.168.0.0/24"]

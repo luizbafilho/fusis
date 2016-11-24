@@ -127,7 +127,7 @@ func (s *FusisStore) WatchServices() {
 	for {
 		select {
 		case entries := <-events:
-			log.Debug("Store services was updated")
+			log.Debug("Store services received")
 
 			for _, pair := range entries {
 				svc := types.Service{}
@@ -192,7 +192,7 @@ func (s *FusisStore) WatchDestinations() error {
 	for {
 		select {
 		case entries := <-events:
-			log.Debug("Store destinations was updated")
+			log.Debug("Store destinations received")
 
 			for _, pair := range entries {
 				dst := types.Destination{}

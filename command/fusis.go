@@ -7,7 +7,6 @@ import (
 	"syscall"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/luizbafilho/fusis/fusis"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -36,7 +35,9 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	log.SetFormatter(&fusis.CustomLogFormatter{})
+	customFormatter := new(log.TextFormatter)
+  customFormatter.FullTimestamp = true
+	log.SetFormatter(customFormatter)
 }
 
 // initConfig reads in config file and ENV variables if set.

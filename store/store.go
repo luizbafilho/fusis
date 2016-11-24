@@ -194,8 +194,6 @@ func (s *FusisStore) WatchDestinations() error {
 		case entries := <-events:
 			log.Debug("Store destinations was updated")
 
-			log.Info(entries)
-
 			for _, pair := range entries {
 				dst := types.Destination{}
 				if err := json.Unmarshal(pair.Value, &dst); err != nil {

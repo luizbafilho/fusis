@@ -26,8 +26,7 @@ func loadIpvsModule() error {
 
 //New creates a new ipvs struct and flushes the IPVS Table
 func New() (*Ipvs, error) {
-	err := loadIpvsModule()
-	if err != nil {
+	if err := loadIpvsModule(); err != nil {
 		return nil, err
 	}
 

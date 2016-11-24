@@ -2,7 +2,6 @@ package command
 
 import (
 	"crypto/rand"
-	"fmt"
 	"os"
 	"strings"
 
@@ -47,11 +46,6 @@ func NewBalancerCommand() *cobra.Command {
 }
 
 func setupDefaultOptions() {
-	viper.SetDefault("interfaces", map[string]string{
-		"Inbound":  "eth0",
-		"Outbound": "eth1",
-	})
-
 	viper.SetDefault("cluster-mode", "unicast")
 	viper.SetDefault("data-path", "/etc/fusis")
 	viper.SetDefault("name", randStr())
@@ -73,13 +67,12 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 
 func balancerCommandFunc(cmd *cobra.Command, args []string) {
 	if err := net.SetIpForwarding(); err != nil {
-		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")
+		log.Warn("Fusis couldn't set ip forwarding in the kernel with net.ipv4.ip_forward=1")
 		log.Fatal(err)
 	}
 
-	err := conf.Validate()
-	if err != nil {
-		fmt.Println("Error: Invalid configuration file.", err)
+	if err := conf.Validate(); err != nil {
+		log.Fatal("Invalid configuration file: ", err)
 		os.Exit(1)
 	}
 

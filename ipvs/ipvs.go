@@ -43,11 +43,11 @@ func New() (*Ipvs, error) {
 	return ipvs, nil
 }
 
-// Sync sync all ipvs rules present in state to kernel
+// Sync syncs all ipvs rules present in state to kernel
 func (ipvs *Ipvs) Sync(state state.State) error {
-	log.Debug("Ipvs is syncing")
 	ipvs.Lock()
 	defer ipvs.Unlock()
+	log.Debug("[ipvs] Syncing")
 
 	stateSet := ipvs.getStateServicesSet(state)
 	currentSet, err := ipvs.getCurrentServicesSet()
@@ -66,6 +66,7 @@ func (ipvs *Ipvs) Sync(state state.State) error {
 		if err := ipvs.addServiceAndDestinations(service, dsts); err != nil {
 			return err
 		}
+		log.Debugf("[ipvs] Added service: %#v with destinations: %#v", service, dsts)
 	}
 
 	// Cleaning rules
@@ -75,6 +76,7 @@ func (ipvs *Ipvs) Sync(state state.State) error {
 		if err != nil {
 			return err
 		}
+		log.Debugf("[ipvs] Removed service: %#v", service)
 	}
 
 	// Syncing destination rules

@@ -56,10 +56,11 @@ func New(config *config.BalancerConfig) (*IptablesMngr, error) {
 	}, nil
 }
 
+// Sync syncs all iptables rules
 func (i IptablesMngr) Sync(s state.State) error {
-	log.Debug("Iptables is syncing")
 	i.Lock()
 	defer i.Unlock()
+	log.Debug("[iptables] Syncing")
 
 	stateSet, err := i.getStateRulesSet(s)
 	if err != nil {
@@ -74,20 +75,24 @@ func (i IptablesMngr) Sync(s state.State) error {
 	rulesToAdd := stateSet.Difference(kernelSet)
 	rulesToRemove := kernelSet.Difference(stateSet)
 
+	// Adding missing rules
 	for r := range rulesToAdd.Iter() {
 		rule := r.(SnatRule)
 		err := i.addRule(rule)
 		if err != nil {
 			return err
 		}
+		log.Debug("[iptables] Added rule: ", rule)
 	}
 
+	// Cleaning rules
 	for r := range rulesToRemove.Iter() {
 		rule := r.(SnatRule)
 		err := i.removeRule(rule)
 		if err != nil {
 			return err
 		}
+		log.Debug("[iptables] Removed rule: ", rule)
 	}
 
 	return nil
@@ -185,7 +190,7 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
 	out, err := exec.Command(i.path, "--wait", "--list", "-t", "nat").Output()
 	if err != nil {
-		log.Fatal("Error executing iptables", err)
+		log.Fatal("[iptables] Error executing iptables", err)
 	}
 
 	r, _ := regexp.Compile(`vaddr\s([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\svport\s(\d+)\sto:([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})`)

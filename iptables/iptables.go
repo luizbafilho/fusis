@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	ErrIptablesNotFound = errors.New("Iptables not found")
-	ErrIptablesSnat     = errors.New("Iptables: error when inserting SNAT rule")
+	ErrIptablesNotFound = errors.New("[iptables] Binary not found")
+	ErrIptablesSnat     = errors.New("[iptables] Error when inserting SNAT rule")
 )
 
 // Defines iptables actions

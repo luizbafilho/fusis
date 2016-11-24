@@ -32,12 +32,12 @@ func New() (*Ipvs, error) {
 	}
 
 	if err := gipvs.Init(); err != nil {
-		return nil, fmt.Errorf("IPVS initialisation failed: %v", err)
+		return nil, fmt.Errorf("[ipvs] Initialisation failed: %v", err)
 	}
 
 	ipvs := &Ipvs{}
 	if err := ipvs.Flush(); err != nil {
-		return nil, fmt.Errorf("IPVS flushing table failed: %v", err)
+		return nil, fmt.Errorf("[ipvs] Flushing table failed: %v", err)
 	}
 
 	return ipvs, nil

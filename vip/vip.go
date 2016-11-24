@@ -3,6 +3,7 @@ package vip
 import (
 	"fmt"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/net"
@@ -24,6 +25,7 @@ func New(config *config.BalancerConfig) (Syncer, error) {
 }
 
 func (n VipMngr) Sync(state state.State) error {
+	log.Debug("Vip is syncing")
 	currentVips, err := n.getCurrentVips()
 	if err != nil {
 		return err

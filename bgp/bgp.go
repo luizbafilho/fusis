@@ -2,11 +2,11 @@ package bgp
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
@@ -27,6 +27,7 @@ type Syncer interface {
 }
 
 func (bs *BgpService) Sync(s state.State) error {
+	log.Debug("Bgp is syncing")
 	bs.Lock()
 	defer bs.Unlock()
 

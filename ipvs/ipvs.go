@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	gipvs "github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api/types"
@@ -44,6 +45,7 @@ func New() (*Ipvs, error) {
 
 // Sync sync all ipvs rules present in state to kernel
 func (ipvs *Ipvs) Sync(state state.State) error {
+	log.Debug("Ipvs is syncing")
 	ipvs.Lock()
 	defer ipvs.Unlock()
 

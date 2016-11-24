@@ -57,6 +57,7 @@ func New(config *config.BalancerConfig) (*IptablesMngr, error) {
 }
 
 func (i IptablesMngr) Sync(s state.State) error {
+	log.Debug("Iptables is syncing")
 	i.Lock()
 	defer i.Unlock()
 

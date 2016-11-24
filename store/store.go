@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/docker/libkv"
 	kv "github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/consul"
@@ -121,17 +121,20 @@ func (s *FusisStore) WatchServices() {
 	stopCh := make(<-chan struct{})
 	events, err := s.kv.WatchTree("fusis/services", stopCh)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 	}
 
 	for {
 		select {
 		case entries := <-events:
+			log.Debug("Store services was updated")
+
 			for _, pair := range entries {
 				svc := types.Service{}
 				if err := json.Unmarshal(pair.Value, &svc); err != nil {
-					logrus.Error(err)
+					log.Error(err)
 				}
+				log.Debug("Got sevice ", svc)
 
 				svcs = append(svcs, svc)
 			}
@@ -156,6 +159,7 @@ func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) 
 	if err != nil {
 		return errors.Wrapf(err, "error sending destination to store: %v", dst)
 	}
+	log.Debugf("Added destination %s => %s", key, value)
 
 	return nil
 }
@@ -167,6 +171,7 @@ func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destinatio
 	if err != nil {
 		return errors.Wrapf(err, "error trying to delete destination: %v", dst)
 	}
+	log.Debugf("Deleted destination %s", key)
 
 	return nil
 }
@@ -187,11 +192,16 @@ func (s *FusisStore) WatchDestinations() error {
 	for {
 		select {
 		case entries := <-events:
+			log.Debug("Store destinations was updated")
+
+			log.Info(entries)
+
 			for _, pair := range entries {
 				dst := types.Destination{}
 				if err := json.Unmarshal(pair.Value, &dst); err != nil {
 					return err
 				}
+				log.Debug("Got destination ", dst)
 
 				dsts = append(dsts, dst)
 			}

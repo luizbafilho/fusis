@@ -2,8 +2,6 @@ package fusis
 
 import (
 	"fmt"
-	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -19,8 +17,6 @@ import (
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/store"
 	"github.com/luizbafilho/fusis/vip"
-
-	"github.com/hashicorp/logutils"
 )
 
 // Balancer represents the Load Balancer
@@ -110,20 +106,6 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	go metrics.Monitor()
 
 	return balancer, nil
-}
-
-func (b *Balancer) getLibLogOutput() io.Writer {
-	minLevel := strings.ToUpper(b.config.LogLevel)
-	level, _ := log.ParseLevel(minLevel)
-	log.SetLevel(level)
-
-	filter := &logutils.LevelFilter{
-		Levels:   config.LOG_LEVELS,
-		MinLevel: logutils.LogLevel(minLevel),
-		Writer:   log.StandardLogger().Out,
-	}
-
-	return filter
 }
 
 func (b *Balancer) watchState() {

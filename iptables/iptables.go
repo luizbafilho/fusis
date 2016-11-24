@@ -82,7 +82,7 @@ func (i IptablesMngr) Sync(s state.State) error {
 		if err != nil {
 			return err
 		}
-		log.Debug("[iptables] Added rule: ", rule)
+		log.Debugf("[iptables] Added rule: %#v", rule)
 	}
 
 	// Cleaning rules
@@ -92,7 +92,7 @@ func (i IptablesMngr) Sync(s state.State) error {
 		if err != nil {
 			return err
 		}
-		log.Debug("[iptables] Removed rule: ", rule)
+		log.Debugf("[iptables] Removed rule: %#v", rule)
 	}
 
 	return nil

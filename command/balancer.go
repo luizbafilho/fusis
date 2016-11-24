@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -37,6 +38,10 @@ func NewBalancerCommand() *cobra.Command {
 
 	setupDefaultOptions()
 	setupBalancerCmdFlags(cmd)
+
+	level, _ := log.ParseLevel(strings.ToUpper(conf.LogLevel))
+	log.Info(log.WarnLevel, level)
+	log.SetLevel(log.DebugLevel)
 
 	return cmd
 }

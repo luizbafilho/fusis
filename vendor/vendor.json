@@ -3,10 +3,6 @@
 	"ignore": "test",
 	"package": [
 		{
-			"path": "context",
-			"revision": ""
-		},
-		{
 			"checksumSHA1": "OQ5kAyWp1PtzFLiL4hc0idGHh6E=",
 			"path": "github.com/BurntSushi/toml",
 			"revision": "bbd5bb678321a0d6e58f1099321dfa73391c1b6f",
@@ -440,6 +436,12 @@
 			"revisionTime": "2015-12-30T06:11:39Z"
 		},
 		{
+			"checksumSHA1": "P9ZvaW6h6Z8rWX2X8TSO1FeF8DA=",
+			"path": "github.com/toorop/gin-logrus",
+			"revision": "da123c7cdce942185cc1785e630dba5acd3d5e07",
+			"revisionTime": "2016-09-27T11:04:40Z"
+		},
+		{
 			"checksumSHA1": "jfIUoeCY4uLz1zCgnCxndi5/UNE=",
 			"path": "github.com/ugorji/go/codec",
 			"revision": "faddd6128c66c4708f45fdc007f575f75e592a3c",
@@ -594,10 +596,6 @@
 			"path": "gopkg.in/yaml.v2",
 			"revision": "f7716cbe52baa25d2e9b0d0da546fcf909fc16b4",
 			"revisionTime": "2015-12-01T16:27:45Z"
-		},
-		{
-			"path": "net/http/httptrace",
-			"revision": ""
 		}
 	],
 	"rootPath": "github.com/luizbafilho/fusis"

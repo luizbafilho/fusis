@@ -7,6 +7,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
+	"github.com/toorop/gin-logrus"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/health"
 )
@@ -41,14 +42,19 @@ type Balancer interface {
 func NewAPI(balancer Balancer) ApiService {
 	gin.SetMode(gin.ReleaseMode)
 	as := ApiService{
-		Engine:   gin.Default(),
+		Engine:   gin.New(),
 		balancer: balancer,
 		env:      getEnv(),
 	}
 
+	as.registerLoggerAndRecovery()
 	as.registerRedirectMiddleware()
 	as.registerRoutes()
 	return as
+}
+
+func (as ApiService) registerLoggerAndRecovery() {
+	as.Use(ginlogrus.Logger(log.StandardLogger()), gin.Recovery())
 }
 
 func (as ApiService) registerRoutes() {
@@ -58,6 +64,10 @@ func (as ApiService) registerRoutes() {
 	as.DELETE("/services/:service_name", as.serviceDelete)
 	as.POST("/services/:service_name/destinations", as.destinationCreate)
 	as.DELETE("/services/:service_name/destinations/:destination_name", as.destinationDelete)
+}
+
+func (as ApiService) registerRedirectMiddleware() {
+	as.Use(redirectMiddleware(as.balancer))
 }
 
 func redirectMiddleware(b Balancer) gin.HandlerFunc {
@@ -71,10 +81,6 @@ func redirectMiddleware(b Balancer) gin.HandlerFunc {
 			c.Redirect(307, fmt.Sprintf("http://%s:8000%s", host, c.Request.URL))
 		}
 	}
-}
-
-func (as ApiService) registerRedirectMiddleware() {
-	as.Use(redirectMiddleware(as.balancer))
 }
 
 // Serve starts the api.

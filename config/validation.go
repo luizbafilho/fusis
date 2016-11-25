@@ -42,6 +42,11 @@ func (config BalancerConfig) Validate() error {
 		}
 	}
 
+	/* Validate Interfaces config */
+	if err := config.Interfaces.Validate(); err != nil {
+		return err
+	}
+
 	/* Validate Join nodes param */
 	if !config.Bootstrap {
 		if len(config.Join) == 0 {
@@ -74,4 +79,8 @@ func (bgp Bgp) Validate() error {
 
 func (ipam Ipam) Validate() error {
 	return validate.Struct(ipam)
+}
+
+func (interfaces Interfaces) Validate() error {
+	return validate.Struct(interfaces)
 }

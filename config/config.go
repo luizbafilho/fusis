@@ -20,11 +20,11 @@ type BalancerConfig struct {
 	LogLevel    string         `mapstructure:"log-level"`
 	DataPath    string         `mapstructure:"data-path"`
 	ClusterMode string         `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
-	Bgp         Bgp
-	Ipam        Ipam
-	Metrics     Metrics
+	Bgp
+	Ipam
+	Metrics
 
-	StoreAddress string `mapstructure:"store-address"`
+	StoreAddress string        `mapstructure:"store-address"`
 }
 
 type AgentConfig struct {
@@ -41,7 +41,7 @@ type AgentConfig struct {
 
 type Interfaces struct {
 	Inbound  string `validate:"required"`
-	Outbound string
+	Outbound string `validate:"required"`
 }
 
 type Bgp struct {

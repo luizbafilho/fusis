@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/docker/libkv"
 	kv "github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/consul"
@@ -45,7 +45,7 @@ type Store interface {
 }
 
 var (
-	ErrUnsupportedStore = errors.New("unsupported store.")
+	ErrUnsupportedStore = errors.New("[store] Unsupported store")
 )
 
 type FusisStore struct {
@@ -137,17 +137,20 @@ func (s *FusisStore) WatchServices() {
 	stopCh := make(<-chan struct{})
 	events, err := s.kv.WatchTree("fusis/services", stopCh)
 	if err != nil {
-		logrus.Error(err)
+		log.Error("[store] ", err)
 	}
 
 	for {
 		select {
 		case entries := <-events:
+			log.Debug("[store] Services received")
+
 			for _, pair := range entries {
 				svc := types.Service{}
 				if err := json.Unmarshal(pair.Value, &svc); err != nil {
-					logrus.Error(err)
+					log.Error("[store] ", err)
 				}
+				log.Debugf("[store] Got sevice: %#v ", svc)
 
 				svcs = append(svcs, svc)
 			}
@@ -176,6 +179,7 @@ func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) 
 	if err != nil {
 		return errors.Wrapf(err, "error sending destination to store: %v", dst)
 	}
+	log.Debugf("[store] Added destination: %#v with key: %s", value, key)
 
 	return nil
 }
@@ -187,6 +191,7 @@ func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destinatio
 	if err != nil {
 		return errors.Wrapf(err, "error trying to delete destination: %v", dst)
 	}
+	log.Debugf("[store] Deleted destination: %s", key)
 
 	return nil
 }
@@ -209,11 +214,14 @@ func (s *FusisStore) WatchDestinations() {
 	for {
 		select {
 		case entries := <-events:
+			log.Debug("[store] Destinations received")
+
 			for _, pair := range entries {
 				dst := types.Destination{}
 				if err := json.Unmarshal(pair.Value, &dst); err != nil {
 					errors.Wrap(err, "failed unmarshall of destinations")
 				}
+				log.Debugf("[store] Got destination: %#v", dst)
 
 				dsts = append(dsts, dst)
 			}

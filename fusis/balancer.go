@@ -2,8 +2,6 @@ package fusis
 
 import (
 	"fmt"
-	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,8 +18,6 @@ import (
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/store"
 	"github.com/luizbafilho/fusis/vip"
-
-	"github.com/hashicorp/logutils"
 )
 
 // Balancer represents the Load Balancer
@@ -116,20 +112,6 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	return balancer, nil
 }
 
-func (b *Balancer) getLibLogOutput() io.Writer {
-	minLevel := strings.ToUpper(b.config.LogLevel)
-	level, _ := log.ParseLevel(minLevel)
-	log.SetLevel(level)
-
-	filter := &logutils.LevelFilter{
-		Levels:   config.LOG_LEVELS,
-		MinLevel: logutils.LogLevel(minLevel),
-		Writer:   log.StandardLogger().Out,
-	}
-
-	return filter
-}
-
 func (b *Balancer) watchState() {
 	for {
 		select {
@@ -137,33 +119,35 @@ func (b *Balancer) watchState() {
 			// TODO: this doesn't need to run all the time, we can implement
 			// some kind of throttling in the future waiting for a threashold of
 			// messages before applying the messages.
-			b.handleStateChange()
+			if err, module := b.handleStateChange(); err != nil {
+				log.Errorf("[%s] Error handling state change: %s", module, err)
+			}
 		}
 	}
 }
 
-func (b *Balancer) handleStateChange() error {
+func (b *Balancer) handleStateChange() (error, string) {
 	if err := b.ipvsMngr.Sync(b.state); err != nil {
-		return err
+		return err, "ipvs"
 	}
 
 	if err := b.iptablesMngr.Sync(b.state); err != nil {
-		return err
+		return err, "iptables"
 	}
 
 	if b.isAnycast() {
 		if err := b.bgpMngr.Sync(b.state); err != nil {
-			return err
+			return err, "bgp"
 		}
 	} else if !b.IsLeader() {
-		return nil
+		return nil, ""
 	}
 
 	if err := b.vipMngr.Sync(b.state); err != nil {
-		return err
+		return err, "vip"
 	}
 
-	return nil
+	return nil, ""
 }
 
 func (b *Balancer) watchHealthChecks() {

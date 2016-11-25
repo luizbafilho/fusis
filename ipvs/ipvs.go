@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	gipvs "github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api/types"
@@ -25,27 +26,27 @@ func loadIpvsModule() error {
 
 //New creates a new ipvs struct and flushes the IPVS Table
 func New() (*Ipvs, error) {
-	err := loadIpvsModule()
-	if err != nil {
+	if err := loadIpvsModule(); err != nil {
 		return nil, err
 	}
 
 	if err := gipvs.Init(); err != nil {
-		return nil, fmt.Errorf("IPVS initialisation failed: %v", err)
+		return nil, fmt.Errorf("[ipvs] Initialisation failed: %v", err)
 	}
 
 	ipvs := &Ipvs{}
 	if err := ipvs.Flush(); err != nil {
-		return nil, fmt.Errorf("IPVS flushing table failed: %v", err)
+		return nil, fmt.Errorf("[ipvs] Flushing table failed: %v", err)
 	}
 
 	return ipvs, nil
 }
 
-// Sync sync all ipvs rules present in state to kernel
+// Sync syncs all ipvs rules present in state to kernel
 func (ipvs *Ipvs) Sync(state state.State) error {
 	ipvs.Lock()
 	defer ipvs.Unlock()
+	log.Debug("[ipvs] Syncing")
 
 	stateSet := ipvs.getStateServicesSet(state)
 	currentSet, err := ipvs.getCurrentServicesSet()
@@ -64,6 +65,7 @@ func (ipvs *Ipvs) Sync(state state.State) error {
 		if err := ipvs.addServiceAndDestinations(service, dsts); err != nil {
 			return err
 		}
+		log.Debugf("[ipvs] Added service: %#v with destinations: %#v", service, dsts)
 	}
 
 	// Cleaning rules
@@ -73,6 +75,7 @@ func (ipvs *Ipvs) Sync(state state.State) error {
 		if err != nil {
 			return err
 		}
+		log.Debugf("[ipvs] Removed service: %#v", service)
 	}
 
 	// Syncing destination rules

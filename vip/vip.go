@@ -3,6 +3,7 @@ package vip
 import (
 	"fmt"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/net"
@@ -24,6 +25,7 @@ func New(config *config.BalancerConfig) (Syncer, error) {
 }
 
 func (n VipMngr) Sync(state state.State) error {
+	log.Debug("[vip] Syncing")
 	currentVips, err := n.getCurrentVips()
 	if err != nil {
 		return err
@@ -38,16 +40,18 @@ func (n VipMngr) Sync(state state.State) error {
 		vip := v.(string)
 		err := net.AddIp(vip+"/32", n.iface)
 		if err != nil {
-			return fmt.Errorf("error adding ip %s: %s", vip, err)
+			return fmt.Errorf("[vip] Error adding ip %s: %s", vip, err)
 		}
+		log.Debugf("[vip] Added: %s/32 to interface: %s",  vip, n.iface)
 	}
 
 	for v := range vipsToRemove.Iter() {
 		vip := v.(string)
 		err := net.DelIp(vip+"/32", n.iface)
 		if err != nil {
-			return fmt.Errorf("error deleting ip %s: %s", vip, err)
+			return fmt.Errorf("[vip] Error deleting ip %s: %s", vip, err)
 		}
+		log.Debugf("[vip] Removed: %s/32 from interface: %s",  vip, n.iface)
 	}
 
 	return nil

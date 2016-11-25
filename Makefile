@@ -4,7 +4,7 @@ build:
 	go build -race -o bin/fusis
 
 run:
-	sudo bin/fusis balancer --bootstrap
+	sudo bin/fusis balancer --bootstrap --log-level=debug
 
 docker:
 	docker build -t fusis .

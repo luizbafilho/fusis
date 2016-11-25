@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"log"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	ErrIptablesNotFound = errors.New("Iptables not found")
-	ErrIptablesSnat     = errors.New("Iptables: error when inserting SNAT rule")
+	ErrIptablesNotFound = errors.New("[iptables] Binary not found")
+	ErrIptablesSnat     = errors.New("[iptables] Error when inserting SNAT rule")
 )
 
 // Defines iptables actions
@@ -56,9 +56,11 @@ func New(config *config.BalancerConfig) (*IptablesMngr, error) {
 	}, nil
 }
 
+// Sync syncs all iptables rules
 func (i IptablesMngr) Sync(s state.State) error {
 	i.Lock()
 	defer i.Unlock()
+	log.Debug("[iptables] Syncing")
 
 	stateSet, err := i.getStateRulesSet(s)
 	if err != nil {
@@ -73,20 +75,24 @@ func (i IptablesMngr) Sync(s state.State) error {
 	rulesToAdd := stateSet.Difference(kernelSet)
 	rulesToRemove := kernelSet.Difference(stateSet)
 
+	// Adding missing rules
 	for r := range rulesToAdd.Iter() {
 		rule := r.(SnatRule)
 		err := i.addRule(rule)
 		if err != nil {
 			return err
 		}
+		log.Debugf("[iptables] Added rule: %#v", rule)
 	}
 
+	// Cleaning rules
 	for r := range rulesToRemove.Iter() {
 		rule := r.(SnatRule)
 		err := i.removeRule(rule)
 		if err != nil {
 			return err
 		}
+		log.Debugf("[iptables] Removed rule: %#v", rule)
 	}
 
 	return nil
@@ -184,7 +190,7 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
 	out, err := exec.Command(i.path, "--wait", "--list", "-t", "nat").Output()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("[iptables] Error executing iptables", err)
 	}
 
 	r, _ := regexp.Compile(`vaddr\s([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\svport\s(\d+)\sto:([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})`)

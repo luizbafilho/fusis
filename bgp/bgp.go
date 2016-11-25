@@ -2,11 +2,11 @@ package bgp
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
@@ -29,6 +29,7 @@ type Syncer interface {
 func (bs *BgpService) Sync(s state.State) error {
 	bs.Lock()
 	defer bs.Unlock()
+	log.Debug("[bgp] Syncing")
 
 	stateSet := bs.getStateBgpPaths(s)
 	currentSet, err := bs.getCurrentBgpPaths(s)
@@ -44,6 +45,7 @@ func (bs *BgpService) Sync(s state.State) error {
 		if err != nil {
 			return err
 		}
+		log.Debug("[bgp] Added path: ", p.(string))
 	}
 
 	for p := range pathsToRemove.Iter() {
@@ -51,6 +53,7 @@ func (bs *BgpService) Sync(s state.State) error {
 		if err != nil {
 			return err
 		}
+		log.Debug("[bgp] Removed path: ", p.(string))
 	}
 
 	return nil
@@ -99,7 +102,7 @@ func (bs *BgpService) Serve() {
 	}
 
 	if err := bs.bgp.Start(global); err != nil {
-		log.Fatal("Failed starting BGP service.", err)
+		log.Fatal("[bgp] Failed starting service.", err)
 	}
 
 	for _, n := range bs.config.Bgp.Neighbors {
@@ -117,7 +120,7 @@ func (bs *BgpService) addNeighbor(nb config.Neighbor) {
 	}
 
 	if err := bs.bgp.AddNeighbor(n); err != nil {
-		log.Fatal("Adding BGP Neighbor failed", err)
+		log.Fatal("[bgp] Adding BGP Neighbor failed", err)
 	}
 }
 
@@ -128,7 +131,7 @@ func (bs *BgpService) AddPath(route string) error {
 	}
 
 	if _, err := bs.bgp.AddPath("", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(32, route), false, attrs, time.Now(), false)}); err != nil {
-		return fmt.Errorf("Error adding bgp path. %v", err)
+		return fmt.Errorf("[bgp] Error adding bgp path. %v", err)
 	}
 
 	return nil
@@ -140,7 +143,7 @@ func (bs *BgpService) GetPaths() ([]string, error) {
 	var lookupPrefix []*gobgp.LookupPrefix
 	_, dsts, err := bs.bgp.GetRib("", bgp.RF_IPv4_UC, lookupPrefix)
 	if err != nil {
-		return paths, fmt.Errorf("Error getting bgp paths. %v", err)
+		return paths, fmt.Errorf("[bgp] Error getting bgp paths. %v", err)
 	}
 
 	for k := range dsts {
@@ -156,7 +159,7 @@ func (bs *BgpService) DelPath(route string) error {
 	}
 
 	if err := bs.bgp.DeletePath([]byte{}, bgp.RF_IPv4_UC, "", []*table.Path{table.NewPath(nil, bgp.NewIPAddrPrefix(32, route), true, attrs, time.Now(), false)}); err != nil {
-		return fmt.Errorf("Error deleting bgp path. %v", err)
+		return fmt.Errorf("[bgp] Error deleting bgp path. %v", err)
 	}
 
 	return nil

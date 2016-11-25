@@ -5,7 +5,7 @@ import (
 	"net"
 	"os"
 
-  log "github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/health"
@@ -91,9 +91,9 @@ func (as ApiService) Serve() {
 		host = "0.0.0.0"
 	}
 
-  address := host + ":" + port
+	address := host + ":" + port
 
-  log.Infof("Starting on " + address)
+	log.Infof("Listening on %s", address)
 	as.Run(address)
 }
 

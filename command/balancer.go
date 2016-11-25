@@ -2,8 +2,8 @@ package command
 
 import (
 	"crypto/rand"
-	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -38,15 +38,14 @@ func NewBalancerCommand() *cobra.Command {
 	setupDefaultOptions()
 	setupBalancerCmdFlags(cmd)
 
+	level, _ := log.ParseLevel(strings.ToUpper(conf.LogLevel))
+	log.Info(log.WarnLevel, level)
+	log.SetLevel(log.DebugLevel)
+
 	return cmd
 }
 
 func setupDefaultOptions() {
-	viper.SetDefault("interfaces", map[string]string{
-		"Inbound":  "eth0",
-		"Outbound": "eth1",
-	})
-
 	viper.SetDefault("cluster-mode", "unicast")
 	viper.SetDefault("data-path", "/etc/fusis")
 	viper.SetDefault("name", randStr())
@@ -58,6 +57,7 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&conf.DevMode, "dev", false, "Initialize balancer in dev mode")
 	cmd.Flags().StringSliceVarP(&conf.Join, "join", "j", []string{}, "Join balancer pool")
 	cmd.Flags().StringVar(&configFile, "config", "", "specify a configuration file")
+	cmd.Flags().StringVar(&conf.LogLevel, "log-level", "", "specify a log level")
 
 	err := viper.BindPFlags(cmd.Flags())
 	if err != nil {
@@ -67,13 +67,12 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 
 func balancerCommandFunc(cmd *cobra.Command, args []string) {
 	if err := net.SetIpForwarding(); err != nil {
-		log.Warn("Fusis couldn't set net.ipv4.ip_forward=1")
+		log.Warn("Fusis couldn't set ip forwarding in the kernel with net.ipv4.ip_forward=1")
 		log.Fatal(err)
 	}
 
-	err := conf.Validate()
-	if err != nil {
-		fmt.Println("Error: Invalid configuration file.", err)
+	if err := conf.Validate(); err != nil {
+		log.Fatal("Invalid configuration file: ", err)
 		os.Exit(1)
 	}
 

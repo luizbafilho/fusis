@@ -208,6 +208,10 @@ EOF
     echo '\033[0;32m''Link fusis in /home/vagrant for convinience'
     ln -s $GOPATH/src/github.com/luizbafilho/fusis $HOME/fusis
 
+    # install govendor
+    echo '\033[0;32m''Install govendor'
+    go get -u github.com/kardianos/govendor
+
     # fusis binary checks ~/.fusis for configuration file as fallback
     echo '\033[0;32m''Create a sample config at /home/vagrant/.fusis/fusis.toml'
     mkdir $HOME/.fusis

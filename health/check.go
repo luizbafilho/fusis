@@ -1,12 +1,13 @@
 package health
 
 import (
+	"fmt"
+	"log"
 	"math/rand"
 	"net"
-	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/api/types"
 )
 
 //HealthCheck status
@@ -15,34 +16,37 @@ const (
 	BAD = "bad"
 )
 
-type CheckNotifier interface {
-	NotifyCheckUpdate() error
+type Check interface {
+	Init(updateCh chan bool)
+	Start()
+	Stop()
+	GetId() string
 }
 
-// Check is used to periodically make an TCP/UDP connection to
-// determine the health of a given check.
-// The check is OK if the connection succeeds
-// The check is BAD if the connection returns an error
-type Check struct {
-	UpdatesCh     chan Check `json:"-"`
-	Status        string
+type CheckTCP struct {
+	Spec types.CheckSpec
+
 	DestinationID string
-	TCP           string
 
-	Interval time.Duration
-	Timeout  time.Duration
+	dialer *net.Dialer
+	stopCh chan bool
 
-	dialer   *net.Dialer
-	stop     bool
-	stopCh   chan struct{}
-	stopLock sync.Mutex
+	updateCh chan bool
+}
+
+func (c *CheckTCP) Stop() {
+	c.stopCh <- true
+}
+
+func (c *CheckTCP) GetId() string {
+	return fmt.Sprintf("%s:%s", c.Spec.ServiceID, c.DestinationID)
 }
 
 // Start is used to start a TCP check.
 // The check runs until stop is called
-func (c *Check) Start() {
-	c.stopLock.Lock()
-	defer c.stopLock.Unlock()
+func (c *CheckTCP) Init(updateCh chan bool) {
+	c.stopCh = make(chan bool)
+	c.updateCh = updateCh
 
 	if c.dialer == nil {
 		// Create the socket dialer
@@ -51,63 +55,49 @@ func (c *Check) Start() {
 		// For long (>10s) interval checks the socket timeout is 10s, otherwise
 		// the timeout is the interval. This means that a check *should* return
 		// before the next check begins.
-		if c.Timeout > 0 && c.Timeout < c.Interval {
-			c.dialer.Timeout = c.Timeout
-		} else if c.Interval < 10*time.Second {
-			c.dialer.Timeout = c.Interval
-		}
-	}
-
-	c.stop = false
-	c.stopCh = make(chan struct{})
-	go c.run()
-}
-
-// Stop is used to stop a TCP check.
-func (c *Check) Stop() {
-	c.stopLock.Lock()
-	defer c.stopLock.Unlock()
-	if !c.stop {
-		c.stop = true
-		close(c.stopCh)
-	}
-}
-
-// run is invoked by a goroutine to run until Stop() is called
-func (c *Check) run() {
-	// Get the randomized initial pause time
-	initialPauseTime := RandomStagger(c.Interval)
-	logrus.Printf("[DEBUG] agent: pausing %v before first socket connection of %s", initialPauseTime, c.TCP)
-	next := time.After(initialPauseTime)
-	for {
-		select {
-		case <-next:
-			c.check()
-			next = time.After(c.Interval)
-		case <-c.stopCh:
-			return
+		if c.Spec.Timeout > 0 && c.Spec.Timeout < c.Spec.Interval {
+			c.dialer.Timeout = c.Spec.Timeout
+		} else if c.Spec.Interval < 10*time.Second {
+			c.dialer.Timeout = c.Spec.Interval
 		}
 	}
 }
 
 // check is invoked periodically to perform the TCP check
-func (c *Check) check() {
-	var currentStatus string
-	previousStatus := c.Status
+func (c *CheckTCP) check() {
+	log.Printf("Check Running: %#v", c)
+	// var currentStatus string
+	// previousStatus := c.Status
+	//
+	// conn, err := c.dialer.Dial(`tcp`, c.TCP)
+	// if err != nil {
+	// 	logrus.Printf("[WARN] agent: socket connection failed '%s': %s", c.TCP, err)
+	// 	currentStatus = BAD
+	// } else {
+	// 	logrus.Printf("[DEBUG] agent: check '%v' is passing", c.DestinationID)
+	// 	currentStatus = OK
+	// 	conn.Close()
+	// }
+	//
+	// if currentStatus != previousStatus {
+	// 	c.Status = currentStatus
+	// 	c.UpdatesCh <- *c
+	// }
+}
 
-	conn, err := c.dialer.Dial(`tcp`, c.TCP)
-	if err != nil {
-		logrus.Printf("[WARN] agent: socket connection failed '%s': %s", c.TCP, err)
-		currentStatus = BAD
-	} else {
-		logrus.Printf("[DEBUG] agent: check '%v' is passing", c.DestinationID)
-		currentStatus = OK
-		conn.Close()
-	}
-
-	if currentStatus != previousStatus {
-		c.Status = currentStatus
-		c.UpdatesCh <- *c
+func (c *CheckTCP) Start() {
+	// Get the randomized initial pause time
+	initialPauseTime := RandomStagger(c.Spec.Interval)
+	next := time.After(initialPauseTime)
+	for {
+		select {
+		case <-next:
+			c.check()
+			next = time.After(c.Spec.Interval)
+		case <-c.stopCh:
+			log.Printf("canceling check: %#v", c)
+			return
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 var (
@@ -69,4 +70,17 @@ func (l DestinationList) Len() int      { return len(l) }
 func (l DestinationList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l DestinationList) Less(i, j int) bool {
 	return l[i].Name < l[j].Name
+}
+
+type CheckSpec struct {
+	ServiceID string
+	Type      string
+
+	HTTP   string
+	TCP    string
+	Script string
+	Shell  string
+
+	Interval time.Duration
+	Timeout  time.Duration
 }

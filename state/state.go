@@ -67,7 +67,9 @@ func (s *FusisState) handleServicesChange() {
 	for {
 		svcs := <-updateCh
 
+		s.Lock()
 		s.services = Services{}
+		s.Unlock()
 		for _, svc := range svcs {
 			s.AddService(svc)
 		}
@@ -82,7 +84,9 @@ func (s *FusisState) handleDestinationsChange() {
 
 	for {
 		dsts := <-updateCh
+		s.Lock()
 		s.destinations = Destinations{}
+		s.Unlock()
 		for _, dst := range dsts {
 			s.AddDestination(dst)
 		}
@@ -103,6 +107,9 @@ func (s *FusisState) GetServices() []types.Service {
 }
 
 func (s *FusisState) GetService(name string) (*types.Service, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	svc, ok := s.services[name]
 	if !ok {
 		return nil, types.ErrServiceNotFound
@@ -113,11 +120,13 @@ func (s *FusisState) GetService(name string) (*types.Service, error) {
 
 func (s *FusisState) GetDestinations(svc *types.Service) []types.Destination {
 	dsts := []types.Destination{}
+	s.Lock()
 	for _, d := range s.destinations {
 		if d.ServiceId == svc.GetId() {
 			dsts = append(dsts, d)
 		}
 	}
+	s.Unlock()
 
 	return dsts
 }

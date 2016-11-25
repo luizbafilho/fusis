@@ -1,7 +1,7 @@
 default: build
 
 build:
-	go build -o bin/fusis
+	go build -race -o bin/fusis
 
 run:
 	sudo bin/fusis balancer --bootstrap

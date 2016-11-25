@@ -11,6 +11,7 @@ import (
 	"github.com/docker/leadership"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/health"
 	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/iptables"
 	"github.com/luizbafilho/fusis/ipvs"
@@ -48,6 +49,9 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	monitor := health.NewMonitor(store)
+	monitor.Start()
 
 	state, err := state.New(store, config)
 	if err != nil {

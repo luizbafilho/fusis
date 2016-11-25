@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sync"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/libkv"
@@ -12,6 +13,7 @@ import (
 	"github.com/docker/libkv/store/etcd"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/util"
 	"github.com/pkg/errors"
 )
 
@@ -36,6 +38,9 @@ type Store interface {
 	WatchDestinations()
 	SubscribeDestinations(ch chan []types.Destination)
 
+	AddCheck(check types.CheckSpec) error
+	SubscribeChecks(ch chan []types.CheckSpec)
+
 	GetKV() kv.Store
 }
 
@@ -44,10 +49,12 @@ var (
 )
 
 type FusisStore struct {
+	sync.Mutex
 	kv kv.Store
 
 	servicesChannels    []chan []types.Service
 	destinationChannels []chan []types.Destination
+	checksChannels      []chan []types.CheckSpec
 }
 
 func New(config *config.BalancerConfig) (Store, error) {
@@ -72,8 +79,14 @@ func New(config *config.BalancerConfig) (Store, error) {
 
 	svcsChs := []chan []types.Service{}
 	dstsChs := []chan []types.Destination{}
+	checksChs := []chan []types.CheckSpec{}
 
-	fusisStore := &FusisStore{kv, svcsChs, dstsChs}
+	fusisStore := &FusisStore{
+		kv:                  kv,
+		servicesChannels:    svcsChs,
+		destinationChannels: dstsChs,
+		checksChannels:      checksChs,
+	}
 
 	go fusisStore.WatchServices()
 	go fusisStore.WatchDestinations()
@@ -113,6 +126,8 @@ func (s *FusisStore) DeleteService(svc *types.Service) error {
 }
 
 func (s *FusisStore) SubscribeServices(updateCh chan []types.Service) {
+	s.Lock()
+	defer s.Unlock()
 	s.servicesChannels = append(s.servicesChannels, updateCh)
 }
 
@@ -137,9 +152,11 @@ func (s *FusisStore) WatchServices() {
 				svcs = append(svcs, svc)
 			}
 
+			s.Lock()
 			for _, ch := range s.servicesChannels {
 				ch <- svcs
 			}
+			s.Unlock()
 
 			//Cleaning up services slice
 			svcs = []types.Service{}
@@ -175,6 +192,8 @@ func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destinatio
 }
 
 func (s *FusisStore) SubscribeDestinations(updateCh chan []types.Destination) {
+	s.Lock()
+	defer s.Unlock()
 	s.destinationChannels = append(s.destinationChannels, updateCh)
 }
 
@@ -199,12 +218,37 @@ func (s *FusisStore) WatchDestinations() {
 				dsts = append(dsts, dst)
 			}
 
+			s.Lock()
 			for _, ch := range s.destinationChannels {
 				ch <- dsts
 			}
+			s.Unlock()
 
 			//Cleaning up destinations slice
 			dsts = []types.Destination{}
 		}
 	}
+}
+
+func (s *FusisStore) SubscribeChecks(updateCh chan []types.CheckSpec) {
+	s.Lock()
+	defer s.Unlock()
+	s.checksChannels = append(s.checksChannels, updateCh)
+}
+
+func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
+	id := util.RandStr()
+	key := fmt.Sprintf("fusis/checks/%s/%s", spec.ServiceID, id)
+
+	value, err := json.Marshal(spec)
+	if err != nil {
+		return errors.Wrapf(err, "error marshaling CheckSpec: %v", spec)
+	}
+
+	err = s.kv.Put(key, value, nil)
+	if err != nil {
+		return errors.Wrapf(err, "error sending CheckSpec to store: %v", spec)
+	}
+
+	return nil
 }

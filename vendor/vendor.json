@@ -13,7 +13,7 @@
 			"revisionTime": "2016-03-09T02:19:12Z"
 		},
 		{
-			"checksumSHA1": "KuiT+QCLaGTADc+TnlC4korLGeY=",
+			"checksumSHA1": "DWPL08pD/SQ2GzLfoR7ZXnjj7Sw=",
 			"path": "github.com/Sirupsen/logrus",
 			"revision": "4b6ea7319e214d98c938f12692336f7ca9348d6b",
 			"revisionTime": "2016-03-17T14:11:10Z"
@@ -218,7 +218,7 @@
 			"revisionTime": "2016-03-11T01:12:19Z"
 		},
 		{
-			"checksumSHA1": "C/1jXesdFyPnHp9MlPjn+mWTofU=",
+			"checksumSHA1": "uCOtcqeaF38Q1WaydiHgKqnl0LM=",
 			"path": "github.com/hashicorp/raft",
 			"revision": "1c84b7ca86424d341b95457cf6da85fdb367c4f0",
 			"revisionTime": "2016-04-09T17:00:55Z"
@@ -276,6 +276,12 @@
 			"path": "github.com/kr/text",
 			"revision": "bb797dc4fb8320488f47bf11de07a733d7233e1f",
 			"revisionTime": "2015-09-05T22:45:08Z"
+		},
+		{
+			"checksumSHA1": "5DjDszpiK6TYG8p4kmB4JlddTrw=",
+			"path": "github.com/luizbafilho/fusis",
+			"revision": "d1b90313a563541dadff967eb598bf70099de314",
+			"revisionTime": "2016-11-25T15:47:19Z"
 		},
 		{
 			"checksumSHA1": "gGyKij+RhHtKEzl3i/Tw28bgsGg=",
@@ -410,7 +416,7 @@
 			"revisionTime": "2016-03-03T19:15:55Z"
 		},
 		{
-			"checksumSHA1": "Cze72SeLn5R/8nwSxvnix7Kgofg=",
+			"checksumSHA1": "6q2a9wCqTTEOQE+WTfhzZqcJvFM=",
 			"path": "github.com/spf13/cobra",
 			"revision": "1bacefc9a216c93293e670067bd159a64b4d72c3",
 			"revisionTime": "2016-03-15T21:50:08Z"

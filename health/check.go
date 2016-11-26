@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/api/types"
 )
 
@@ -17,17 +18,18 @@ const (
 )
 
 type Check interface {
-	Init(updateCh chan bool)
+	Init(updateCh chan bool, dst types.Destination)
 	Start()
 	Stop()
 	GetId() string
 }
 
 type CheckTCP struct {
-	Spec types.CheckSpec
-
+	Spec          types.CheckSpec
 	DestinationID string
+	Status        string
 
+	tcp    string
 	dialer *net.Dialer
 	stopCh chan bool
 
@@ -44,7 +46,7 @@ func (c *CheckTCP) GetId() string {
 
 // Start is used to start a TCP check.
 // The check runs until stop is called
-func (c *CheckTCP) Init(updateCh chan bool) {
+func (c *CheckTCP) Init(updateCh chan bool, dst types.Destination) {
 	c.stopCh = make(chan bool)
 	c.updateCh = updateCh
 
@@ -61,28 +63,31 @@ func (c *CheckTCP) Init(updateCh chan bool) {
 			c.dialer.Timeout = c.Spec.Interval
 		}
 	}
+
+	c.tcp = fmt.Sprintf("%s:%d", dst.Address, dst.Port)
+
+	logrus.Debugf("[health-check] Init check on %s at %s. Interval=%s Timeout=%s", c.DestinationID, c.tcp, c.Spec.Interval, c.Spec.Timeout)
 }
 
 // check is invoked periodically to perform the TCP check
 func (c *CheckTCP) check() {
-	log.Printf("Check Running: %#v", c)
-	// var currentStatus string
-	// previousStatus := c.Status
-	//
-	// conn, err := c.dialer.Dial(`tcp`, c.TCP)
-	// if err != nil {
-	// 	logrus.Printf("[WARN] agent: socket connection failed '%s': %s", c.TCP, err)
-	// 	currentStatus = BAD
-	// } else {
-	// 	logrus.Printf("[DEBUG] agent: check '%v' is passing", c.DestinationID)
-	// 	currentStatus = OK
-	// 	conn.Close()
-	// }
-	//
-	// if currentStatus != previousStatus {
-	// 	c.Status = currentStatus
-	// 	c.UpdatesCh <- *c
-	// }
+	var currentStatus string
+	previousStatus := c.Status
+
+	conn, err := c.dialer.Dial(`tcp`, c.tcp)
+	if err != nil {
+		logrus.Warnf("[health-check] TCP Check is failing => %s", err)
+		currentStatus = BAD
+	} else {
+		logrus.Debugf("[health-check] TCP check on '%v' at '%s' is passing", c.DestinationID, c.tcp)
+		currentStatus = OK
+		conn.Close()
+	}
+
+	if currentStatus != previousStatus {
+		c.Status = currentStatus
+		c.updateCh <- true
+	}
 }
 
 func (c *CheckTCP) Start() {

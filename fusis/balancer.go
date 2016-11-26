@@ -32,9 +32,11 @@ type Balancer struct {
 	ipam         ipam.Allocator
 	metrics      metrics.Collector
 
-	store      store.Store
-	state      state.State
-	candidate  *leadership.Candidate
+	store     store.Store
+	state     state.State
+	candidate *leadership.Candidate
+
+	changesCh  chan bool
 	shutdownCh chan bool
 }
 
@@ -46,10 +48,12 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
-	monitor := health.NewMonitor(store)
+	changesCh := make(chan bool)
+
+	monitor := health.NewMonitor(store, changesCh)
 	monitor.Start()
 
-	state, err := state.New(store, config)
+	state, err := state.New(store, changesCh, config)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +81,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	metrics := metrics.NewMetrics(state, config)
 
 	balancer := &Balancer{
+		changesCh:    changesCh,
 		store:        store,
 		state:        state,
 		ipvsMngr:     ipvsMngr,
@@ -115,7 +120,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 func (b *Balancer) watchState() {
 	for {
 		select {
-		case _ = <-b.state.ChangesCh():
+		case _ = <-b.changesCh:
 			// TODO: this doesn't need to run all the time, we can implement
 			// some kind of throttling in the future waiting for a threashold of
 			// messages before applying the messages.

@@ -13,7 +13,6 @@ import (
 	"github.com/docker/libkv/store/etcd"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
-	"github.com/luizbafilho/fusis/util"
 	"github.com/pkg/errors"
 )
 
@@ -29,17 +28,18 @@ func registryStores() {
 type Store interface {
 	AddService(svc *types.Service) error
 	DeleteService(svc *types.Service) error
+	SubscribeServices(ch chan []types.Service)
+	WatchServices()
+
 	AddDestination(svc *types.Service, dst *types.Destination) error
 	DeleteDestination(svc *types.Service, dst *types.Destination) error
-
-	WatchServices()
-	SubscribeServices(ch chan []types.Service)
-
-	WatchDestinations()
 	SubscribeDestinations(ch chan []types.Destination)
+	WatchDestinations()
 
 	AddCheck(check types.CheckSpec) error
+	DeleteCheck(check types.CheckSpec) error
 	SubscribeChecks(ch chan []types.CheckSpec)
+	WatchChecks()
 
 	GetKV() kv.Store
 }
@@ -90,6 +90,7 @@ func New(config *config.BalancerConfig) (Store, error) {
 
 	go fusisStore.WatchServices()
 	go fusisStore.WatchDestinations()
+	go fusisStore.WatchChecks()
 
 	return fusisStore, nil
 }
@@ -179,7 +180,7 @@ func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) 
 	if err != nil {
 		return errors.Wrapf(err, "error sending destination to store: %v", dst)
 	}
-	log.Debugf("[store] Added destination: %#v with key: %s", value, key)
+	log.Debugf("[store] Added destination: %s with key: %s", value, key)
 
 	return nil
 }
@@ -245,18 +246,65 @@ func (s *FusisStore) SubscribeChecks(updateCh chan []types.CheckSpec) {
 }
 
 func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
-	id := util.RandStr()
-	key := fmt.Sprintf("fusis/checks/%s/%s", spec.ServiceID, id)
+	key := fmt.Sprintf("fusis/checks/%s", spec.ServiceID)
 
 	value, err := json.Marshal(spec)
 	if err != nil {
-		return errors.Wrapf(err, "error marshaling CheckSpec: %v", spec)
+		return errors.Wrapf(err, "error marshaling CheckSpec: %#v", spec)
 	}
 
 	err = s.kv.Put(key, value, nil)
 	if err != nil {
-		return errors.Wrapf(err, "error sending CheckSpec to store: %v", spec)
+		return errors.Wrapf(err, "error sending CheckSpec to store: %#v", spec)
 	}
 
 	return nil
+}
+
+func (s *FusisStore) DeleteCheck(spec types.CheckSpec) error {
+	key := fmt.Sprintf("fusis/checks/%s", spec.ServiceID)
+
+	err := s.kv.DeleteTree(key)
+	if err != nil {
+		return errors.Wrapf(err, "error trying to delete check: %#v", spec)
+	}
+	log.Debugf("[store] Deleted check: %s", key)
+
+	return nil
+}
+
+func (s *FusisStore) WatchChecks() {
+	specs := []types.CheckSpec{}
+
+	stopCh := make(<-chan struct{})
+	events, err := s.kv.WatchTree("fusis/checks", stopCh)
+	if err != nil {
+		log.Error(errors.Wrap(err, "failed watching fusis/checks"))
+	}
+
+	for {
+		select {
+		case entries := <-events:
+			log.Debug("[store] Checks received")
+
+			for _, pair := range entries {
+				spec := types.CheckSpec{}
+				if err := json.Unmarshal(pair.Value, &spec); err != nil {
+					log.Error(errors.Wrap(err, "failed unmarshall of checks"))
+				}
+				log.Debugf("[store] Got Check: %#v", spec)
+
+				specs = append(specs, spec)
+			}
+
+			s.Lock()
+			for _, ch := range s.checksChannels {
+				ch <- specs
+			}
+			s.Unlock()
+
+			//Cleaning up destinations slice
+			specs = []types.CheckSpec{}
+		}
+	}
 }

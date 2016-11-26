@@ -2,7 +2,6 @@ package health
 
 import (
 	"sync"
-	"time"
 
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/state"
@@ -23,7 +22,7 @@ type FusisMonitor struct {
 
 	store store.Store
 
-	updateCh chan bool
+	changesCh chan bool
 
 	runningChecks map[string]Check
 	desiredChecks map[string]Check
@@ -34,9 +33,10 @@ type FusisMonitor struct {
 	currentSpecs        []types.CheckSpec
 }
 
-func NewMonitor(store store.Store) HealthMonitor {
+func NewMonitor(store store.Store, changesCh chan bool) HealthMonitor {
 	return &FusisMonitor{
 		store:               store,
+		changesCh:           changesCh,
 		runningChecks:       make(map[string]Check),
 		desiredChecks:       make(map[string]Check),
 		currentDestinations: []types.Destination{},
@@ -87,13 +87,13 @@ func (m *FusisMonitor) watchChanges() {
 }
 
 func (m *FusisMonitor) handleChanges() {
-	currentSpec := types.CheckSpec{
-		Interval:  5 * time.Second,
-		TCP:       "10.2.2.2",
-		ServiceID: "filmes",
-	}
+	// currentSpec := types.CheckSpec{
+	// 	Interval:  5 * time.Second,
+	// 	TCP:       "10.2.2.2",
+	// 	ServiceID: "filmes",
+	// }
 
-	m.currentSpecs = []types.CheckSpec{currentSpec}
+	// m.currentSpecs = []types.CheckSpec{currentSpec}
 
 	m.populateDesiredChecks()
 
@@ -136,7 +136,7 @@ func (m *FusisMonitor) newCheck(spec types.CheckSpec, dst types.Destination) Che
 	switch spec.Type {
 	default:
 		check := CheckTCP{Spec: spec, DestinationID: dst.GetId()}
-		check.Init(m.updateCh)
+		check.Init(m.changesCh, dst)
 		return &check
 	}
 }

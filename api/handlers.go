@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
@@ -174,25 +175,51 @@ func (as ApiService) destinationDelete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v", err)})
 	}
 
-	err = as.balancer.DelCheck(dst)
+	c.Status(http.StatusNoContent)
+}
+
+func (as ApiService) checkCreate(c *gin.Context) {
+	var check types.CheckSpec
+	if err := c.BindJSON(&check); err != nil {
+		c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	serviceName := c.Param("service_name")
+	check.ServiceID = serviceName
+	check.Interval = check.Interval * time.Second
+	check.Timeout = check.Timeout * time.Second
+
+	err := as.balancer.AddCheck(check)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DelCheck() failed: %v", err)})
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetCheck() failed: %v", err)})
 		return
 	}
 
 	c.Status(http.StatusNoContent)
 }
 
-func (as ApiService) flush(c *gin.Context) {
-	// err := as.types.Flush()
-	// if err != nil {
-	// 	c.JSON(400, gin.H{"error": err.Error()})
-	// 	return
-	// }
-	//
-	// err = types.Flush()
-	// if err != nil {
-	// 	c.JSON(400, gin.H{"error": err.Error()})
-	// 	return
-	// }
+func (as ApiService) checkDelete(c *gin.Context) {
+	serviceId := c.Param("service_name")
+	_, err := as.balancer.GetService(serviceId)
+	if err != nil {
+		c.Error(err)
+		if err == types.ErrServiceNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
+		}
+		return
+	}
+
+	err = as.balancer.DeleteCheck(types.CheckSpec{ServiceID: serviceId})
+	if err != nil {
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteCheck() failed: %v", err)})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

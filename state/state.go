@@ -38,11 +38,11 @@ type Services map[string]types.Service
 type Destinations map[string]types.Destination
 
 // New creates a new Engine
-func New(store store.Store, config *config.BalancerConfig) (State, error) {
+func New(store store.Store, changesCh chan bool, config *config.BalancerConfig) (State, error) {
 	state := &FusisState{
 		services:     make(Services),
 		destinations: make(Destinations),
-		changesCh:    make(chan bool),
+		changesCh:    changesCh,
 		store:        store,
 	}
 

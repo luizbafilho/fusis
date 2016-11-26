@@ -7,9 +7,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
-	"github.com/toorop/gin-logrus"
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/health"
+	"github.com/toorop/gin-logrus"
 )
 
 // ApiService ...
@@ -30,9 +29,8 @@ type Balancer interface {
 	GetDestinations(svc *types.Service) []types.Destination
 	DeleteDestination(*types.Destination) error
 
-	AddCheck(dst *types.Destination) error
-	DelCheck(dst *types.Destination) error
-	UpdateCheck(check health.Check) error
+	AddCheck(check types.CheckSpec) error
+	DeleteCheck(check types.CheckSpec) error
 
 	IsLeader() bool
 	GetLeader() string
@@ -64,6 +62,8 @@ func (as ApiService) registerRoutes() {
 	as.DELETE("/services/:service_name", as.serviceDelete)
 	as.POST("/services/:service_name/destinations", as.destinationCreate)
 	as.DELETE("/services/:service_name/destinations/:destination_name", as.destinationDelete)
+	as.POST("/services/:service_name/check", as.checkCreate)
+	as.DELETE("/services/:service_name/check", as.checkDelete)
 }
 
 func (as ApiService) registerRedirectMiddleware() {

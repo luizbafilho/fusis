@@ -2,9 +2,9 @@ package fusis
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/health"
 )
 
 const (
@@ -129,14 +129,18 @@ func (b *Balancer) DeleteDestination(dst *types.Destination) error {
 	return b.store.DeleteDestination(svc, dst)
 }
 
-func (b *Balancer) AddCheck(dst *types.Destination) error {
-	return nil
+func (b *Balancer) AddCheck(check types.CheckSpec) error {
+	if check.Timeout == 0 {
+		check.Timeout = 5 * time.Second
+	}
+
+	if check.Interval == 0 {
+		check.Interval = 10 * time.Second
+	}
+
+	return b.store.AddCheck(check)
 }
 
-func (b *Balancer) DelCheck(dst *types.Destination) error {
-	return nil
-}
-
-func (b *Balancer) UpdateCheck(check health.Check) error {
-	return nil
+func (b *Balancer) DeleteCheck(check types.CheckSpec) error {
+	return b.store.DeleteCheck(check)
 }

@@ -76,10 +76,9 @@ type CheckSpec struct {
 	ServiceID string
 	Type      string
 
-	HTTP   string
-	TCP    string
-	Script string
-	Shell  string
+	HttpPath string
+	Script   string
+	Shell    string
 
 	Interval time.Duration
 	Timeout  time.Duration

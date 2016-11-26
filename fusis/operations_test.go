@@ -97,8 +97,6 @@ func defaultConfig() config.BalancerConfig {
 			Outbound: "eth0",
 		},
 		Name:      "Test",
-		DataPath:  dir,
-		Bootstrap: true,
 		Ports: map[string]int{
 			"raft": getPort(),
 			"serf": getPort(),

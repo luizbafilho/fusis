@@ -27,13 +27,7 @@ func (s *S) TestFullstackWithClient(c *check.C) {
 			Inbound:  "eth0",
 			Outbound: "eth0",
 		},
-		Name:      "Test",
-		DataPath:  dir,
-		Bootstrap: true,
-		Ports: map[string]int{
-			"raft": 20012,
-			"serf": 20013,
-		},
+		Name: "Test",
 		Ipam: config.Ipam{
 			Ranges: []string{"192.168.0.0/28"},
 		},

@@ -5,7 +5,6 @@ import (
 
 	"github.com/luizbafilho/fusis/api"
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/health"
 )
 
 type testBalancer struct {
@@ -133,14 +132,10 @@ func (b *testBalancer) DeleteDestination(dest *types.Destination) error {
 	return types.ErrDestinationNotFound
 }
 
-func (b *testBalancer) AddCheck(dest *types.Destination) error {
+func (b *testBalancer) AddCheck(dest types.CheckSpec) error {
 	return nil
 }
 
-func (b *testBalancer) DelCheck(dest *types.Destination) error {
-	return nil
-}
-
-func (b *testBalancer) UpdateCheck(check health.Check) error {
+func (b *testBalancer) DeleteCheck(dest types.CheckSpec) error {
 	return nil
 }

@@ -7,67 +7,37 @@ import (
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/net"
-	"github.com/luizbafilho/fusis/state"
-	. "gopkg.in/check.v1"
+	"github.com/luizbafilho/fusis/state/mocks"
+	"github.com/stretchr/testify/assert"
 )
 
-func Test(t *testing.T) { TestingT(t) }
-
-type IptablesSuite struct {
-	iptablesMngr *IptablesMngr
-}
-
-var _ = Suite(&IptablesSuite{})
-
-func (s *IptablesSuite) SetUpSuite(c *C) {
-	var err error
-	s.iptablesMngr, err = New(defaultConfig())
-	c.Assert(err, IsNil)
-}
-
-func (s *IptablesSuite) SetUpTest(c *C) {
-}
-
-func (s *IptablesSuite) TearDownSuite(c *C) {
-}
-
-func (s *IptablesSuite) cleanupRules(c *C) {
-	rules, err := s.iptablesMngr.getSnatRules()
-	c.Assert(err, IsNil)
-
-	for _, r := range rules {
-		err := s.iptablesMngr.removeRule(r)
-		c.Assert(err, IsNil)
-	}
-}
-
-func (s *IptablesSuite) TestSync(c *C) {
+func TestIptablesSync(t *testing.T) {
 	if os.Getenv("TRAVIS") == "true" {
-		c.Skip("Skipping test because travis-ci do not allow iptables")
+		t.Skip("Skipping test because travis-ci do not allow iptables")
 	}
 
-	state, err := state.New(defaultConfig())
-	c.Assert(err, IsNil)
-
-	s1 := &types.Service{
+	s1 := types.Service{
 		Name:     "test",
 		Address:  "10.0.1.1",
 		Port:     80,
 		Mode:     "nat",
 		Protocol: "tcp",
 	}
-	state.AddService(s1)
 
-	state.AddService(&types.Service{
+	s2 := types.Service{
 		Name:     "test2",
 		Address:  "10.0.1.2",
 		Port:     80,
 		Protocol: "tcp",
 		Mode:     "nat",
-	})
+	}
 
-	toSource, err := net.GetIpByInterface("eth0")
-	c.Assert(err, IsNil)
+	state := &mocks.State{}
+	state.On("GetServices").Return([]types.Service{s1, s2})
+
+	toSource, err := net.GetIpByInterface("lo")
+	assert.Nil(t, err)
+
 	rule2 := SnatRule{
 		vaddr:    "10.0.1.2",
 		vport:    "80",
@@ -79,34 +49,45 @@ func (s *IptablesSuite) TestSync(c *C) {
 		toSource: toSource,
 	}
 
-	err = s.iptablesMngr.addRule(rule2)
-	c.Assert(err, IsNil)
-	err = s.iptablesMngr.addRule(rule3)
-	c.Assert(err, IsNil)
+	iptablesMngr, err := New(defaultConfig())
+	assert.Nil(t, err)
 
-	err = s.iptablesMngr.Sync(*state)
-	c.Assert(err, IsNil)
+	err = iptablesMngr.addRule(rule2)
+	assert.Nil(t, err)
+	err = iptablesMngr.addRule(rule3)
+	assert.Nil(t, err)
 
-	rules, err := s.iptablesMngr.getKernelRulesSet()
-	c.Assert(err, IsNil)
+	err = iptablesMngr.Sync(state)
+	assert.Nil(t, err)
 
-	rule1, err := s.iptablesMngr.serviceToSnatRule(*s1)
-	c.Assert(err, IsNil)
+	rules, err := iptablesMngr.getKernelRulesSet()
+	assert.Nil(t, err)
 
-	c.Assert(rules.Contains(rule2, *rule1), Equals, true)
+	rule1, err := iptablesMngr.serviceToSnatRule(s1)
+	assert.Nil(t, err)
 
-	s.cleanupRules(c)
+	assert.Equal(t, rules.Contains(rule2, *rule1), true)
+
+	cleanupRules(t, iptablesMngr)
+}
+
+func cleanupRules(t *testing.T, iptablesMngr *IptablesMngr) {
+	rules, err := iptablesMngr.getSnatRules()
+	assert.Nil(t, err)
+
+	for _, r := range rules {
+		err := iptablesMngr.removeRule(r)
+		assert.Nil(t, err)
+	}
 }
 
 func defaultConfig() *config.BalancerConfig {
 	return &config.BalancerConfig{
 		Interfaces: config.Interfaces{
-			Inbound:  "eth0",
-			Outbound: "eth0",
+			Inbound:  "lo",
+			Outbound: "lo",
 		},
-		Name:      "Test",
-		DataPath:  "/tmp/test",
-		Bootstrap: true,
+		Name: "Test",
 		Ipam: config.Ipam{
 			Ranges: []string{"192.168.0.0/28"},
 		},

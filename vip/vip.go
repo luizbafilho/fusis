@@ -42,7 +42,7 @@ func (n VipMngr) Sync(state state.State) error {
 		if err != nil {
 			return fmt.Errorf("[vip] Error adding ip %s: %s", vip, err)
 		}
-		log.Debugf("[vip] Added: %s/32 to interface: %s",  vip, n.iface)
+		log.Debugf("[vip] Added: %s/32 to interface: %s", vip, n.iface)
 	}
 
 	for v := range vipsToRemove.Iter() {
@@ -51,7 +51,7 @@ func (n VipMngr) Sync(state state.State) error {
 		if err != nil {
 			return fmt.Errorf("[vip] Error deleting ip %s: %s", vip, err)
 		}
-		log.Debugf("[vip] Removed: %s/32 from interface: %s",  vip, n.iface)
+		log.Debugf("[vip] Removed: %s/32 from interface: %s", vip, n.iface)
 	}
 
 	return nil

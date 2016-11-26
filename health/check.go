@@ -22,6 +22,7 @@ type Check interface {
 	Start()
 	Stop()
 	GetId() string
+	GetStatus() string
 }
 
 type CheckTCP struct {
@@ -34,6 +35,10 @@ type CheckTCP struct {
 	stopCh chan bool
 
 	updateCh chan bool
+}
+
+func (c *CheckTCP) GetStatus() string {
+	return c.Status
 }
 
 func (c *CheckTCP) Stop() {

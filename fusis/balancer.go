@@ -6,7 +6,6 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/docker/leadership"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/health"
@@ -18,19 +17,21 @@ import (
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/store"
 	"github.com/luizbafilho/fusis/vip"
+	"github.com/luizbafilho/leadership"
 )
 
 // Balancer represents the Load Balancer
 type Balancer struct {
 	sync.Mutex
 
-	config       *config.BalancerConfig
-	ipvsMngr     ipvs.Syncer
-	iptablesMngr iptables.Syncer
-	bgpMngr      bgp.Syncer
-	vipMngr      vip.Syncer
-	ipam         ipam.Allocator
-	metrics      metrics.Collector
+	config        *config.BalancerConfig
+	ipvsMngr      ipvs.Syncer
+	iptablesMngr  iptables.Syncer
+	bgpMngr       bgp.Syncer
+	vipMngr       vip.Syncer
+	ipam          ipam.Allocator
+	metrics       metrics.Collector
+	healthMonitor health.HealthMonitor
 
 	store     store.Store
 	state     state.State
@@ -49,9 +50,6 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	}
 
 	changesCh := make(chan bool)
-
-	monitor := health.NewMonitor(store, changesCh)
-	monitor.Start()
 
 	state, err := state.New(store, changesCh, config)
 	if err != nil {
@@ -90,6 +88,12 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		config:       config,
 		ipam:         ipam,
 		metrics:      metrics,
+	}
+
+	if balancer.config.EnableHealthChecks {
+		monitor := health.NewMonitor(store, changesCh)
+		go monitor.Start()
+		balancer.healthMonitor = monitor
 	}
 
 	if balancer.isAnycast() {
@@ -132,36 +136,33 @@ func (b *Balancer) watchState() {
 }
 
 func (b *Balancer) handleStateChange() (error, string) {
-	if err := b.ipvsMngr.Sync(b.state); err != nil {
+	state := b.state
+
+	if b.config.EnableHealthChecks {
+		state = b.healthMonitor.FilterHealthy(b.state)
+	}
+
+	if err := b.ipvsMngr.Sync(state); err != nil {
 		return err, "ipvs"
 	}
 
-	if err := b.iptablesMngr.Sync(b.state); err != nil {
+	if err := b.iptablesMngr.Sync(state); err != nil {
 		return err, "iptables"
 	}
 
 	if b.isAnycast() {
-		if err := b.bgpMngr.Sync(b.state); err != nil {
+		if err := b.bgpMngr.Sync(state); err != nil {
 			return err, "bgp"
 		}
 	} else if !b.IsLeader() {
 		return nil, ""
 	}
 
-	if err := b.vipMngr.Sync(b.state); err != nil {
+	if err := b.vipMngr.Sync(state); err != nil {
 		return err, "vip"
 	}
 
 	return nil, ""
-}
-
-func (b *Balancer) watchHealthChecks() {
-	// for {
-	// 	check := <-b.state.HealthCheckCh()
-	// 	if err := b.UpdateCheck(check); err != nil {
-	// 		log.Error(errors.Wrap(err, "Updating Check failed"))
-	// 	}
-	// }
 }
 
 func (b *Balancer) IsLeader() bool {

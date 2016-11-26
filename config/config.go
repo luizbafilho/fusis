@@ -12,19 +12,20 @@ var (
 type BalancerConfig struct {
 	Interfaces
 
-	Name        string         `mapstructure:"name" validate:"required"`
-	Ports       map[string]int `mapstructure:"ports"`
-	Join        []string       `mapstructure:"join"`
-	DevMode     bool           `mapstructure:"dev-mode"`
-	Bootstrap   bool           `mapstructure:"bootstrap"`
-	LogLevel    string         `mapstructure:"log-level"`
-	DataPath    string         `mapstructure:"data-path"`
-	ClusterMode string         `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
+	Name               string         `mapstructure:"name" validate:"required"`
+	Ports              map[string]int `mapstructure:"ports"`
+	Join               []string       `mapstructure:"join"`
+	DevMode            bool           `mapstructure:"dev-mode"`
+	Bootstrap          bool           `mapstructure:"bootstrap"`
+	LogLevel           string         `mapstructure:"log-level"`
+	DataPath           string         `mapstructure:"data-path"`
+	ClusterMode        string         `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
+	EnableHealthChecks bool           `mapstructure:"enable-health-checks"`
 	Bgp
 	Ipam
 	Metrics
 
-	StoreAddress string        `mapstructure:"store-address"`
+	StoreAddress string `mapstructure:"store-address"`
 }
 
 type AgentConfig struct {

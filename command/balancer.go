@@ -50,6 +50,7 @@ func setupDefaultOptions() {
 	viper.SetDefault("data-path", "/etc/fusis")
 	viper.SetDefault("name", randStr())
 	viper.SetDefault("log-level", "warn")
+	viper.SetDefault("enable-health-checks", true)
 }
 
 func setupBalancerCmdFlags(cmd *cobra.Command) {
@@ -58,6 +59,7 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVarP(&conf.Join, "join", "j", []string{}, "Join balancer pool")
 	cmd.Flags().StringVar(&configFile, "config", "", "specify a configuration file")
 	cmd.Flags().StringVar(&conf.LogLevel, "log-level", "", "specify a log level")
+	cmd.Flags().BoolVarP(&conf.EnableHealthChecks, "enable-health-checks", "", true, "enables health checking on destinations")
 
 	err := viper.BindPFlags(cmd.Flags())
 	if err != nil {

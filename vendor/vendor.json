@@ -280,6 +280,12 @@
 			"revisionTime": "2016-11-25T15:47:19Z"
 		},
 		{
+			"checksumSHA1": "9Wsb9iodDi9EBclbyMUQASv7gaM=",
+			"path": "github.com/luizbafilho/leadership",
+			"revision": "d62f2888864f584c2f4f6e7a7887945c75d277e7",
+			"revisionTime": "2016-11-26T18:26:30Z"
+		},
+		{
 			"checksumSHA1": "gGyKij+RhHtKEzl3i/Tw28bgsGg=",
 			"path": "github.com/magiconair/properties",
 			"revision": "497d0afefddf378f9ffb3c89db6a326985908519",

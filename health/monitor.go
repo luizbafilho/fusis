@@ -1,8 +1,10 @@
 package health
 
 import (
+	"fmt"
 	"sync"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/store"
@@ -101,13 +103,17 @@ func (m *FusisMonitor) handleChanges() {
 	toRemove := m.getChecksToRemove(m.runningChecks, m.desiredChecks)
 
 	for _, check := range toRemove {
+		m.Lock()
 		m.runningChecks[check.GetId()].Stop()
 		delete(m.runningChecks, check.GetId())
+		m.Unlock()
 	}
 
 	for _, check := range toAdd {
 		go check.Start()
+		m.Lock()
 		m.runningChecks[check.GetId()] = check
+		m.Unlock()
 	}
 
 }
@@ -135,16 +141,31 @@ func (m *FusisMonitor) handleSpecsChanges(specs []types.CheckSpec) {
 func (m *FusisMonitor) newCheck(spec types.CheckSpec, dst types.Destination) Check {
 	switch spec.Type {
 	default:
-		check := CheckTCP{Spec: spec, DestinationID: dst.GetId()}
+		check := CheckTCP{Spec: spec, DestinationID: dst.GetId(), Status: BAD}
 		check.Init(m.changesCh, dst)
 		return &check
 	}
 }
 
 func (m *FusisMonitor) Start() {
-	go m.watchChanges()
+	m.watchChanges()
 }
 
-func (m *FusisMonitor) FilterHealthy(state state.State) state.State {
-	return state
+func (m *FusisMonitor) FilterHealthy(s state.State) state.State {
+	filteredState := s.Copy()
+	for _, svc := range filteredState.GetServices() {
+		for _, dst := range filteredState.GetDestinations(&svc) {
+			checkId := fmt.Sprintf("%s:%s", svc.GetId(), dst.GetId())
+			m.RLock()
+			if check, ok := m.runningChecks[checkId]; ok {
+				if check.GetStatus() == BAD {
+					logrus.Debugf("[health-monitor] filtering %#v. Check %s", dst, check.GetId())
+					filteredState.DeleteDestination(&dst)
+				}
+			}
+			m.RUnlock()
+		}
+	}
+
+	return filteredState
 }

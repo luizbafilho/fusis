@@ -19,12 +19,12 @@ type State interface {
 	AddDestination(dst types.Destination)
 	DeleteDestination(dst *types.Destination)
 
-	ChangesCh() chan bool
+	Copy() State
 }
 
 // State...
 type FusisState struct {
-	sync.Mutex
+	sync.RWMutex
 
 	services     map[string]types.Service
 	destinations map[string]types.Destination
@@ -51,8 +51,24 @@ func New(store store.Store, changesCh chan bool, config *config.BalancerConfig) 
 	return state, nil
 }
 
-func (s *FusisState) ChangesCh() chan bool {
-	return s.changesCh
+func (s *FusisState) Copy() State {
+	s.RLock()
+	defer s.RUnlock()
+
+	copy := &FusisState{
+		services:     make(Services),
+		destinations: make(Destinations),
+	}
+
+	for _, svc := range s.services {
+		copy.AddService(svc)
+	}
+
+	for _, dst := range s.destinations {
+		copy.AddDestination(dst)
+	}
+
+	return copy
 }
 
 func (s *FusisState) watchStore() {
@@ -96,8 +112,8 @@ func (s *FusisState) handleDestinationsChange() {
 }
 
 func (s *FusisState) GetServices() []types.Service {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	services := []types.Service{}
 	for _, v := range s.services {
@@ -107,8 +123,8 @@ func (s *FusisState) GetServices() []types.Service {
 }
 
 func (s *FusisState) GetService(name string) (*types.Service, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	svc, ok := s.services[name]
 	if !ok {
@@ -119,14 +135,15 @@ func (s *FusisState) GetService(name string) (*types.Service, error) {
 }
 
 func (s *FusisState) GetDestinations(svc *types.Service) []types.Destination {
+	s.RLock()
+	defer s.RUnlock()
+
 	dsts := []types.Destination{}
-	s.Lock()
 	for _, d := range s.destinations {
 		if d.ServiceId == svc.GetId() {
 			dsts = append(dsts, d)
 		}
 	}
-	s.Unlock()
 
 	return dsts
 }
@@ -146,8 +163,8 @@ func (s *FusisState) DeleteService(svc *types.Service) {
 }
 
 func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	dst := s.destinations[name]
 	if dst.Name == "" {

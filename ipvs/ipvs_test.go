@@ -1,97 +1,85 @@
 package ipvs_test
 
 import (
-	"fmt"
-	"sort"
+	"testing"
 
 	gipvs "github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/ipvs"
-	"github.com/luizbafilho/fusis/state"
-	. "gopkg.in/check.v1"
+	"github.com/luizbafilho/fusis/state/mocks"
+	"github.com/stretchr/testify/assert"
 )
 
-func (s *IpvsSuite) TestNewIpvs(c *C) {
-	i, err := ipvs.New()
-	c.Assert(err, IsNil)
-	err = i.Sync(s.state)
-	c.Assert(err, IsNil)
-}
-
-type serviceList []*gipvs.Service
-
-func (l serviceList) Len() int      { return len(l) }
-func (l serviceList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
-func (l serviceList) Less(i, j int) bool {
-	return fmt.Sprintf("%v", l[i].Address) < fmt.Sprintf("%v", l[j].Address)
-}
-
-func matchState(c *C, services1 []*gipvs.Service, state state.State) {
-	for _, s := range services1 {
-		s.Flags = 0
-		s.Statistics = nil
-		for _, d := range s.Destinations {
-			d.Statistics = nil
-		}
-	}
-	stateServices := state.GetServices()
-	cmp := make([]*gipvs.Service, len(stateServices))
-	for i, s := range stateServices {
-		cmp[i] = ipvs.ToIpvsService(&s)
-		for _, d := range state.GetDestinations(&s) {
-			cmp[i].Destinations = append(cmp[i].Destinations, ipvs.ToIpvsDestination(&d))
-		}
-	}
-	sort.Sort(serviceList(services1))
-	sort.Sort(serviceList(cmp))
-	c.Check(services1, DeepEquals, cmp)
-}
-
-func (s *IpvsSuite) TestIpvsSyncState(c *C) {
-	i, err := ipvs.New()
-	c.Assert(err, IsNil)
-	srv2 := &types.Service{
-		Name:      "test1",
-		Address:   "10.0.9.9",
+func TestIpvsSync(t *testing.T) {
+	svc := types.Service{
+		Name:      "",
+		Address:   "10.0.1.1",
 		Port:      80,
 		Scheduler: "lc",
 		Protocol:  "tcp",
 	}
-	dst2 := &types.Destination{
-		Name:    "test1",
-		Address: "192.168.9.9",
-		Port:    80,
-		Mode:    "nat",
-		Weight:  1,
+
+	dst := types.Destination{
+		Name:      "host1",
+		Address:   "192.168.1.1",
+		Port:      80,
+		Mode:      "nat",
+		Weight:    1,
+		ServiceId: "service1",
 	}
-	s.state.AddService(s.service)
-	s.state.AddDestination(s.destination)
-	err = i.Sync(s.state)
-	c.Assert(err, IsNil)
-	services, err := gipvs.GetServices()
-	c.Assert(err, IsNil)
-	matchState(c, services, s.state)
-	err = i.Sync(s.state)
-	c.Assert(err, IsNil)
-	services, err = gipvs.GetServices()
-	c.Assert(err, IsNil)
-	matchState(c, services, s.state)
-	s.state.DeleteDestination(s.destination)
-	dst2.ServiceId = s.destination.ServiceId
-	s.state.AddDestination(dst2)
-	s.state.AddService(srv2)
-	dst2.Name = "testx"
-	dst2.ServiceId = srv2.GetId()
-	s.state.AddDestination(dst2)
-	err = i.Sync(s.state)
-	c.Assert(err, IsNil)
-	services, err = gipvs.GetServices()
-	c.Assert(err, IsNil)
-	matchState(c, services, s.state)
-	s.state.DeleteService(srv2)
-	err = i.Sync(s.state)
-	c.Assert(err, IsNil)
-	services, err = gipvs.GetServices()
-	c.Assert(err, IsNil)
-	matchState(c, services, s.state)
+
+	dst2 := types.Destination{
+		Name:      "host2",
+		Address:   "192.168.1.2",
+		Port:      80,
+		Mode:      "nat",
+		Weight:    1,
+		ServiceId: "service1",
+	}
+
+	state := &mocks.State{}
+	state.On("GetServices").Return([]types.Service{svc})
+	state.On("GetDestinations", &svc).Return([]types.Destination{dst})
+
+	ipvsMngr, err := ipvs.New()
+	assert.Nil(t, err)
+
+	// Testing Services and destinations addition
+	ipvsMngr.Sync(state)
+
+	svcs, err := gipvs.GetServices()
+	assert.Nil(t, err)
+
+	// Asserting Services
+	assert.Equal(t, svc.Address, svcs[0].Address.String())
+	assert.Equal(t, svc.Port, svcs[0].Port)
+
+	// Asserting Destinations
+	assert.Equal(t, dst.Address, svcs[0].Destinations[0].Address.String())
+	assert.Equal(t, dst.Port, svcs[0].Destinations[0].Port)
+
+	// Updating destinations
+	state = &mocks.State{}
+	state.On("GetServices").Return([]types.Service{svc})
+	state.On("GetDestinations", &svc).Return([]types.Destination{dst2})
+	ipvsMngr.Sync(state)
+
+	svcs, err = gipvs.GetServices()
+	assert.Nil(t, err)
+
+	assert.Equal(t, dst2.Address, svcs[0].Destinations[0].Address.String())
+	assert.Equal(t, dst2.Port, svcs[0].Destinations[0].Port)
+
+	// Testing Services and Destinations deletion
+	state = &mocks.State{}
+	state.On("GetServices").Return([]types.Service{})
+
+	ipvsMngr.Sync(state)
+
+	svcs, err = gipvs.GetServices()
+	assert.Nil(t, err)
+
+	assert.Len(t, svcs, 0)
+
+	ipvsMngr.Flush()
 }

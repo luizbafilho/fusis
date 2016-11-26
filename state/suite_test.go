@@ -15,7 +15,6 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type StateSuite struct {
-	state       state.Store
 	service     *types.Service
 	destination *types.Destination
 }

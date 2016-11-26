@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/hashicorp/logutils"
@@ -45,19 +44,6 @@ func (config BalancerConfig) Validate() error {
 	/* Validate Interfaces config */
 	if err := config.Interfaces.Validate(); err != nil {
 		return err
-	}
-
-	/* Validate Join nodes param */
-	if !config.Bootstrap {
-		if len(config.Join) == 0 {
-			return fmt.Errorf("You need to specify join nodes or start in Bootstrap mode.")
-		}
-
-		for _, v := range config.Join {
-			if err := validate.Field(v, "ip"); err != nil {
-				return fmt.Errorf("Join parameter needs to be a valid IP v4")
-			}
-		}
 	}
 
 	return nil

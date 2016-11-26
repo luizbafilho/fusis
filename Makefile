@@ -4,18 +4,10 @@ build:
 	go build -race -o bin/fusis
 
 run:
-	sudo bin/fusis balancer --bootstrap --log-level=debug
+	sudo bin/fusis balancer --log-level=debug
 
 docker:
 	docker build -t fusis .
-
-deps:
-	go get -u github.com/kardianos/govendor
-	govendor add +external
-	govendor sync
-
-clean:
-	sudo rm -rf /etc/fusis
 
 test:
 	sudo -E go test $$(go list ./... | grep -v /vendor)

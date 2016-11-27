@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/store"
 )
 
@@ -22,23 +21,23 @@ type State interface {
 	Copy() State
 }
 
+type Services map[string]types.Service
+type Destinations map[string]types.Destination
+
 // State...
 type FusisState struct {
 	sync.RWMutex
 
-	services     map[string]types.Service
-	destinations map[string]types.Destination
+	store store.Store
+
+	services     Services
+	destinations Destinations
 
 	changesCh chan bool
-
-	store store.Store
 }
 
-type Services map[string]types.Service
-type Destinations map[string]types.Destination
-
 // New creates a new Engine
-func New(store store.Store, changesCh chan bool, config *config.BalancerConfig) (State, error) {
+func New(store store.Store, changesCh chan bool) (State, error) {
 	state := &FusisState{
 		services:     make(Services),
 		destinations: make(Destinations),
@@ -46,7 +45,8 @@ func New(store store.Store, changesCh chan bool, config *config.BalancerConfig) 
 		store:        store,
 	}
 
-	state.watchStore()
+	go state.handleServicesChange()
+	go state.handleDestinationsChange()
 
 	return state, nil
 }
@@ -72,8 +72,6 @@ func (s *FusisState) Copy() State {
 }
 
 func (s *FusisState) watchStore() {
-	go s.handleServicesChange()
-	go s.handleDestinationsChange()
 }
 
 func (s *FusisState) handleServicesChange() {
@@ -82,14 +80,7 @@ func (s *FusisState) handleServicesChange() {
 
 	for {
 		svcs := <-updateCh
-
-		s.Lock()
-		s.services = Services{}
-		s.Unlock()
-		for _, svc := range svcs {
-			s.AddService(svc)
-		}
-
+		s.updateServices(svcs)
 		s.changesCh <- true
 	}
 }
@@ -100,13 +91,7 @@ func (s *FusisState) handleDestinationsChange() {
 
 	for {
 		dsts := <-updateCh
-		s.Lock()
-		s.destinations = Destinations{}
-		s.Unlock()
-		for _, dst := range dsts {
-			s.AddDestination(dst)
-		}
-
+		s.updateDestinations(dsts)
 		s.changesCh <- true
 	}
 }
@@ -134,18 +119,14 @@ func (s *FusisState) GetService(name string) (*types.Service, error) {
 	return &svc, nil
 }
 
-func (s *FusisState) GetDestinations(svc *types.Service) []types.Destination {
-	s.RLock()
-	defer s.RUnlock()
+func (s *FusisState) updateServices(svcs []types.Service) {
+	s.Lock()
+	s.services = Services{}
+	s.Unlock()
 
-	dsts := []types.Destination{}
-	for _, d := range s.destinations {
-		if d.ServiceId == svc.GetId() {
-			dsts = append(dsts, d)
-		}
+	for _, svc := range svcs {
+		s.AddService(svc)
 	}
-
-	return dsts
 }
 
 func (s *FusisState) AddService(svc types.Service) {
@@ -160,6 +141,20 @@ func (s *FusisState) DeleteService(svc *types.Service) {
 	defer s.Unlock()
 
 	delete(s.services, svc.GetId())
+}
+
+func (s *FusisState) GetDestinations(svc *types.Service) []types.Destination {
+	s.RLock()
+	defer s.RUnlock()
+
+	dsts := []types.Destination{}
+	for _, d := range s.destinations {
+		if d.ServiceId == svc.GetId() {
+			dsts = append(dsts, d)
+		}
+	}
+
+	return dsts
 }
 
 func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
@@ -185,4 +180,13 @@ func (s *FusisState) DeleteDestination(dst *types.Destination) {
 	defer s.Unlock()
 
 	delete(s.destinations, dst.GetId())
+}
+
+func (s *FusisState) updateDestinations(dsts []types.Destination) {
+	s.Lock()
+	s.destinations = Destinations{}
+	s.Unlock()
+	for _, dst := range dsts {
+		s.AddDestination(dst)
+	}
 }

@@ -51,7 +51,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 
 	changesCh := make(chan bool)
 
-	state, err := state.New(store, changesCh, config)
+	state, err := state.New(store, changesCh)
 	if err != nil {
 		return nil, err
 	}
@@ -167,11 +167,6 @@ func (b *Balancer) handleStateChange() (error, string) {
 
 func (b *Balancer) IsLeader() bool {
 	return b.candidate.IsLeader()
-}
-
-func (b *Balancer) GetLeader() string {
-	fmt.Println("Get Leader: Implement")
-	return ""
 }
 
 func (b *Balancer) watchLeaderChanges() {

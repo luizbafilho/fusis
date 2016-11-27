@@ -1,8 +1,6 @@
 package api
 
 import (
-	"fmt"
-	"net"
 	"os"
 
 	log "github.com/Sirupsen/logrus"
@@ -33,7 +31,6 @@ type Balancer interface {
 	DeleteCheck(check types.CheckSpec) error
 
 	IsLeader() bool
-	GetLeader() string
 }
 
 //NewAPI ...
@@ -46,7 +43,6 @@ func NewAPI(balancer Balancer) ApiService {
 	}
 
 	as.registerLoggerAndRecovery()
-	as.registerRedirectMiddleware()
 	as.registerRoutes()
 	return as
 }
@@ -64,23 +60,6 @@ func (as ApiService) registerRoutes() {
 	as.DELETE("/services/:service_name/destinations/:destination_name", as.destinationDelete)
 	as.POST("/services/:service_name/check", as.checkCreate)
 	as.DELETE("/services/:service_name/check", as.checkDelete)
-}
-
-func (as ApiService) registerRedirectMiddleware() {
-	as.Use(redirectMiddleware(as.balancer))
-}
-
-func redirectMiddleware(b Balancer) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if b.IsLeader() {
-			c.Next()
-		} else {
-			c.Abort()
-
-			host, _, _ := net.SplitHostPort(b.GetLeader())
-			c.Redirect(307, fmt.Sprintf("http://%s:8000%s", host, c.Request.URL))
-		}
-	}
 }
 
 // Serve starts the api.

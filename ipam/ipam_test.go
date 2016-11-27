@@ -1,95 +1,102 @@
 package ipam_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipam"
-	"github.com/luizbafilho/fusis/state"
-
-	. "gopkg.in/check.v1"
+	"github.com/luizbafilho/fusis/state/mocks"
+	"github.com/stretchr/testify/assert"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+func TestIpAllocationFirstEmpty(t *testing.T) {
+	service := types.Service{
+		Name:    "test",
+		Address: "10.0.1.2",
+	}
 
-type IpamSuite struct {
-	state *state.State
-	ipam  ipam.Allocator
-}
+	state := &mocks.State{}
+	state.On("GetServices").Return([]types.Service{service})
 
-var _ = Suite(&IpamSuite{})
-
-func (s *IpamSuite) SetUpSuite(c *C) {
-	var err error
 	config := &config.BalancerConfig{
 		Ipam: config.Ipam{
 			Ranges: []string{"192.168.0.0/30", "10.0.1.0/30"},
 		},
 	}
+	ipMngr, err := ipam.New(state, config)
+	assert.Nil(t, err)
 
-	s.state, err = state.New(config)
-	c.Assert(err, IsNil)
-
-	s.ipam, err = ipam.New(s.state, config)
-	c.Assert(err, IsNil)
+	err = ipMngr.AllocateVIP(&service)
+	assert.Nil(t, err)
+	assert.Equal(t, "10.0.1.1", service.Address)
 }
 
-func (s *IpamSuite) TearDownSuite(c *C) {
-}
+func TestIpAllocation(t *testing.T) {
+	service1 := types.Service{
+		Name:    "test",
+		Address: "10.0.1.1",
+	}
 
-func (s *IpamSuite) TestIpAllocation(c *C) {
-	service := &types.Service{
+	service2 := types.Service{
 		Name:    "test",
 		Address: "10.0.1.2",
 	}
-	s.state.AddService(service)
 
-	err := s.ipam.AllocateVIP(service)
-	c.Assert(err, IsNil)
-	c.Assert(service.Address, Equals, "10.0.1.1")
+	state := &mocks.State{}
+	state.On("GetServices").Return([]types.Service{service1, service2})
 
-	service = &types.Service{
-		Name:    "test2",
-		Address: "10.0.1.1",
+	config := &config.BalancerConfig{
+		Ipam: config.Ipam{
+			Ranges: []string{"192.168.0.0/30", "10.0.1.0/30"},
+		},
 	}
-	s.state.AddService(service)
+	ipMngr, err := ipam.New(state, config)
+	assert.Nil(t, err)
 
-	err = s.ipam.AllocateVIP(service)
-	c.Assert(err, IsNil)
-	c.Assert(service.Address, Equals, "10.0.1.3")
+	service3 := types.Service{
+		Name: "teste",
+	}
+	err = ipMngr.AllocateVIP(&service3)
+	assert.Nil(t, err)
+	assert.Equal(t, "10.0.1.3", service3.Address)
 }
 
-func (s *IpamSuite) TestIpAllocationMultiplesRanges(c *C) {
-	ips := []string{"10.0.1.1", "10.0.1.2", "10.0.1.3"}
+func TestIpAllocationMultiplesRanges(t *testing.T) {
+	svc1 := types.Service{Address: "10.0.1.1"}
+	svc2 := types.Service{Address: "10.0.1.2"}
+	svc3 := types.Service{Address: "10.0.1.3"}
 
-	for i, v := range ips {
-		s.state.AddService(&types.Service{
-			Name:    fmt.Sprintf("test%s", i),
-			Address: v,
-		})
+	state := &mocks.State{}
+	state.On("GetServices").Return([]types.Service{svc1, svc2, svc3})
+
+	config := &config.BalancerConfig{
+		Ipam: config.Ipam{
+			Ranges: []string{"192.168.0.0/30", "10.0.1.0/30"},
+		},
 	}
+	ipMngr, err := ipam.New(state, config)
+	assert.Nil(t, err)
 
 	service := &types.Service{
 		Name: "test10",
 	}
-	err := s.ipam.AllocateVIP(service)
-	c.Assert(err, IsNil)
-	c.Assert(service.Address, Equals, "192.168.0.1")
+	err = ipMngr.AllocateVIP(service)
+	assert.Nil(t, err)
+	assert.Equal(t, "192.168.0.1", service.Address)
 }
 
-func (s *IpamSuite) TestCursorValidation(c *C) {
+func TestCursorValidation(t *testing.T) {
 	config := &config.BalancerConfig{}
 
-	i, err := ipam.New(s.state, config)
-	c.Assert(err, IsNil)
+	state := &mocks.State{}
+	i, err := ipam.New(state, config)
+	assert.Nil(t, err)
 
 	service := &types.Service{
 		Name: "test",
 	}
 
 	err = i.AllocateVIP(service)
-	c.Assert(err, Equals, ipam.ErrNoVipAvailable)
-
+	assert.Equal(t, ipam.ErrNoVipAvailable, err)
 }

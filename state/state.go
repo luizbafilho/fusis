@@ -4,19 +4,22 @@ import (
 	"sync"
 
 	"github.com/luizbafilho/fusis/api/types"
-	"github.com/luizbafilho/fusis/store"
 )
+
+//go:generate mockery -name=State
 
 type State interface {
 	GetServices() []types.Service
 	GetService(name string) (*types.Service, error)
 	AddService(svc types.Service)
 	DeleteService(svc *types.Service)
+	UpdateServices(svcs []types.Service)
 
 	GetDestination(name string) (*types.Destination, error)
 	GetDestinations(svc *types.Service) []types.Destination
 	AddDestination(dst types.Destination)
 	DeleteDestination(dst *types.Destination)
+	UpdateDestinations(dsts []types.Destination)
 
 	Copy() State
 }
@@ -28,8 +31,6 @@ type Destinations map[string]types.Destination
 type FusisState struct {
 	sync.RWMutex
 
-	store store.Store
-
 	services     Services
 	destinations Destinations
 
@@ -37,16 +38,11 @@ type FusisState struct {
 }
 
 // New creates a new Engine
-func New(store store.Store, changesCh chan bool) (State, error) {
+func New() (State, error) {
 	state := &FusisState{
 		services:     make(Services),
 		destinations: make(Destinations),
-		changesCh:    changesCh,
-		store:        store,
 	}
-
-	go state.handleServicesChange()
-	go state.handleDestinationsChange()
 
 	return state, nil
 }
@@ -69,31 +65,6 @@ func (s *FusisState) Copy() State {
 	}
 
 	return copy
-}
-
-func (s *FusisState) watchStore() {
-}
-
-func (s *FusisState) handleServicesChange() {
-	updateCh := make(chan []types.Service)
-	s.store.SubscribeServices(updateCh)
-
-	for {
-		svcs := <-updateCh
-		s.updateServices(svcs)
-		s.changesCh <- true
-	}
-}
-
-func (s *FusisState) handleDestinationsChange() {
-	updateCh := make(chan []types.Destination)
-	s.store.SubscribeDestinations(updateCh)
-
-	for {
-		dsts := <-updateCh
-		s.updateDestinations(dsts)
-		s.changesCh <- true
-	}
 }
 
 func (s *FusisState) GetServices() []types.Service {
@@ -119,7 +90,7 @@ func (s *FusisState) GetService(name string) (*types.Service, error) {
 	return &svc, nil
 }
 
-func (s *FusisState) updateServices(svcs []types.Service) {
+func (s *FusisState) UpdateServices(svcs []types.Service) {
 	s.Lock()
 	s.services = Services{}
 	s.Unlock()
@@ -182,7 +153,7 @@ func (s *FusisState) DeleteDestination(dst *types.Destination) {
 	delete(s.destinations, dst.GetId())
 }
 
-func (s *FusisState) updateDestinations(dsts []types.Destination) {
+func (s *FusisState) UpdateDestinations(dsts []types.Destination) {
 	s.Lock()
 	s.destinations = Destinations{}
 	s.Unlock()

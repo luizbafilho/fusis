@@ -26,11 +26,13 @@ func registryStores() {
 }
 
 type Store interface {
+	GetServices() ([]types.Service, error)
 	AddService(svc *types.Service) error
 	DeleteService(svc *types.Service) error
 	SubscribeServices(ch chan []types.Service)
 	WatchServices()
 
+	GetDestinations() ([]types.Destination, error)
 	AddDestination(svc *types.Service, dst *types.Destination) error
 	DeleteDestination(svc *types.Service, dst *types.Destination) error
 	SubscribeDestinations(ch chan []types.Destination)
@@ -99,6 +101,44 @@ func (s *FusisStore) GetKV() kv.Store {
 	return s.kv
 }
 
+func (s *FusisStore) GetServices() ([]types.Service, error) {
+	svcs := []types.Service{}
+	entries, err := s.kv.List("fusis/services")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pair := range entries {
+		svc := types.Service{}
+		if err := json.Unmarshal(pair.Value, &svc); err != nil {
+			log.Error("[store] ", err)
+		}
+
+		svcs = append(svcs, svc)
+	}
+
+	return svcs, nil
+}
+
+func (s *FusisStore) GetDestinations() ([]types.Destination, error) {
+	dsts := []types.Destination{}
+	entries, err := s.kv.List("fusis/destinations")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pair := range entries {
+		dst := types.Destination{}
+		if err := json.Unmarshal(pair.Value, &dst); err != nil {
+			log.Error("[store] ", err)
+		}
+
+		dsts = append(dsts, dst)
+	}
+
+	return dsts, nil
+}
+
 func (s *FusisStore) AddService(svc *types.Service) error {
 	key := fmt.Sprintf("fusis/services/%s/config", svc.GetId())
 
@@ -158,6 +198,7 @@ func (s *FusisStore) WatchServices() {
 
 			s.Lock()
 			for _, ch := range s.servicesChannels {
+				log.Debug("[store] Sending message to service ch")
 				ch <- svcs
 			}
 			s.Unlock()

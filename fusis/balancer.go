@@ -6,6 +6,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/health"
@@ -18,6 +19,7 @@ import (
 	"github.com/luizbafilho/fusis/store"
 	"github.com/luizbafilho/fusis/vip"
 	"github.com/luizbafilho/leadership"
+	"github.com/pkg/errors"
 )
 
 // Balancer represents the Load Balancer
@@ -49,9 +51,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, err
 	}
 
-	changesCh := make(chan bool)
-
-	state, err := state.New(store, changesCh)
+	state, err := state.New()
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +78,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 
 	metrics := metrics.NewMetrics(state, config)
 
+	changesCh := make(chan bool)
 	balancer := &Balancer{
 		changesCh:    changesCh,
 		store:        store,
@@ -112,25 +113,67 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 		return nil, fmt.Errorf("Error cleaning up network vips: %v", err)
 	}
 
+	balancer.loadInitialState()
+
 	go balancer.watchLeaderChanges()
+	go balancer.watchStore()
 	go balancer.watchState()
-	// go balancer.watchHealthChecks()
 
 	go metrics.Monitor()
 
 	return balancer, nil
 }
 
-func (b *Balancer) watchState() {
+func (b *Balancer) loadInitialState() error {
+	log.Info("[balancer] Loading initial state from Store")
+	initSvcs, err := b.store.GetServices()
+	if err != nil {
+		return errors.Wrap(err, "[balancer] Fetching initial services failed")
+	}
+
+	initDsts, err := b.store.GetDestinations()
+	if err != nil {
+		return errors.Wrap(err, "[balancer] Fetching initial destinations failed")
+	}
+
+	b.state.UpdateServices(initSvcs)
+	b.state.UpdateDestinations(initDsts)
+
+	if err, module := b.handleStateChange(); err != nil {
+		log.Errorf("[%s] Error syncing initial state: %s", module, err)
+		return err
+	}
+
+	return nil
+}
+
+func (b *Balancer) watchStore() {
+	updateSvcsCh := make(chan []types.Service)
+	b.store.SubscribeServices(updateSvcsCh)
+
+	updateDstsCh := make(chan []types.Destination)
+	b.store.SubscribeDestinations(updateDstsCh)
+
 	for {
 		select {
-		case _ = <-b.changesCh:
-			// TODO: this doesn't need to run all the time, we can implement
-			// some kind of throttling in the future waiting for a threashold of
-			// messages before applying the messages.
-			if err, module := b.handleStateChange(); err != nil {
-				log.Errorf("[%s] Error handling state change: %s", module, err)
-			}
+		case svcs := <-updateSvcsCh:
+			b.state.UpdateServices(svcs)
+		case dsts := <-updateDstsCh:
+			b.state.UpdateDestinations(dsts)
+		}
+
+		b.changesCh <- true
+	}
+}
+
+func (b *Balancer) watchState() {
+	for {
+		<-b.changesCh
+		// TODO: this doesn't need to run all the time, we can implement
+		// some kind of throttling in the future waiting for a threashold of
+		// messages before applying the messages.
+		if err, module := b.handleStateChange(); err != nil {
+			log.Errorf("[%s] Error handling state change: %s", module, err)
 		}
 	}
 }
@@ -166,7 +209,7 @@ func (b *Balancer) handleStateChange() (error, string) {
 }
 
 func (b *Balancer) IsLeader() bool {
-	return b.candidate.IsLeader()
+	return b.candidate != nil && b.candidate.IsLeader()
 }
 
 func (b *Balancer) watchLeaderChanges() {

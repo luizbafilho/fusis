@@ -123,4 +123,14 @@ func (_m *State) GetServices() []types.Service {
 	return r0
 }
 
+// UpdateDestinations provides a mock function with given fields: dsts
+func (_m *State) UpdateDestinations(dsts []types.Destination) {
+	_m.Called(dsts)
+}
+
+// UpdateServices provides a mock function with given fields: svcs
+func (_m *State) UpdateServices(svcs []types.Service) {
+	_m.Called(svcs)
+}
+
 var _ state.State = (*State)(nil)

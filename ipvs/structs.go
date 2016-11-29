@@ -5,7 +5,7 @@ import (
 	"syscall"
 
 	gipvs "github.com/google/seesaw/ipvs"
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 )
 
 const (

@@ -3,7 +3,7 @@ package ipam
 import (
 	"strings"
 
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/mikioh/ipaddr"

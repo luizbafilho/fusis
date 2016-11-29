@@ -3,7 +3,7 @@ package ipam_test
 import (
 	"testing"
 
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/state/mocks"

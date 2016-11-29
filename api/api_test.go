@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/luizbafilho/fusis/api"
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 	"gopkg.in/check.v1"
 )
 

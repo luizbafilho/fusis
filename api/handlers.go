@@ -7,7 +7,7 @@ import (
 
 	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 )
 
 type ServiceResponse struct {
@@ -61,8 +61,6 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	//Guarantees that no one tries to create a destination together with a service
-	// newService.Destinations = []types.Destination{}
 
 	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
 		c.Error(errs)

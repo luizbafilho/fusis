@@ -6,7 +6,6 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/luizbafilho/fusis/api/types"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/health"
@@ -17,13 +16,33 @@ import (
 	fusis_net "github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/store"
+	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/vip"
 	"github.com/luizbafilho/leadership"
 	"github.com/pkg/errors"
 )
 
+type Balancer interface {
+	GetServices() []types.Service
+	AddService(*types.Service) error
+	GetService(string) (*types.Service, error)
+	DeleteService(string) error
+
+	AddDestination(*types.Service, *types.Destination) error
+	GetDestination(string) (*types.Destination, error)
+	GetDestinations(svc *types.Service) []types.Destination
+	DeleteDestination(*types.Destination) error
+
+	AddCheck(check types.CheckSpec) error
+	DeleteCheck(check types.CheckSpec) error
+
+	IsLeader() bool
+
+	Shutdown()
+}
+
 // Balancer represents the Load Balancer
-type Balancer struct {
+type FusisBalancer struct {
 	sync.Mutex
 
 	config        *config.BalancerConfig
@@ -45,7 +64,7 @@ type Balancer struct {
 
 // NewBalancer initializes a new balancer
 //TODO: Graceful shutdown on initialization errors
-func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
+func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 	store, err := store.New(config)
 	if err != nil {
 		return nil, err
@@ -79,7 +98,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	metrics := metrics.NewMetrics(state, config)
 
 	changesCh := make(chan bool)
-	balancer := &Balancer{
+	balancer := &FusisBalancer{
 		changesCh:    changesCh,
 		store:        store,
 		state:        state,
@@ -124,7 +143,7 @@ func NewBalancer(config *config.BalancerConfig) (*Balancer, error) {
 	return balancer, nil
 }
 
-func (b *Balancer) loadInitialState() error {
+func (b *FusisBalancer) loadInitialState() error {
 	log.Info("[balancer] Loading initial state from Store")
 	initSvcs, err := b.store.GetServices()
 	if err != nil {
@@ -147,7 +166,7 @@ func (b *Balancer) loadInitialState() error {
 	return nil
 }
 
-func (b *Balancer) watchStore() {
+func (b *FusisBalancer) watchStore() {
 	updateSvcsCh := make(chan []types.Service)
 	b.store.SubscribeServices(updateSvcsCh)
 
@@ -166,7 +185,7 @@ func (b *Balancer) watchStore() {
 	}
 }
 
-func (b *Balancer) watchState() {
+func (b *FusisBalancer) watchState() {
 	for {
 		<-b.changesCh
 		// TODO: this doesn't need to run all the time, we can implement
@@ -178,7 +197,7 @@ func (b *Balancer) watchState() {
 	}
 }
 
-func (b *Balancer) handleStateChange() (error, string) {
+func (b *FusisBalancer) handleStateChange() (error, string) {
 	state := b.state
 
 	if b.config.EnableHealthChecks {
@@ -208,11 +227,11 @@ func (b *Balancer) handleStateChange() (error, string) {
 	return nil, ""
 }
 
-func (b *Balancer) IsLeader() bool {
+func (b *FusisBalancer) IsLeader() bool {
 	return b.candidate != nil && b.candidate.IsLeader()
 }
 
-func (b *Balancer) watchLeaderChanges() {
+func (b *FusisBalancer) watchLeaderChanges() {
 	candidate := leadership.NewCandidate(b.store.GetKV(), "fusis/leader", b.config.Name, 20*time.Second)
 	b.candidate = candidate
 
@@ -241,7 +260,7 @@ func (b *Balancer) watchLeaderChanges() {
 	}
 }
 
-func (b *Balancer) sendGratuitousARPReply() error {
+func (b *FusisBalancer) sendGratuitousARPReply() error {
 	for _, s := range b.GetServices() {
 		if err := fusis_net.SendGratuitousARPReply(s.Address, b.config.Interfaces.Inbound); err != nil {
 			return err
@@ -251,16 +270,16 @@ func (b *Balancer) sendGratuitousARPReply() error {
 	return nil
 }
 
-func (b *Balancer) flushVips() {
+func (b *FusisBalancer) flushVips() {
 	if err := fusis_net.DelVips(b.config.Interfaces.Inbound); err != nil {
 		//TODO: Remove balancer from cluster when error occurs
 		log.Error(err)
 	}
 }
 
-func (b *Balancer) Shutdown() {
+func (b *FusisBalancer) Shutdown() {
 }
 
-func (b *Balancer) isAnycast() bool {
+func (b *FusisBalancer) isAnycast() bool {
 	return b.config.ClusterMode == "anycast"
 }

@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 
 	"github.com/luizbafilho/fusis/api"
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 )
 
 type testBalancer struct {

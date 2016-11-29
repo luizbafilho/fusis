@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 )
 
 type Client struct {

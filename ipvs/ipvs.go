@@ -8,7 +8,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	gipvs "github.com/google/seesaw/ipvs"
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/state"
 )
 

@@ -1,40 +1,32 @@
 package fusis
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 )
 
 const (
 	ConfigInterfaceAgentQuery = "config-interface-agent"
 )
 
-type ErrCrashError struct {
-	original error
-}
-
-func (e ErrCrashError) Error() string {
-	return fmt.Sprintf("Unable to apply commited log, inconsistent routing state, leaving cluster. original error: %s", e.original)
-}
+var (
+	ErrResourceNotFound = errors.New("Resource not found")
+	ErrResourceConflict = errors.New("Resource conflict")
+)
 
 // GetServices get all services
-func (b *Balancer) GetServices() []types.Service {
-	b.Lock()
-	defer b.Unlock()
+func (b *FusisBalancer) GetServices() []types.Service {
 	return b.state.GetServices()
 }
 
-func (b *Balancer) GetDestinations(svc *types.Service) []types.Destination {
-	b.Lock()
-	defer b.Unlock()
-
+func (b *FusisBalancer) GetDestinations(svc *types.Service) []types.Destination {
 	return b.state.GetDestinations(svc)
 }
 
 // AddService ...
-func (b *Balancer) AddService(svc *types.Service) error {
+func (b *FusisBalancer) AddService(svc *types.Service) error {
 	_, err := b.state.GetService(svc.GetId())
 	if err == nil {
 		return types.ErrServiceAlreadyExists
@@ -50,11 +42,11 @@ func (b *Balancer) AddService(svc *types.Service) error {
 }
 
 //GetService get a service
-func (b *Balancer) GetService(name string) (*types.Service, error) {
+func (b *FusisBalancer) GetService(name string) (*types.Service, error) {
 	return b.state.GetService(name)
 }
 
-func (b *Balancer) DeleteService(name string) error {
+func (b *FusisBalancer) DeleteService(name string) error {
 	svc, err := b.state.GetService(name)
 	if err != nil {
 		return err
@@ -63,13 +55,11 @@ func (b *Balancer) DeleteService(name string) error {
 	return b.store.DeleteService(svc)
 }
 
-func (b *Balancer) GetDestination(name string) (*types.Destination, error) {
-	b.Lock()
-	defer b.Unlock()
+func (b *FusisBalancer) GetDestination(name string) (*types.Destination, error) {
 	return b.state.GetDestination(name)
 }
 
-func (b *Balancer) AddDestination(svc *types.Service, dst *types.Destination) error {
+func (b *FusisBalancer) AddDestination(svc *types.Service, dst *types.Destination) error {
 	_, err := b.state.GetDestination(dst.GetId())
 	if err == nil {
 		return types.ErrDestinationAlreadyExists
@@ -96,7 +86,7 @@ type AgentInterfaceConfig struct {
 	Mode           string
 }
 
-func (b *Balancer) setupDestination(svc *types.Service, dst *types.Destination) error {
+func (b *FusisBalancer) setupDestination(svc *types.Service, dst *types.Destination) error {
 	// params := serf.QueryParam{
 	// 	FilterNodes: []string{dst.Name},
 	// }
@@ -109,13 +99,13 @@ func (b *Balancer) setupDestination(svc *types.Service, dst *types.Destination) 
 	// payload, _ := json.Marshal(config)
 	// _, err := b.serf.Query(ConfigInterfaceAgentQuery, payload, &params)
 	// if err != nil {
-	// 	logrus.Errorf("Balancer: add-balancer event error: %v", err)
+	// 	logrus.Errorf("FusisBalancer: add-balancer event error: %v", err)
 	// 	return err
 	// }
 	return nil
 }
 
-func (b *Balancer) DeleteDestination(dst *types.Destination) error {
+func (b *FusisBalancer) DeleteDestination(dst *types.Destination) error {
 	svc, err := b.state.GetService(dst.ServiceId)
 	if err != nil {
 		return err
@@ -129,7 +119,7 @@ func (b *Balancer) DeleteDestination(dst *types.Destination) error {
 	return b.store.DeleteDestination(svc, dst)
 }
 
-func (b *Balancer) AddCheck(check types.CheckSpec) error {
+func (b *FusisBalancer) AddCheck(check types.CheckSpec) error {
 	if check.Timeout == 0 {
 		check.Timeout = 5 * time.Second
 	}
@@ -141,6 +131,6 @@ func (b *Balancer) AddCheck(check types.CheckSpec) error {
 	return b.store.AddCheck(check)
 }
 
-func (b *Balancer) DeleteCheck(check types.CheckSpec) error {
+func (b *FusisBalancer) DeleteCheck(check types.CheckSpec) error {
 	return b.store.DeleteCheck(check)
 }

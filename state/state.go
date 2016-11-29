@@ -3,7 +3,7 @@ package state
 import (
 	"sync"
 
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 )
 
 //go:generate mockery -name=State

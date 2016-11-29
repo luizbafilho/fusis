@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	gipvs "github.com/google/seesaw/ipvs"
-	"github.com/luizbafilho/fusis/api/types"
+	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/state/mocks"
 	"github.com/stretchr/testify/assert"

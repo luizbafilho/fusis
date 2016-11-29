@@ -2,8 +2,8 @@ package store
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
@@ -27,6 +27,7 @@ func registryStores() {
 
 type Store interface {
 	GetServices() ([]types.Service, error)
+	// GetService(serviceId string) (types.Service, error)
 	AddService(svc *types.Service) error
 	DeleteService(svc *types.Service) error
 	SubscribeServices(ch chan []types.Service)
@@ -53,6 +54,8 @@ var (
 type FusisStore struct {
 	sync.Mutex
 	kv kv.Store
+
+	prefix string
 
 	servicesChannels    []chan []types.Service
 	destinationChannels []chan []types.Destination
@@ -85,6 +88,7 @@ func New(config *config.BalancerConfig) (Store, error) {
 
 	fusisStore := &FusisStore{
 		kv:                  kv,
+		prefix:              config.StorePrefix,
 		servicesChannels:    svcsChs,
 		destinationChannels: dstsChs,
 		checksChannels:      checksChs,
@@ -101,10 +105,17 @@ func (s *FusisStore) GetKV() kv.Store {
 	return s.kv
 }
 
+// func (s *FusisStore) GetService(serviceId string) (types.Service, err) {
+// }
+
 func (s *FusisStore) GetServices() ([]types.Service, error) {
 	svcs := []types.Service{}
-	entries, err := s.kv.List("fusis/services")
+	entries, err := s.kv.List(s.key("services"))
 	if err != nil {
+		if err == kv.ErrKeyNotFound {
+			return svcs, nil
+		}
+
 		return nil, err
 	}
 
@@ -140,7 +151,7 @@ func (s *FusisStore) GetDestinations() ([]types.Destination, error) {
 }
 
 func (s *FusisStore) AddService(svc *types.Service) error {
-	key := fmt.Sprintf("fusis/services/%s/config", svc.GetId())
+	key := s.key("services", svc.GetId(), "config")
 
 	value, err := json.Marshal(svc)
 	if err != nil {
@@ -156,7 +167,7 @@ func (s *FusisStore) AddService(svc *types.Service) error {
 }
 
 func (s *FusisStore) DeleteService(svc *types.Service) error {
-	key := fmt.Sprintf("fusis/services/%s", svc.GetId())
+	key := s.key("services", svc.GetId())
 
 	err := s.kv.DeleteTree(key)
 	if err != nil {
@@ -176,7 +187,7 @@ func (s *FusisStore) WatchServices() {
 	svcs := []types.Service{}
 
 	stopCh := make(<-chan struct{})
-	events, err := s.kv.WatchTree("fusis/services", stopCh)
+	events, err := s.kv.WatchTree(s.key("services"), stopCh)
 	if err != nil {
 		log.Error("[store] ", err)
 	}
@@ -210,7 +221,7 @@ func (s *FusisStore) WatchServices() {
 }
 
 func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) error {
-	key := fmt.Sprintf("fusis/destinations/%s/%s", svc.GetId(), dst.GetId())
+	key := s.key("destinations", svc.GetId(), dst.GetId())
 
 	value, err := json.Marshal(dst)
 	if err != nil {
@@ -227,7 +238,8 @@ func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) 
 }
 
 func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destination) error {
-	key := fmt.Sprintf("fusis/destinations/%s/%s", svc.GetId(), dst.GetId())
+	key := s.key("destinations", svc.GetId(), dst.GetId())
+	// key := fmt.Sprintf("fusis/destinations/%s/%s", svc.GetId(), dst.GetId())
 
 	err := s.kv.DeleteTree(key)
 	if err != nil {
@@ -248,7 +260,7 @@ func (s *FusisStore) WatchDestinations() {
 	dsts := []types.Destination{}
 
 	stopCh := make(<-chan struct{})
-	events, err := s.kv.WatchTree("fusis/destinations", stopCh)
+	events, err := s.kv.WatchTree(s.key("destinations"), stopCh)
 	if err != nil {
 		errors.Wrap(err, "failed watching fusis/destinations")
 	}
@@ -287,7 +299,8 @@ func (s *FusisStore) SubscribeChecks(updateCh chan []types.CheckSpec) {
 }
 
 func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
-	key := fmt.Sprintf("fusis/checks/%s", spec.ServiceID)
+	key := s.key("checks", spec.ServiceID)
+	// key := fmt.Sprintf("fusis/checks/%s", )
 
 	value, err := json.Marshal(spec)
 	if err != nil {
@@ -303,7 +316,8 @@ func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
 }
 
 func (s *FusisStore) DeleteCheck(spec types.CheckSpec) error {
-	key := fmt.Sprintf("fusis/checks/%s", spec.ServiceID)
+	key := s.key("checks", spec.ServiceID)
+	// key := fmt.Sprintf("fusis/checks/%s", spec.ServiceID)
 
 	err := s.kv.DeleteTree(key)
 	if err != nil {
@@ -318,7 +332,7 @@ func (s *FusisStore) WatchChecks() {
 	specs := []types.CheckSpec{}
 
 	stopCh := make(<-chan struct{})
-	events, err := s.kv.WatchTree("fusis/checks", stopCh)
+	events, err := s.kv.WatchTree(s.key("checks"), stopCh)
 	if err != nil {
 		log.Error(errors.Wrap(err, "failed watching fusis/checks"))
 	}
@@ -348,4 +362,8 @@ func (s *FusisStore) WatchChecks() {
 			specs = []types.CheckSpec{}
 		}
 	}
+}
+
+func (s *FusisStore) key(keys ...string) string {
+	return strings.Join(append([]string{s.prefix}, keys...), "/")
 }

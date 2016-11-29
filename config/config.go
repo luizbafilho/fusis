@@ -16,6 +16,7 @@ type BalancerConfig struct {
 	LogLevel           string `mapstructure:"log-level"`
 	ClusterMode        string `mapstructure:"cluster-mode"` //Defines if balancer is in UNICAST or ANYCAST
 	EnableHealthChecks bool   `mapstructure:"enable-health-checks"`
+	StorePrefix        string `mapstructure:"store-prefix"`
 	Bgp
 	Ipam
 	Metrics

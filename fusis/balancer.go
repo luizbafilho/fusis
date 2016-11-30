@@ -2,8 +2,11 @@ package fusis
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/go-playground/validator.v9"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/luizbafilho/fusis/bgp"
@@ -58,6 +61,7 @@ type FusisBalancer struct {
 	state     state.State
 	candidate *leadership.Candidate
 
+	validate   *validator.Validate
 	changesCh  chan bool
 	shutdownCh chan bool
 }
@@ -95,6 +99,11 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 		return nil, err
 	}
 
+	validate := validator.New()
+	// Registering custom validations
+	validate.RegisterValidation("protocols", validateValues(types.Protocols))
+	validate.RegisterValidation("schedulers", validateValues(types.Schedulers))
+
 	metrics := metrics.NewMetrics(state, config)
 
 	changesCh := make(chan bool)
@@ -107,6 +116,7 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 		vipMngr:      vipMngr,
 		config:       config,
 		ipam:         ipam,
+		validate:     validate,
 		metrics:      metrics,
 	}
 
@@ -282,4 +292,35 @@ func (b *FusisBalancer) Shutdown() {
 
 func (b *FusisBalancer) isAnycast() bool {
 	return b.config.ClusterMode == "anycast"
+}
+
+func validateValues(values []string) validator.Func {
+	return func(fl validator.FieldLevel) bool {
+		str := fl.Field().String()
+
+		for _, v := range values {
+			if v == str {
+				return true
+			}
+		}
+
+		return false
+	}
+}
+
+func getValidationMessage(fieldError validator.FieldError) string {
+	switch fieldError.Tag() {
+	case "required":
+		return "field is required"
+	case "lte":
+		return fmt.Sprintf("field field must be less than %s", fieldError.Param())
+	case "gte":
+		return fmt.Sprintf("field field must be greater than %s", fieldError.Param())
+	case "protocols":
+		return fmt.Sprintf("field must be one of the following: %s", strings.Join(types.Protocols, " | "))
+	case "schedulers":
+		return fmt.Sprintf("field must be one of the following: %s", strings.Join(types.Schedulers, " | "))
+	}
+
+	return "unknown validation error"
 }

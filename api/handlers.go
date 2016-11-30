@@ -62,16 +62,10 @@ func (as ApiService) serviceCreate(c *gin.Context) {
 		return
 	}
 
-	if _, errs := govalidator.ValidateStruct(newService); errs != nil {
-		c.Error(errs)
-		c.JSON(http.StatusBadRequest, gin.H{"errors": govalidator.ErrorsByField(errs)})
-		return
-	}
-
 	err := as.balancer.AddService(&newService)
 	if err != nil {
 		c.Error(err)
-		if err == types.ErrServiceAlreadyExists {
+		if err == types.ErrServiceConflict {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("UpsertService() failed: %v", err)})
@@ -142,7 +136,7 @@ func (as ApiService) destinationCreate(c *gin.Context) {
 	err = as.balancer.AddDestination(service, destination)
 	if err != nil {
 		c.Error(err)
-		if err == types.ErrDestinationAlreadyExists {
+		if err == types.ErrDestinationConflict {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("AddDestination() failed: %v", err)})

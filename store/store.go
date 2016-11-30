@@ -11,8 +11,8 @@ import (
 	kv "github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/consul"
 	"github.com/docker/libkv/store/etcd"
-	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/types"
 	"github.com/pkg/errors"
 )
 
@@ -300,7 +300,6 @@ func (s *FusisStore) SubscribeChecks(updateCh chan []types.CheckSpec) {
 
 func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
 	key := s.key("checks", spec.ServiceID)
-	// key := fmt.Sprintf("fusis/checks/%s", )
 
 	value, err := json.Marshal(spec)
 	if err != nil {
@@ -317,7 +316,6 @@ func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
 
 func (s *FusisStore) DeleteCheck(spec types.CheckSpec) error {
 	key := s.key("checks", spec.ServiceID)
-	// key := fmt.Sprintf("fusis/checks/%s", spec.ServiceID)
 
 	err := s.kv.DeleteTree(key)
 	if err != nil {

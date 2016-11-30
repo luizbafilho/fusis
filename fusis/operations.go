@@ -24,34 +24,21 @@ func (b *FusisBalancer) GetService(name string) (*types.Service, error) {
 
 // AddService ...
 func (b *FusisBalancer) AddService(svc *types.Service) error {
-	// Verifies if service is already in the system
-	_, err := b.state.GetService(svc.GetId())
-	if err == nil {
-		return types.ErrServiceConflict
-	}
-
 	// Validating service
 	if err := b.validateService(svc); err != nil {
 		return err
 	}
 
-	if err = b.ipam.AllocateVIP(svc); err != nil {
+	// Verifies if service is already in the system
+	if _, err := b.state.GetService(svc.GetId()); err == nil {
+		return types.ErrServiceConflict
+	}
+
+	if err := b.ipam.AllocateVIP(svc); err != nil {
 		return err
 	}
 
 	return b.store.AddService(svc)
-}
-
-func (b *FusisBalancer) validateService(svc *types.Service) error {
-	if err := b.validate.Struct(svc); err != nil {
-		errValidation := types.ErrValidation{Type: "service", Errors: make(map[string]string)}
-		for _, err := range err.(validator.ValidationErrors) {
-			errValidation.Errors[err.Field()] = getValidationMessage(err)
-		}
-		return errValidation
-	}
-
-	return nil
 }
 
 func (b *FusisBalancer) DeleteService(name string) error {
@@ -72,15 +59,19 @@ func (b *FusisBalancer) GetDestination(name string) (*types.Destination, error) 
 }
 
 func (b *FusisBalancer) AddDestination(svc *types.Service, dst *types.Destination) error {
-	_, err := b.state.GetDestination(dst.GetId())
-	if err == nil {
-		return types.ErrDestinationConflict
-	} else if err != types.ErrDestinationNotFound {
+	// Validating destination
+	if err := b.validateDestination(dst); err != nil {
 		return err
 	}
 
+	// Verifies if destination is already in the system
+	if _, err := b.state.GetDestination(dst.GetId()); err == nil {
+		return types.ErrDestinationConflict
+	}
+
+	// Check if the new destination is unique
 	for _, existDst := range b.state.GetDestinations(svc) {
-		if existDst.Address == dst.Address && existDst.Port == dst.Port {
+		if dst.Equal(existDst) {
 			return types.ErrDestinationConflict
 		}
 	}
@@ -107,6 +98,23 @@ func (b *FusisBalancer) DeleteDestination(dst *types.Destination) error {
 	return b.store.DeleteDestination(svc, dst)
 }
 
+func (b *FusisBalancer) AddCheck(check types.CheckSpec) error {
+	// Setting default values
+	if check.Timeout == 0 {
+		check.Timeout = 5 * time.Second
+	}
+
+	if check.Interval == 0 {
+		check.Interval = 10 * time.Second
+	}
+
+	return b.store.AddCheck(check)
+}
+
+func (b *FusisBalancer) DeleteCheck(check types.CheckSpec) error {
+	return b.store.DeleteCheck(check)
+}
+
 type AgentInterfaceConfig struct {
 	ServiceAddress string
 	Mode           string
@@ -131,18 +139,26 @@ func (b *FusisBalancer) setupDestination(svc *types.Service, dst *types.Destinat
 	return nil
 }
 
-func (b *FusisBalancer) AddCheck(check types.CheckSpec) error {
-	if check.Timeout == 0 {
-		check.Timeout = 5 * time.Second
+func (b *FusisBalancer) validateService(svc *types.Service) error {
+	if err := b.validate.Struct(svc); err != nil {
+		errValidation := types.ErrValidation{Type: "service", Errors: make(map[string]string)}
+		for _, err := range err.(validator.ValidationErrors) {
+			errValidation.Errors[err.Field()] = getValidationMessage(err)
+		}
+		return errValidation
 	}
 
-	if check.Interval == 0 {
-		check.Interval = 10 * time.Second
-	}
-
-	return b.store.AddCheck(check)
+	return nil
 }
 
-func (b *FusisBalancer) DeleteCheck(check types.CheckSpec) error {
-	return b.store.DeleteCheck(check)
+func (b *FusisBalancer) validateDestination(dst *types.Destination) error {
+	if err := b.validate.Struct(dst); err != nil {
+		errValidation := types.ErrValidation{Type: "destination", Errors: make(map[string]string)}
+		for _, err := range err.(validator.ValidationErrors) {
+			errValidation.Errors[err.Field()] = getValidationMessage(err)
+		}
+		return errValidation
+	}
+
+	return nil
 }

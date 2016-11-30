@@ -132,10 +132,11 @@ func (s *FusisState) GetDestination(name string) (*types.Destination, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	dst := s.destinations[name]
-	if dst.Name == "" {
+	dst, ok := s.destinations[name]
+	if !ok {
 		return nil, types.ErrDestinationNotFound
 	}
+
 	return &dst, nil
 }
 

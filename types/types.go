@@ -71,12 +71,12 @@ func (s Service) Equal(svc Service) bool {
 }
 
 type Destination struct {
-	Name      string `valid:"required"`
-	Address   string `valid:"required"`
-	Port      uint16 `valid:"required"`
+	Name      string `validate:"required"`
+	Address   string `validate:"required"`
+	Port      uint16 `validate:"gte=1,lte=47808,required"`
 	Weight    int32
-	Mode      string `valid:"required"`
-	ServiceId string `valid:"required"`
+	Mode      string `validate:"required"`
+	ServiceId string `validate:"required"`
 }
 
 func (dst Destination) GetId() string {
@@ -85,6 +85,10 @@ func (dst Destination) GetId() string {
 
 func (dst Destination) KernelKey() string {
 	return fmt.Sprintf("%s-%d", dst.Address, dst.Port)
+}
+
+func (d Destination) Equal(dst Destination) bool {
+	return d.Name == dst.Name || (d.Address == dst.Address && d.Port == dst.Port)
 }
 
 type DestinationList []Destination

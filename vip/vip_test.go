@@ -31,7 +31,7 @@ func TestVipsSync(t *testing.T) {
 	state := &mocks.State{}
 	state.On("GetServices").Return([]types.Service{s1, s2})
 
-	iface := "eth0"
+	iface := "lo"
 	config := &config.BalancerConfig{
 		Interfaces: config.Interfaces{
 			Inbound:  iface,

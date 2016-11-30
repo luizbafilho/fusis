@@ -3,6 +3,7 @@ package iptables
 import (
 	"os"
 	"testing"
+	"os/exec"
 
 	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/config"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+/** TestIptablesSync checks if iptable rules are beeing synced with stored state */
 func TestIptablesSync(t *testing.T) {
 	if os.Getenv("TRAVIS") == "true" {
 		t.Skip("Skipping test because travis-ci do not allow iptables")
@@ -71,6 +73,32 @@ func TestIptablesSync(t *testing.T) {
 	cleanupRules(t, iptablesMngr)
 }
 
+func TestGetSnatRules(t *testing.T) {
+	iptablesMngr, err := New(defaultConfig())
+	assert.Nil(t, err)
+
+	// ensure there is a FUSIS chain, we don't care about the return code
+	_ = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-N", "FUSIS").Run()
+	// ensure the FUSIS chain is empty, flushed
+	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-F", "FUSIS").Run()
+	assert.Nil(t, err)
+
+	// assert getSnatRules return an empty list
+	kernelRules, err := iptablesMngr.getSnatRules()
+	assert.Nil(t, err)
+	assert.Equal(t, kernelRules, []SnatRule{})
+
+	// add snat rule
+	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-A", "FUSIS", "-m", "ipvs", "--vaddr", "192.168.1.4/32", "--vport", "7004", "-j", "SNAT", "--to-source 10.0.3.4").Run()
+	assert.Nil(t, err)
+
+	// assert getSnatRules return first rule
+	kernelRules, err = iptablesMngr.getSnatRules()
+	assert.Nil(t, err)
+	assert.Nil(t, kernelRules)
+}
+
+/** get iptables rules and removes them */
 func cleanupRules(t *testing.T, iptablesMngr *IptablesMngr) {
 	rules, err := iptablesMngr.getSnatRules()
 	assert.Nil(t, err)
@@ -81,6 +109,7 @@ func cleanupRules(t *testing.T, iptablesMngr *IptablesMngr) {
 	}
 }
 
+/** mocks the config.BalencerConfig */
 func defaultConfig() *config.BalancerConfig {
 	return &config.BalancerConfig{
 		Interfaces: config.Interfaces{

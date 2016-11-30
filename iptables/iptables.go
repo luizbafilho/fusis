@@ -190,7 +190,7 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
 	out, err := exec.Command(i.path, "--wait", "--list", "-t", "nat").Output()
 	if err != nil {
-		log.Fatal("[iptables] Error executing iptables", err)
+		log.Fatal("[iptables] Error executing iptables ", err)
 	}
 
 	r, _ := regexp.Compile(`vaddr\s([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\svport\s(\d+)\sto:([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})`)

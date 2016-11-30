@@ -2,18 +2,14 @@ package fusis
 
 import (
 	"fmt"
-<<<<<<< HEAD
-=======
-	"io/ioutil"
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	"runtime"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
+	"github.com/luizbafilho/fusis/types"
 	. "gopkg.in/check.v1"
 )
 
@@ -86,11 +82,7 @@ func defaultConfig() config.BalancerConfig {
 			Inbound:  "eth0",
 			Outbound: "eth0",
 		},
-<<<<<<< HEAD
 		Name: "Test",
-=======
-		Name:      "Test",
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 		Ipam: config.Ipam{
 			Ranges: []string{"192.168.0.0/28"},
 		},
@@ -102,10 +94,6 @@ func (s *FusisSuite) TestAddService(c *C) {
 	b, err := NewBalancer(&config)
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
-<<<<<<< HEAD
-=======
-	defer b.Shutdown()
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -128,10 +116,6 @@ func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
 	b, err := NewBalancer(&config)
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
-<<<<<<< HEAD
-=======
-	defer b.Shutdown()
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -167,10 +151,6 @@ func (s *FusisSuite) TestDeleteService(c *C) {
 	b, err := NewBalancer(&config)
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
-<<<<<<< HEAD
-=======
-	defer b.Shutdown()
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -191,10 +171,6 @@ func (s *FusisSuite) TestDeleteServiceConcurrent(c *C) {
 	b, err := NewBalancer(&config)
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
-<<<<<<< HEAD
-=======
-	defer b.Shutdown()
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -241,10 +217,6 @@ func (s *FusisSuite) TestAddDestination(c *C) {
 	b, err := NewBalancer(&config)
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
-<<<<<<< HEAD
-=======
-	defer b.Shutdown()
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -270,10 +242,6 @@ func (s *FusisSuite) TestDeleteDestination(c *C) {
 	b, err := NewBalancer(&config)
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
-<<<<<<< HEAD
-=======
-	defer b.Shutdown()
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -300,10 +268,6 @@ func (s *FusisSuite) TestAddDeleteDestination(c *C) {
 	b, err := NewBalancer(&config)
 	// b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
-<<<<<<< HEAD
-=======
-	defer b.Shutdown()
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -337,10 +301,6 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 	b, err := NewBalancer(&config)
 	b.iptablesMngr = fakeIptablesMngr{}
 	c.Assert(err, IsNil)
-<<<<<<< HEAD
-=======
-	defer b.Shutdown()
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 	WaitForResult(func() (bool, error) {
 		return b.IsLeader(), nil
 	}, func(err error) {
@@ -387,29 +347,6 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 	c.Assert(dst, DeepEquals, s.destination)
 }
 
-<<<<<<< HEAD
-=======
-func (s *FusisSuite) TestJoinPoolLeave(c *C) {
-	config := defaultConfig()
-	b, err := NewBalancer(&config)
-	c.Assert(err, IsNil)
-	defer b.Shutdown()
-
-	WaitForResult(func() (bool, error) {
-		return b.IsLeader(), nil
-	}, func(err error) {
-		c.Fatalf("balancer did not become leader")
-	})
-
-	config2 := defaultConfig()
-	config2.Name = "test2"
-
-	s2, err := NewBalancer(&config2)
-	c.Assert(err, IsNil)
-	defer s2.Shutdown()
-}
-
->>>>>>> 07bfb86bbb89e61b0f8f0041f25e1a838d865a72
 func (s *FusisSuite) TestWatchState(c *C) {
 	// config := defaultConfig()
 	// b, err := NewBalancer(&config)

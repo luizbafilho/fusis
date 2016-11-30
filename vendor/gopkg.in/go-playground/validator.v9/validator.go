@@ -17,11 +17,14 @@ type validate struct {
 	hasExcludes    bool
 	includeExclude map[string]struct{} // reset only if StructPartial or StructExcept are called, no need otherwise
 
+	ffn FilterFunc
+
 	// StructLevel & FieldLevel fields
-	slflParent reflect.Value
-	slCurrent  reflect.Value
-	flField    reflect.Value
-	flParam    string
+	slflParent   reflect.Value
+	slCurrent    reflect.Value
+	flField      reflect.Value
+	flParam      string
+	fldIsPointer bool
 
 	// misc reusable values
 	misc []byte
@@ -37,7 +40,7 @@ func (v *validate) validateStruct(parent reflect.Value, current reflect.Value, t
 		cs = v.v.extractStructCache(current, typ.Name())
 	}
 
-	if len(ns) == 0 {
+	if len(ns) == 0 && len(cs.name) != 0 {
 
 		ns = append(ns, cs.name...)
 		ns = append(ns, '.')
@@ -50,14 +53,27 @@ func (v *validate) validateStruct(parent reflect.Value, current reflect.Value, t
 	// so if nil or if not nil and the structonly tag isn't present
 	if ct == nil || ct.typeof != typeStructOnly {
 
-		for _, f := range cs.fields {
+		var f *cField
+
+		for i := 0; i < len(cs.fields); i++ {
+
+			f = cs.fields[i]
 
 			if v.isPartial {
 
-				_, ok = v.includeExclude[string(append(structNs, f.name...))]
+				if v.ffn != nil {
+					// used with StructFiltered
+					if v.ffn(append(structNs, f.name...)) {
+						continue
+					}
 
-				if (ok && v.hasExcludes) || (!ok && !v.hasExcludes) {
-					continue
+				} else {
+					// used with StructPartial & StructExcept
+					_, ok = v.includeExclude[string(append(structNs, f.name...))]
+
+					if (ok && v.hasExcludes) || (!ok && !v.hasExcludes) {
+						continue
+					}
 				}
 			}
 
@@ -84,9 +100,8 @@ func (v *validate) traverseField(parent reflect.Value, current reflect.Value, ns
 
 	var typ reflect.Type
 	var kind reflect.Kind
-	var nullable bool
 
-	current, kind, nullable = v.extractTypeInternal(current, nullable)
+	current, kind, v.fldIsPointer = v.extractTypeInternal(current, false)
 
 	switch kind {
 	case reflect.Ptr, reflect.Interface, reflect.Invalid:
@@ -113,6 +128,7 @@ func (v *validate) traverseField(parent reflect.Value, current reflect.Value, ns
 
 				v.errs = append(v.errs,
 					&fieldError{
+						v:              v.v,
 						tag:            ct.aliasTag,
 						actualTag:      ct.tag,
 						ns:             v.str1,
@@ -129,6 +145,7 @@ func (v *validate) traverseField(parent reflect.Value, current reflect.Value, ns
 
 			v.errs = append(v.errs,
 				&fieldError{
+					v:              v.v,
 					tag:            ct.aliasTag,
 					actualTag:      ct.tag,
 					ns:             v.str1,
@@ -194,7 +211,7 @@ OUTER:
 			v.flField = current
 			v.flParam = ""
 
-			if !nullable && !hasValue(v) {
+			if !v.fldIsPointer && !hasValue(v) {
 				return
 			}
 
@@ -308,7 +325,12 @@ OUTER:
 				v.misc = append(v.misc, '|')
 				v.misc = append(v.misc, ct.tag...)
 
-				if ct.next == nil {
+				if len(ct.param) > 0 {
+					v.misc = append(v.misc, '=')
+					v.misc = append(v.misc, ct.param...)
+				}
+
+				if ct.next == nil || ct.next.typeof != typeOr { // ct.typeof != typeOr
 					// if we get here, no valid 'or' value and no more tags
 
 					v.str1 = string(append(ns, cf.altName...))
@@ -323,6 +345,7 @@ OUTER:
 
 						v.errs = append(v.errs,
 							&fieldError{
+								v:              v.v,
 								tag:            ct.aliasTag,
 								actualTag:      ct.actualAliasTag,
 								ns:             v.str1,
@@ -342,6 +365,7 @@ OUTER:
 
 						v.errs = append(v.errs,
 							&fieldError{
+								v:              v.v,
 								tag:            tVal,
 								actualTag:      tVal,
 								ns:             v.str1,
@@ -369,6 +393,10 @@ OUTER:
 			v.flField = current
 			v.flParam = ct.param
 
+			// // report error interface functions need these
+			// v.ns = ns
+			// v.actualNs = structNs
+
 			if !ct.fn(v) {
 
 				v.str1 = string(append(ns, cf.altName...))
@@ -381,6 +409,7 @@ OUTER:
 
 				v.errs = append(v.errs,
 					&fieldError{
+						v:              v.v,
 						tag:            ct.aliasTag,
 						actualTag:      ct.tag,
 						ns:             v.str1,

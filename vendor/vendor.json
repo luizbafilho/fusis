@@ -111,6 +111,24 @@
 			"revisionTime": "2016-01-30T00:28:57Z"
 		},
 		{
+			"checksumSHA1": "lRVG92JYdiCewzb2r4xo1bP8Vsg=",
+			"path": "github.com/go-playground/locales",
+			"revision": "273913d3b2ff7127452603d55dd3f6f888e4f268",
+			"revisionTime": "2016-11-23T02:26:44Z"
+		},
+		{
+			"checksumSHA1": "7QFECKqCr78JnG3/+Tb9aCyqN8U=",
+			"path": "github.com/go-playground/locales/currency",
+			"revision": "273913d3b2ff7127452603d55dd3f6f888e4f268",
+			"revisionTime": "2016-11-23T02:26:44Z"
+		},
+		{
+			"checksumSHA1": "H1YEELoFLUs+3XMmhLI7GNyY3+E=",
+			"path": "github.com/go-playground/universal-translator",
+			"revision": "8bf00f2bdf7faea5c3583d41f57bf1eb15b743d7",
+			"revisionTime": "2016-11-29T12:53:32Z"
+		},
+		{
 			"checksumSHA1": "XnbEHQRzINRKXKmu9GcaqGkK4Lg=",
 			"path": "github.com/golang/protobuf/proto",
 			"revision": "f592bd283e9ef86337a432eb50e592278c3d534d",
@@ -586,10 +604,10 @@
 			"revisionTime": "2016-02-16T01:41:29Z"
 		},
 		{
-			"checksumSHA1": "8BDz0TECuLmaDOLplhC9UH9D000=",
+			"checksumSHA1": "D2myEt8AD5pMZ+Ps9OYON5dCd/Q=",
 			"path": "gopkg.in/go-playground/validator.v9",
-			"revision": "9ba3297c49e35d1ffa40c7ff6e7ef60c4b6ed359",
-			"revisionTime": "2016-08-23T20:10:39Z"
+			"revision": "597f93b3164831ef370e4cf0b219907ab5bb4154",
+			"revisionTime": "2016-11-16T01:36:43Z"
 		},
 		{
 			"checksumSHA1": "WiyCOMvfzRdymImAJ3ME6aoYUdM=",

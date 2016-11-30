@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	ut "github.com/go-playground/universal-translator"
 )
 
 const (
@@ -21,6 +23,7 @@ const (
 	omitempty          = "omitempty"
 	skipValidationTag  = "-"
 	diveTag            = "dive"
+	requiredTag        = "required"
 	namespaceSeparator = "."
 	leftBracket        = "["
 	rightBracket       = "]"
@@ -33,6 +36,12 @@ var (
 	timeType      = reflect.TypeOf(time.Time{})
 	defaultCField = &cField{namesEqual: true}
 )
+
+// FilterFunc is the type used to filter fields using
+// StructFiltered(...) function.
+// returning true results in the field being filtered/skiped from
+// validation
+type FilterFunc func(ns []byte) bool
 
 // CustomTypeFunc allows for overriding or adding custom field type handler functions
 // field = field value of the type to return a value to be validated
@@ -53,6 +62,7 @@ type Validate struct {
 	customFuncs      map[reflect.Type]CustomTypeFunc
 	aliases          map[string]string
 	validations      map[string]Func
+	transTagFunc     map[ut.Translator]map[string]TranslationFunc // map[<locale>]map[<tag>]TranslationFunc
 	tagCache         *tagCache
 	structCache      *structCache
 }
@@ -83,7 +93,7 @@ func New() *Validate {
 	for k, val := range bakedInValidators {
 
 		// no need to error check here, baked in will alwaays be valid
-		v.RegisterValidation(k, val)
+		v.registerValidation(k, val, true)
 	}
 
 	v.pool = &sync.Pool{
@@ -118,6 +128,10 @@ func (v *Validate) RegisterTagNameFunc(fn TagNameFunc) {
 // - if the key already exists, the previous validation function will be replaced.
 // - this method is not thread-safe it is intended that these all be registered prior to any validation
 func (v *Validate) RegisterValidation(tag string, fn Func) error {
+	return v.registerValidation(tag, fn, false)
+}
+
+func (v *Validate) registerValidation(tag string, fn Func, bakedIn bool) error {
 
 	if len(tag) == 0 {
 		return errors.New("Function Key cannot be empty")
@@ -129,7 +143,7 @@ func (v *Validate) RegisterValidation(tag string, fn Func) error {
 
 	_, ok := restrictedTags[tag]
 
-	if ok || strings.ContainsAny(tag, restrictedTagChars) {
+	if !bakedIn && (ok || strings.ContainsAny(tag, restrictedTagChars)) {
 		panic(fmt.Sprintf(restrictedTagErr, tag))
 	}
 
@@ -189,6 +203,28 @@ func (v *Validate) RegisterCustomTypeFunc(fn CustomTypeFunc, types ...interface{
 	v.hasCustomFuncs = true
 }
 
+// RegisterTranslation registers translations against the provided tag.
+func (v *Validate) RegisterTranslation(tag string, trans ut.Translator, registerFn RegisterTranslationsFunc, translationFn TranslationFunc) (err error) {
+
+	if v.transTagFunc == nil {
+		v.transTagFunc = make(map[ut.Translator]map[string]TranslationFunc)
+	}
+
+	if err = registerFn(trans); err != nil {
+		return
+	}
+
+	m, ok := v.transTagFunc[trans]
+	if !ok {
+		m = make(map[string]TranslationFunc)
+		v.transTagFunc[trans] = m
+	}
+
+	m[tag] = translationFn
+
+	return
+}
+
 // Struct validates a structs exposed fields, and automatically validates nested structs, unless otherwise specified.
 //
 // It returns InvalidValidationError for bad values passed in and nil or ValidationErrors as error otherwise.
@@ -210,6 +246,43 @@ func (v *Validate) Struct(s interface{}) (err error) {
 	vd := v.pool.Get().(*validate)
 	vd.top = top
 	vd.isPartial = false
+	// vd.hasExcludes = false // only need to reset in StructPartial and StructExcept
+
+	vd.validateStruct(top, val, val.Type(), vd.ns[0:0], vd.actualNs[0:0], nil)
+
+	if len(vd.errs) > 0 {
+		err = vd.errs
+		vd.errs = nil
+	}
+
+	v.pool.Put(vd)
+
+	return
+}
+
+// StructFiltered validates a structs exposed fields, that pass the FilterFunc check and automatically validates
+// nested structs, unless otherwise specified.
+//
+// It returns InvalidValidationError for bad values passed in and nil or ValidationErrors as error otherwise.
+// You will need to assert the error if it's not nil eg. err.(validator.ValidationErrors) to access the array of errors.
+func (v *Validate) StructFiltered(s interface{}, fn FilterFunc) (err error) {
+
+	val := reflect.ValueOf(s)
+	top := val
+
+	if val.Kind() == reflect.Ptr && !val.IsNil() {
+		val = val.Elem()
+	}
+
+	if val.Kind() != reflect.Struct || val.Type() == timeType {
+		return &InvalidValidationError{Type: reflect.TypeOf(s)}
+	}
+
+	// good to validate
+	vd := v.pool.Get().(*validate)
+	vd.top = top
+	vd.isPartial = true
+	vd.ffn = fn
 	// vd.hasExcludes = false // only need to reset in StructPartial and StructExcept
 
 	vd.validateStruct(top, val, val.Type(), vd.ns[0:0], vd.actualNs[0:0], nil)
@@ -247,6 +320,7 @@ func (v *Validate) StructPartial(s interface{}, fields ...string) (err error) {
 	vd := v.pool.Get().(*validate)
 	vd.top = top
 	vd.isPartial = true
+	vd.ffn = nil
 	vd.hasExcludes = false
 	vd.includeExclude = make(map[string]struct{})
 
@@ -325,6 +399,7 @@ func (v *Validate) StructExcept(s interface{}, fields ...string) (err error) {
 	vd := v.pool.Get().(*validate)
 	vd.top = top
 	vd.isPartial = true
+	vd.ffn = nil
 	vd.hasExcludes = true
 	vd.includeExclude = make(map[string]struct{})
 
@@ -333,8 +408,13 @@ func (v *Validate) StructExcept(s interface{}, fields ...string) (err error) {
 
 	for _, key := range fields {
 
-		vd.misc = append(vd.misc[0:0], name...)
-		vd.misc = append(vd.misc, '.')
+		vd.misc = vd.misc[0:0]
+
+		if len(name) > 0 {
+			vd.misc = append(vd.misc, name...)
+			vd.misc = append(vd.misc, '.')
+		}
+
 		vd.misc = append(vd.misc, key...)
 		vd.includeExclude[string(vd.misc)] = struct{}{}
 	}

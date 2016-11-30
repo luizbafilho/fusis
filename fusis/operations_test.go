@@ -115,7 +115,7 @@ func (s *FusisSuite) TestAddService(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(srv, DeepEquals, s.service)
 	err = b.AddService(s.service)
-	c.Assert(err, Equals, types.ErrServiceAlreadyExists)
+	c.Assert(err, Equals, types.ErrServiceConflict)
 }
 
 func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
@@ -145,7 +145,7 @@ func (s *FusisSuite) TestAddServiceConcurrent(c *C) {
 		if err == nil {
 			count++
 		} else {
-			c.Assert(err, Equals, types.ErrServiceAlreadyExists)
+			c.Assert(err, Equals, types.ErrServiceConflict)
 		}
 	}
 	c.Assert(count, Equals, 1)
@@ -237,7 +237,7 @@ func (s *FusisSuite) TestAddDestination(c *C) {
 	err = b.AddDestination(s.service, s.destination)
 	c.Assert(err, IsNil)
 	err = b.AddDestination(s.service, s.destination)
-	c.Assert(err, Equals, types.ErrDestinationAlreadyExists)
+	c.Assert(err, Equals, types.ErrDestinationConflict)
 	dsts := b.GetDestinations(s.service)
 	c.Assert(dsts, DeepEquals, []types.Destination{*s.destination})
 	dst, err = b.GetDestination(s.destination.GetId())
@@ -294,7 +294,7 @@ func (s *FusisSuite) TestAddDeleteDestination(c *C) {
 		ServiceId: s.service.GetId(),
 	}
 	err = b.AddDestination(s.service, newDst)
-	c.Assert(err, Equals, types.ErrDestinationAlreadyExists)
+	c.Assert(err, Equals, types.ErrDestinationConflict)
 	newDst.Port = 81
 	err = b.AddDestination(s.service, newDst)
 	c.Assert(err, IsNil)
@@ -344,7 +344,7 @@ func (s *FusisSuite) TestAddDeleteDestinationConcurrent(c *C) {
 		if err == nil {
 			count++
 		} else {
-			c.Assert(err, Equals, types.ErrDestinationAlreadyExists)
+			c.Assert(err, Equals, types.ErrDestinationConflict)
 		}
 	}
 	c.Assert(count, Equals, 1)

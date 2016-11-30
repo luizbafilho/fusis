@@ -155,7 +155,7 @@ func (s *S) TestClientCreateServiceConflict(c *check.C) {
 	defer srv.Close()
 	cli := api.NewClient(srv.URL)
 	id, err := cli.CreateService(types.Service{Name: "name1"})
-	c.Assert(err, check.Equals, types.ErrServiceAlreadyExists)
+	c.Assert(err, check.Equals, types.ErrServiceConflict)
 	c.Assert(id, check.Equals, "")
 }
 
@@ -260,7 +260,7 @@ func (s *S) TestClientAddDestinationConflict(c *check.C) {
 	defer srv.Close()
 	cli := api.NewClient(srv.URL)
 	id, err := cli.AddDestination(types.Destination{ServiceId: "svid1"})
-	c.Assert(err, check.Equals, types.ErrDestinationAlreadyExists)
+	c.Assert(err, check.Equals, types.ErrDestinationConflict)
 	c.Assert(id, check.Equals, "")
 }
 

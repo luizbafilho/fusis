@@ -28,7 +28,7 @@ func (s *S) TestTestBalancerAddService(c *check.C) {
 	err := bal.AddService(srv)
 	c.Assert(err, check.IsNil)
 	err = bal.AddService(srv)
-	c.Assert(err, check.Equals, types.ErrServiceAlreadyExists)
+	c.Assert(err, check.Equals, types.ErrServiceConflict)
 }
 
 func (s *S) TestTestBalancerGetService(c *check.C) {
@@ -91,7 +91,7 @@ func (s *S) TestTestBalancerAddDestination(c *check.C) {
 	err = bal.AddDestination(srv, dst)
 	c.Assert(err, check.IsNil)
 	err = bal.AddDestination(srv, dst)
-	c.Assert(err, check.Equals, types.ErrDestinationAlreadyExists)
+	c.Assert(err, check.Equals, types.ErrDestinationConflict)
 
 	dst.Name = "dstX"
 	dst.ServiceId = "srvX"

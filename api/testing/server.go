@@ -48,7 +48,7 @@ func (b *testBalancer) GetServices() []types.Service {
 func (b *testBalancer) AddService(srv *types.Service) error {
 	for i := range b.services {
 		if b.services[i].Name == srv.Name {
-			return types.ErrServiceAlreadyExists
+			return types.ErrServiceConflict
 		}
 	}
 	b.services = append(b.services, *srv)
@@ -82,10 +82,10 @@ func (b *testBalancer) AddDestination(srv *types.Service, dest *types.Destinatio
 			dsts := b.GetDestinations(&b.services[i])
 			for j := range dsts {
 				if dsts[j].Name == dest.Name {
-					return types.ErrDestinationAlreadyExists
+					return types.ErrDestinationConflict
 				}
 				if dsts[j].Address == dest.Address && dsts[j].Port == dest.Port {
-					return types.ErrDestinationAlreadyExists
+					return types.ErrDestinationConflict
 				}
 			}
 		}

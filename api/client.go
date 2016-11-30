@@ -91,7 +91,7 @@ func (c *Client) CreateService(svc types.Service) (string, error) {
 	case http.StatusCreated:
 		id = idFromLocation(resp)
 	case http.StatusConflict:
-		err = types.ErrServiceAlreadyExists
+		err = types.ErrServiceConflict
 	default:
 		err = formatError(resp)
 	}
@@ -133,7 +133,7 @@ func (c *Client) AddDestination(dst types.Destination) (string, error) {
 	case http.StatusNotFound:
 		err = types.ErrServiceNotFound
 	case http.StatusConflict:
-		err = types.ErrDestinationAlreadyExists
+		err = types.ErrDestinationConflict
 	case http.StatusCreated:
 		id = idFromLocation(resp)
 	default:

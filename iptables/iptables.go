@@ -11,10 +11,10 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
-	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/state"
+	"github.com/luizbafilho/fusis/types"
 )
 
 var (
@@ -45,10 +45,14 @@ type SnatRule struct {
 }
 
 func New(config *config.BalancerConfig) (*IptablesMngr, error) {
+	// look for iptables
 	path, err := exec.LookPath("iptables")
 	if err != nil {
 		return nil, ErrIptablesNotFound
 	}
+
+	// create iptables chain
+	_ = exec.Command(path, "--wait", "-t", "nat", "-N", "FUSIS").Run()
 
 	return &IptablesMngr{
 		config: config,
@@ -178,7 +182,7 @@ func (i IptablesMngr) removeRule(r SnatRule) error {
 }
 
 func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
-	cmd := exec.Command(i.path, "--wait", "-t", "nat", action, "POSTROUTING", "-m", "ipvs", "--vaddr", r.vaddr+"/32", "--vport", r.vport, "-j", "SNAT", "--to-source", r.toSource)
+	cmd := exec.Command(i.path, "--wait", "-t", "nat", action, "FUSIS", "-m", "ipvs", "--vaddr", r.vaddr+"/32", "--vport", r.vport, "-j", "SNAT", "--to-source", r.toSource)
 	err := cmd.Run()
 	if err != nil {
 		return err
@@ -188,7 +192,7 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 }
 
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
-	out, err := exec.Command(i.path, "--wait", "--list", "-t", "nat").Output()
+	out, err := exec.Command(i.path, "--wait", "--list", "FUSIS", "-t", "nat").Output()
 	if err != nil {
 		log.Fatal("[iptables] Error executing iptables ", err)
 	}

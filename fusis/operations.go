@@ -76,6 +76,15 @@ func (b *FusisBalancer) AddDestination(svc *types.Service, dst *types.Destinatio
 		}
 	}
 
+	// Set defaults
+	if dst.Weight == 0 {
+		dst.Weight = 1
+	}
+
+	if dst.Mode == "" {
+		dst.Mode = "nat"
+	}
+
 	//TODO: Configurate destination
 	// if err := b.setupDestination(svc, dst); err != nil {
 	// 	return errors.Wrap(err, "setup destination failed")

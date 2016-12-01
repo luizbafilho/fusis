@@ -3,63 +3,48 @@ package api
 import (
 	"os"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/gin-gonic/gin"
-	"github.com/luizbafilho/fusis/types"
-	"github.com/toorop/gin-logrus"
+	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
+	"github.com/luizbafilho/fusis/fusis"
 )
 
 // ApiService ...
 type ApiService struct {
-	*gin.Engine
-	balancer Balancer
+	echo     *echo.Echo
+	balancer fusis.Balancer
 	env      string
 }
 
-type Balancer interface {
-	GetServices() []types.Service
-	AddService(*types.Service) error
-	GetService(string) (*types.Service, error)
-	DeleteService(string) error
-
-	AddDestination(*types.Service, *types.Destination) error
-	GetDestination(string) (*types.Destination, error)
-	GetDestinations(svc *types.Service) []types.Destination
-	DeleteDestination(*types.Destination) error
-
-	AddCheck(check types.CheckSpec) error
-	DeleteCheck(check types.CheckSpec) error
-
-	IsLeader() bool
-}
-
 //NewAPI ...
-func NewAPI(balancer Balancer) ApiService {
-	gin.SetMode(gin.ReleaseMode)
+func NewAPI(balancer fusis.Balancer) ApiService {
 	as := ApiService{
-		Engine:   gin.New(),
+		echo:     echo.New(),
 		balancer: balancer,
-		env:      getEnv(),
 	}
 
-	as.registerLoggerAndRecovery()
+	as.registerMiddlewares()
 	as.registerRoutes()
 	return as
 }
 
-func (as ApiService) registerLoggerAndRecovery() {
-	as.Use(ginlogrus.Logger(log.StandardLogger()), gin.Recovery())
+func (as ApiService) registerMiddlewares() {
+	// Middlewares
+	as.echo.HTTPErrorHandler = CustomHTTPErrorHandler
+
+	as.echo.Use(middleware.Logger())
+	as.echo.Use(middleware.Recover())
 }
 
 func (as ApiService) registerRoutes() {
-	as.GET("/services", as.serviceList)
-	as.GET("/services/:service_name", as.serviceGet)
-	as.POST("/services", as.serviceCreate)
-	as.DELETE("/services/:service_name", as.serviceDelete)
-	as.POST("/services/:service_name/destinations", as.destinationCreate)
-	as.DELETE("/services/:service_name/destinations/:destination_name", as.destinationDelete)
-	as.POST("/services/:service_name/check", as.checkCreate)
-	as.DELETE("/services/:service_name/check", as.checkDelete)
+	// Routes
+	as.echo.GET("/services", as.getServices)
+	as.echo.GET("/services/:service_name", as.getService)
+	as.echo.POST("/services", as.addService)
+	as.echo.DELETE("/services/:service_name", as.deleteService)
+	as.echo.POST("/services/:service_name/destinations", as.addDestination)
+	as.echo.DELETE("/services/:service_name/destinations/:destination_name", as.deleteDestination)
+	as.echo.POST("/services/:service_name/check", as.addCheck)
+	as.echo.DELETE("/services/:service_name/check", as.deleteCheck)
 }
 
 // Serve starts the api.
@@ -78,14 +63,6 @@ func (as ApiService) Serve() {
 
 	address := host + ":" + port
 
-	log.Infof("Listening on %s", address)
-	as.Run(address)
-}
-
-func getEnv() string {
-	env := os.Getenv("FUSIS_ENV")
-	if env == "" {
-		env = "development"
-	}
-	return env
+	// Start server
+	as.echo.Logger.Fatal(as.echo.Start(address))
 }

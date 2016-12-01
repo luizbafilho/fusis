@@ -5,8 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/asaskevich/govalidator"
-	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo"
 	"github.com/luizbafilho/fusis/types"
 )
 
@@ -15,203 +14,101 @@ type ServiceResponse struct {
 	Destinations []types.Destination
 }
 
-func (as ApiService) serviceList(c *gin.Context) {
-	services := as.balancer.GetServices()
-	if len(services) == 0 {
-		c.Status(http.StatusNoContent)
-		return
-	}
-
-	response := []ServiceResponse{}
-	for _, s := range services {
-		response = append(response, ServiceResponse{
-			Service:      s,
-			Destinations: as.balancer.GetDestinations(&s),
-		})
-	}
-
-	c.JSON(http.StatusOK, response)
+func (as ApiService) getServices(c echo.Context) error {
+	return c.JSON(http.StatusOK, as.balancer.GetServices())
 }
 
-func (as ApiService) serviceGet(c *gin.Context) {
-	serviceId := c.Param("service_name")
-	service, err := as.balancer.GetService(serviceId)
+func (as ApiService) getService(c echo.Context) error {
+	service, err := as.balancer.GetService(c.Param("service_name"))
 	if err != nil {
-		c.Error(err)
-		if err == types.ErrServiceNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
-		}
-		return
+		return err
 	}
 
-	response := ServiceResponse{
-		Service:      *service,
-		Destinations: as.balancer.GetDestinations(service),
-	}
-
-	c.JSON(http.StatusOK, response)
+	return c.JSON(http.StatusOK, service)
 }
 
-func (as ApiService) serviceCreate(c *gin.Context) {
+func (as ApiService) addService(c echo.Context) error {
 	var newService types.Service
-	if err := c.BindJSON(&newService); err != nil {
-		c.Error(err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	if err := c.Bind(&newService); err != nil {
+		return err
 	}
 
-	err := as.balancer.AddService(&newService)
-	if err != nil {
-		c.Error(err)
-		if err == types.ErrServiceConflict {
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("UpsertService() failed: %v", err)})
-		}
-		return
+	if err := as.balancer.AddService(&newService); err != nil {
+		return err
 	}
 
-	c.Header("Location", fmt.Sprintf("/services/%s", newService.Name))
-	c.JSON(http.StatusCreated, newService)
+	c.Response().Header().Add("Location", "/services/"+newService.Name)
+	return c.JSON(http.StatusCreated, newService)
 }
 
-func (as ApiService) serviceDelete(c *gin.Context) {
-	serviceId := c.Param("service_name")
-	_, err := as.balancer.GetService(serviceId)
-	if err != nil {
-		c.Error(err)
-		if err == types.ErrServiceNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
-		}
-		return
+func (as ApiService) deleteService(c echo.Context) error {
+	if err := as.balancer.DeleteService(c.Param("service_name")); err != nil {
+		return err
 	}
 
-	err = as.balancer.DeleteService(serviceId)
-	if err != nil {
-		c.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteService() failed: %v\n", err)})
-		return
-	}
-
-	c.Status(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }
 
-func (as ApiService) destinationCreate(c *gin.Context) {
-	serviceName := c.Param("service_name")
-	service, err := as.balancer.GetService(serviceName)
+func (as ApiService) addDestination(c echo.Context) error {
+	svc, err := as.balancer.GetService(c.Param("service_name"))
 	if err != nil {
-		c.Error(err)
-		if err == types.ErrServiceNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
-		}
-		return
+		return err
 	}
 
-	var destination *types.Destination
-	if err := c.BindJSON(&destination); err != nil {
-		c.Error(err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	destination.ServiceId = serviceName
-	if destination.Weight == 0 {
-		destination.Weight = 1
-	}
-	if destination.Mode == "" {
-		destination.Mode = "route"
+	dst := &types.Destination{ServiceId: svc.GetId()}
+	if err := c.Bind(dst); err != nil {
+		return err
 	}
 
-	if _, errs := govalidator.ValidateStruct(destination); errs != nil {
-		c.Error(errs)
-		c.JSON(http.StatusBadRequest, gin.H{"errors": govalidator.ErrorsByField(errs)})
-		return
+	if err := as.balancer.AddDestination(svc, dst); err != nil {
+		return err
 	}
 
-	err = as.balancer.AddDestination(service, destination)
-	if err != nil {
-		c.Error(err)
-		if err == types.ErrDestinationConflict {
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("AddDestination() failed: %v", err)})
-		}
-		return
-	}
-
-	c.Header("Location", fmt.Sprintf("/services/%s/destinations/%s", serviceName, destination.Name))
-	c.JSON(http.StatusCreated, destination)
+	c.Response().Header().Add("Location", fmt.Sprintf("/services/%s/destinations/%s", svc.GetId(), dst.Name))
+	return c.JSON(http.StatusCreated, dst)
 }
 
-func (as ApiService) destinationDelete(c *gin.Context) {
-	destinationId := c.Param("destination_name")
-	dst, err := as.balancer.GetDestination(destinationId)
+func (as ApiService) deleteDestination(c echo.Context) error {
+	dst, err := as.balancer.GetDestination(c.Param("destination_name"))
 	if err != nil {
-		c.Error(err)
-		if _, ok := err.(types.ErrNotFound); ok {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetDestination() failed: %v", err)})
-		}
-		return
+		return err
 	}
 
-	err = as.balancer.DeleteDestination(dst)
-	if err != nil {
-		c.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteDestination() failed: %v", err)})
+	if err := as.balancer.DeleteDestination(dst); err != nil {
+		return err
 	}
 
-	c.Status(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }
 
-func (as ApiService) checkCreate(c *gin.Context) {
+func (as ApiService) addCheck(c echo.Context) error {
 	var check types.CheckSpec
-	if err := c.BindJSON(&check); err != nil {
-		c.Error(err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	if err := c.Bind(&check); err != nil {
+		return err
 	}
 
-	serviceName := c.Param("service_name")
-	check.ServiceID = serviceName
+	check.ServiceID = c.Param("service_name")
+
+	// Converting int to time.Duration
 	check.Interval = check.Interval * time.Second
 	check.Timeout = check.Timeout * time.Second
 
-	err := as.balancer.AddCheck(check)
-	if err != nil {
-		c.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetCheck() failed: %v", err)})
-		return
+	if err := as.balancer.AddCheck(check); err != nil {
+		return err
 	}
 
-	c.Status(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }
 
-func (as ApiService) checkDelete(c *gin.Context) {
-	serviceId := c.Param("service_name")
-	_, err := as.balancer.GetService(serviceId)
-	if err != nil {
-		c.Error(err)
-		if err == types.ErrServiceNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("GetService() failed: %v", err)})
-		}
-		return
+func (as ApiService) deleteCheck(c echo.Context) error {
+	svcId := c.Param("service_name")
+	if _, err := as.balancer.GetService(svcId); err != nil {
+		return err
 	}
 
-	err = as.balancer.DeleteCheck(types.CheckSpec{ServiceID: serviceId})
-	if err != nil {
-		c.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("DeleteCheck() failed: %v", err)})
-		return
+	if err := as.balancer.DeleteCheck(types.CheckSpec{ServiceID: svcId}); err != nil {
+		return err
 	}
 
-	c.Status(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }

@@ -20,6 +20,7 @@ import (
 var (
 	ErrIptablesNotFound = errors.New("[iptables] Binary not found")
 	ErrIptablesSnat     = errors.New("[iptables] Error when inserting SNAT rule")
+	ErrIptablesRule     = errors.New("[iptables] Error adding rule")
 )
 
 // Defines iptables actions
@@ -51,8 +52,18 @@ func New(config *config.BalancerConfig) (*IptablesMngr, error) {
 		return nil, ErrIptablesNotFound
 	}
 
-	// create iptables chain
+	// create FUSIS iptables chain, ignore error in case FUSIS chain already exists
 	_ = exec.Command(path, "--wait", "-t", "nat", "-N", "FUSIS").Run()
+
+	// if FUSIS chain is not present in POSTROUTING
+	err = exec.Command(path, "--wait", "-t", "nat", "-C", "POSTROUTING", "-j", "FUSIS").Run()
+	if err != nil {
+		// add FUSIS chain
+		err = exec.Command(path, "--wait", "-t", "nat", "-A", "POSTROUTING", "-j", "FUSIS").Run()
+		if err != nil {
+			return nil, ErrIptablesRule
+		}
+	}
 
 	return &IptablesMngr{
 		config: config,

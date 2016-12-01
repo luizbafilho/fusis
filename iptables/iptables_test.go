@@ -21,6 +21,9 @@ func TestNew(t *testing.T) {
 	path, err := exec.LookPath("iptables")
 	assert.Nil(t, err)
 
+	// remove fusis chain from POSTROUTING, ignore if fusis chain is not there
+	_ = exec.Command(path, "--wait", "-t", "nat", "-D", "POSTROUTING", "-j", "FUSIS").Run()
+
 	// check if FUSIS chain exists
 	err = exec.Command(path, "--wait", "-t", "nat", "-L", "FUSIS").Run()
 	// if FUSIS chain exists
@@ -28,7 +31,7 @@ func TestNew(t *testing.T) {
 		// ensure fusis chain is empty
 		err = exec.Command(path, "--wait", "-t", "nat", "-F", "FUSIS").Run()
 		assert.Nil(t, err)
-		// remove fusis chain
+		// delete fusis chain
 		err = exec.Command(path, "--wait", "-t", "nat", "-X", "FUSIS").Run()
 		assert.Nil(t, err)
 	}
@@ -39,6 +42,10 @@ func TestNew(t *testing.T) {
 
 	// check if FUSIS chain exists
 	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-L", "FUSIS").Run()
+	assert.Nil(t, err)
+
+	// check if FUSIS chain is present in POSTROUTING
+	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-C", "POSTROUTING", "-j", "FUSIS").Run()
 	assert.Nil(t, err)
 }
 
@@ -129,7 +136,7 @@ func TestAddRule(t *testing.T) {
 	// call iptables to add rule
 	iptablesMngr.addRule(rule)
 
-	// check using iptables
+	// check if rule was added
 	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-C", "FUSIS", "-m", "ipvs", "--vaddr", "10.0.1.1/32", "--vport", "80", "-j", "SNAT", "--to-source", toSource).Run()
 	assert.Nil(t, err)
 }

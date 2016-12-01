@@ -20,6 +20,10 @@ This project it's under heavy development, it's not usable yet, but you can **St
 ## Quick Start
 WIP
 
+## Documentation
+
+[View documentation →](http://luizbafilho.github.io/fusis/)
+
 ## Developing
 
 ### VM setup with Vagrant

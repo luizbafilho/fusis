@@ -48,6 +48,14 @@ func TestIptablesSync(t *testing.T) {
 		t.Skip("Skipping test because travis-ci do not allow iptables")
 	}
 
+	// create iptablesMngr based on mocked config
+	iptablesMngr, err := New(defaultConfig())
+	assert.Nil(t, err)
+
+	// ensure the FUSIS chain is empty, flushed
+	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-F", "FUSIS").Run()
+	assert.Nil(t, err)
+
 	s1 := types.Service{
 		Name:     "test",
 		Address:  "10.0.1.1",
@@ -81,9 +89,6 @@ func TestIptablesSync(t *testing.T) {
 		toSource: toSource,
 	}
 
-	iptablesMngr, err := New(defaultConfig())
-	assert.Nil(t, err)
-
 	err = iptablesMngr.addRule(rule2)
 	assert.Nil(t, err)
 	err = iptablesMngr.addRule(rule3)
@@ -99,8 +104,6 @@ func TestIptablesSync(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, rules.Contains(rule2, *rule1), true)
-
-	cleanupRules(t, iptablesMngr)
 }
 
 func TestAddRule(t *testing.T) {
@@ -108,8 +111,6 @@ func TestAddRule(t *testing.T) {
 	iptablesMngr, err := New(defaultConfig())
 	assert.Nil(t, err)
 
-	// ensure there is a FUSIS chain, we don't care about the return code
-	_ = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-N", "FUSIS").Run()
 	// ensure the FUSIS chain is empty, flushed
 	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-F", "FUSIS").Run()
 	assert.Nil(t, err)
@@ -138,8 +139,6 @@ func TestRemoveRule(t *testing.T) {
 	iptablesMngr, err := New(defaultConfig())
 	assert.Nil(t, err)
 
-	// ensure there is a FUSIS chain, we don't care about the return code
-	_ = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-N", "FUSIS").Run()
 	// ensure the FUSIS chain is empty, flushed
 	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-F", "FUSIS").Run()
 	assert.Nil(t, err)
@@ -168,7 +167,7 @@ func TestRemoveRule(t *testing.T) {
 }
 
 func TestServiceToSnatRule(t *testing.T) {
-	// crete iptablesMngr from mocked config
+	// create iptablesMngr from mocked config
 	iptablesMngr, err := New(defaultConfig())
 	assert.Nil(t, err)
 
@@ -206,8 +205,6 @@ func TestGetSnatRules(t *testing.T) {
 	iptablesMngr, err := New(defaultConfig())
 	assert.Nil(t, err)
 
-	// ensure there is a FUSIS chain, we don't care about the return code
-	_ = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-N", "FUSIS").Run()
 	// ensure the FUSIS chain is empty, flushed
 	err = exec.Command(iptablesMngr.path, "--wait", "-t", "nat", "-F", "FUSIS").Run()
 	assert.Nil(t, err)
@@ -234,17 +231,6 @@ func TestGetSnatRules(t *testing.T) {
 		},
 		kernelRules,
 	)
-}
-
-/** get iptables rules and removes them */
-func cleanupRules(t *testing.T, iptablesMngr *IptablesMngr) {
-	rules, err := iptablesMngr.getSnatRules()
-	assert.Nil(t, err)
-
-	for _, r := range rules {
-		err := iptablesMngr.removeRule(r)
-		assert.Nil(t, err)
-	}
 }
 
 /** mocks the config.BalencerConfig */

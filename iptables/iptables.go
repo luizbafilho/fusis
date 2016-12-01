@@ -11,15 +11,16 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
-	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/state"
+	"github.com/luizbafilho/fusis/types"
 )
 
 var (
 	ErrIptablesNotFound = errors.New("[iptables] Binary not found")
 	ErrIptablesSnat     = errors.New("[iptables] Error when inserting SNAT rule")
+	ErrIptablesRule     = errors.New("[iptables] Error adding rule")
 )
 
 // Defines iptables actions
@@ -45,9 +46,23 @@ type SnatRule struct {
 }
 
 func New(config *config.BalancerConfig) (*IptablesMngr, error) {
+	// look for iptables
 	path, err := exec.LookPath("iptables")
 	if err != nil {
 		return nil, ErrIptablesNotFound
+	}
+
+	// create FUSIS iptables chain, ignore error in case FUSIS chain already exists
+	_ = exec.Command(path, "--wait", "-t", "nat", "-N", "FUSIS").Run()
+
+	// if FUSIS chain is not present in POSTROUTING
+	err = exec.Command(path, "--wait", "-t", "nat", "-C", "POSTROUTING", "-j", "FUSIS").Run()
+	if err != nil {
+		// add FUSIS chain
+		err = exec.Command(path, "--wait", "-t", "nat", "-A", "POSTROUTING", "-j", "FUSIS").Run()
+		if err != nil {
+			return nil, ErrIptablesRule
+		}
 	}
 
 	return &IptablesMngr{
@@ -178,7 +193,7 @@ func (i IptablesMngr) removeRule(r SnatRule) error {
 }
 
 func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
-	cmd := exec.Command(i.path, "--wait", "-t", "nat", action, "POSTROUTING", "-m", "ipvs", "--vaddr", r.vaddr+"/32", "--vport", r.vport, "-j", "SNAT", "--to-source", r.toSource)
+	cmd := exec.Command(i.path, "--wait", "-t", "nat", action, "FUSIS", "-m", "ipvs", "--vaddr", r.vaddr+"/32", "--vport", r.vport, "-j", "SNAT", "--to-source", r.toSource)
 	err := cmd.Run()
 	if err != nil {
 		return err
@@ -188,9 +203,9 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 }
 
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
-	out, err := exec.Command(i.path, "--wait", "--list", "-t", "nat").Output()
+	out, err := exec.Command(i.path, "--wait", "--list", "FUSIS", "-t", "nat").Output()
 	if err != nil {
-		log.Fatal("[iptables] Error executing iptables", err)
+		log.Fatal("[iptables] Error executing iptables ", err)
 	}
 
 	r, _ := regexp.Compile(`vaddr\s([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\svport\s(\d+)\sto:([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})`)

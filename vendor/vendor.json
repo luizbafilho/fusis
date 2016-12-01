@@ -69,6 +69,12 @@
 			"revisionTime": "2016-07-27T17:05:31Z"
 		},
 		{
+			"checksumSHA1": "2Fy1Y6Z3lRRX1891WF/+HT4XS2I=",
+			"path": "github.com/dgrijalva/jwt-go",
+			"revision": "9ed569b5d1ac936e6494082958d63a6aa4fff99a",
+			"revisionTime": "2016-11-01T19:39:35Z"
+		},
+		{
 			"checksumSHA1": "lRcdtA34YL5pR++s6R4gPO3XWgo=",
 			"path": "github.com/docker/leadership",
 			"revision": "0a913e2d71a12fd14a028452435cb71ac8d82cb6",
@@ -298,6 +304,42 @@
 			"revisionTime": "2015-09-05T22:45:08Z"
 		},
 		{
+			"checksumSHA1": "m02RwpidKzqUtOW0Ov4G9kZN55w=",
+			"path": "github.com/labstack/echo",
+			"revision": "73110004efe2b93b1335bf751064acbab4634f65",
+			"revisionTime": "2016-11-29T04:30:42Z"
+		},
+		{
+			"checksumSHA1": "oNQ9DfXQgvBwmcGr2iAE5YW06YY=",
+			"path": "github.com/labstack/echo/middleware",
+			"revision": "73110004efe2b93b1335bf751064acbab4634f65",
+			"revisionTime": "2016-11-29T04:30:42Z"
+		},
+		{
+			"checksumSHA1": "NvfQq6Y6kh9cMw+y1m00ivEd5b4=",
+			"path": "github.com/labstack/gommon/bytes",
+			"revision": "9a43ff0d261e0e65594422e9eee08cf301aabbe7",
+			"revisionTime": "2016-11-17T19:57:36Z"
+		},
+		{
+			"checksumSHA1": "R6DzcBLEP0BONPpsyr+11N7xh5w=",
+			"path": "github.com/labstack/gommon/color",
+			"revision": "9a43ff0d261e0e65594422e9eee08cf301aabbe7",
+			"revisionTime": "2016-11-17T19:57:36Z"
+		},
+		{
+			"checksumSHA1": "E/VxZG1doV3Nf5jUygXtru2vP6g=",
+			"path": "github.com/labstack/gommon/log",
+			"revision": "9a43ff0d261e0e65594422e9eee08cf301aabbe7",
+			"revisionTime": "2016-11-17T19:57:36Z"
+		},
+		{
+			"checksumSHA1": "XvsHo25Kr69E5xxTDatXzCQc6sI=",
+			"path": "github.com/labstack/gommon/random",
+			"revision": "9a43ff0d261e0e65594422e9eee08cf301aabbe7",
+			"revisionTime": "2016-11-17T19:57:36Z"
+		},
+		{
 			"checksumSHA1": "5DjDszpiK6TYG8p4kmB4JlddTrw=",
 			"path": "github.com/luizbafilho/fusis",
 			"revision": "d1b90313a563541dadff967eb598bf70099de314",
@@ -320,6 +362,18 @@
 			"path": "github.com/manucorporat/sse",
 			"revision": "ee05b128a739a0fb76c7ebd3ae4810c1de808d6d",
 			"revisionTime": "2016-01-26T18:01:36Z"
+		},
+		{
+			"checksumSHA1": "I4njd26dG5hxFT2nawuByM4pxzY=",
+			"path": "github.com/mattn/go-colorable",
+			"revision": "d228849504861217f796da67fae4f6e347643f15",
+			"revisionTime": "2016-11-03T16:00:40Z"
+		},
+		{
+			"checksumSHA1": "xZuhljnmBysJPta/lMyYmJdujCg=",
+			"path": "github.com/mattn/go-isatty",
+			"revision": "30a891c33c7cde7b02a981314b4228ec99380cca",
+			"revisionTime": "2016-11-23T14:36:37Z"
 		},
 		{
 			"checksumSHA1": "lJetLsOX0Tc2+7mcNYX54K6B/5Y=",
@@ -500,6 +554,12 @@
 			"path": "github.com/ugorji/go/codec",
 			"revision": "faddd6128c66c4708f45fdc007f575f75e592a3c",
 			"revisionTime": "2016-09-28T01:52:44Z"
+		},
+		{
+			"checksumSHA1": "PQy6kV2rK5B3qtCRpANzgRQPnFs=",
+			"path": "github.com/valyala/fasttemplate",
+			"revision": "3b874956e03f1636d171bda64b130f9135f42cff",
+			"revisionTime": "2016-03-15T19:31:34Z"
 		},
 		{
 			"checksumSHA1": "g7HSA4wqCyly/k3fa3gx5PQWry4=",

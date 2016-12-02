@@ -242,7 +242,7 @@ func (b *FusisBalancer) IsLeader() bool {
 }
 
 func (b *FusisBalancer) watchLeaderChanges() {
-	candidate := leadership.NewCandidate(b.store.GetKV(), "fusis/leader", b.config.Name, 20*time.Second)
+	candidate := leadership.NewCandidate(b.store.GetKV(), b.config.StorePrefix+"/leader", b.config.Name, 20*time.Second)
 	b.candidate = candidate
 
 	electedCh, _ := b.candidate.RunForElection()
@@ -261,7 +261,7 @@ func (b *FusisBalancer) watchLeaderChanges() {
 			}
 
 			if err := b.sendGratuitousARPReply(); err != nil {
-				log.Errorf("Error sending Gratuitous ARP Reply")
+				log.Errorf(errors.Wrap(err, "Error sending Gratuitous ARP Reply").Error())
 			}
 		} else {
 			log.Println("Lost the election, let's try another time")
@@ -276,6 +276,22 @@ func (b *FusisBalancer) sendGratuitousARPReply() error {
 			return err
 		}
 	}
+
+	return nil
+}
+
+// Utility method to cleanup state for tests
+func (b *FusisBalancer) cleanup() error {
+	for _, svc := range b.GetServices() {
+		b.state.DeleteService(&svc)
+
+		for _, dst := range b.GetDestinations(&svc) {
+			b.state.DeleteDestination(&dst)
+		}
+	}
+
+	kv := b.store.GetKV()
+	kv.DeleteTree(b.config.StorePrefix)
 
 	return nil
 }

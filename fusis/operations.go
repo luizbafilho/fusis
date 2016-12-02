@@ -59,6 +59,14 @@ func (b *FusisBalancer) GetDestination(name string) (*types.Destination, error) 
 }
 
 func (b *FusisBalancer) AddDestination(svc *types.Service, dst *types.Destination) error {
+	// Set defaults
+	if dst.Weight == 0 {
+		dst.Weight = 1
+	}
+	if dst.Mode == "" {
+		dst.Mode = "nat"
+	}
+
 	// Validating destination
 	if err := b.validateDestination(dst); err != nil {
 		return err
@@ -74,15 +82,6 @@ func (b *FusisBalancer) AddDestination(svc *types.Service, dst *types.Destinatio
 		if dst.Equal(existDst) {
 			return types.ErrDestinationConflict
 		}
-	}
-
-	// Set defaults
-	if dst.Weight == 0 {
-		dst.Weight = 1
-	}
-
-	if dst.Mode == "" {
-		dst.Mode = "nat"
 	}
 
 	//TODO: Configurate destination

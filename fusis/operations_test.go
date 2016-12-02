@@ -135,6 +135,61 @@ func (s *OperationsTestSuite) TestDeleteService() {
 	assert.Equal(s.T(), err, types.ErrServiceNotFound)
 }
 
+func (s *OperationsTestSuite) TestAddDestination() {
+	err := s.balancer.AddService(&s.service)
+	assert.Nil(s.T(), err)
+
+	err = s.balancer.AddDestination(&s.service, &s.destination)
+	assert.Nil(s.T(), err)
+	time.Sleep(500 * time.Millisecond)
+
+	assert.Equal(s.T(), []types.Destination{s.destination}, s.balancer.GetDestinations(&s.service))
+
+	//Asserting struct validation
+	err = s.balancer.AddDestination(&s.service, &types.Destination{})
+	errValidation := types.ErrValidation{
+		Type: "destination",
+		Errors: map[string]string{
+			"Name":      "field is required",
+			"Address":   "field is required",
+			"Port":      "field field must be greater than 1",
+			"ServiceId": "field is required",
+		},
+	}
+	assert.Equal(s.T(), errValidation, err)
+
+	// Asserting conflict
+	err = s.balancer.AddDestination(&s.service, &s.destination)
+	assert.Equal(s.T(), types.ErrDestinationConflict, err)
+
+	//Asserting default
+	dst := &types.Destination{}
+	_ = s.balancer.AddDestination(&s.service, dst)
+	assert.Equal(s.T(), "nat", dst.Mode)
+	assert.Equal(s.T(), int32(1), dst.Weight)
+}
+
+func (s *OperationsTestSuite) TestDeleteDestination() {
+	err := s.balancer.AddService(&s.service)
+	assert.Nil(s.T(), err)
+
+	err = s.balancer.AddDestination(&s.service, &s.destination)
+	assert.Nil(s.T(), err)
+	time.Sleep(500 * time.Millisecond)
+
+	err = s.balancer.DeleteDestination(&s.destination)
+	time.Sleep(500 * time.Millisecond)
+	assert.Nil(s.T(), err)
+	assert.Len(s.T(), s.balancer.GetDestinations(&s.service), 0)
+
+	// Asserting service not found
+	err = s.balancer.DeleteDestination(&types.Destination{})
+	assert.Equal(s.T(), err, types.ErrServiceNotFound)
+
+	err = s.balancer.DeleteDestination(&types.Destination{ServiceId: s.service.GetId()})
+	assert.Equal(s.T(), err, types.ErrDestinationNotFound)
+}
+
 func defaultConfig() *config.BalancerConfig {
 	return &config.BalancerConfig{
 		StoreAddress: "consul://localhost:8500",

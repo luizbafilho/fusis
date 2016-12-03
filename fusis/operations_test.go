@@ -195,8 +195,12 @@ func (s *OperationsTestSuite) TestDeleteDestination() {
 }
 
 func defaultConfig() *config.BalancerConfig {
+	address := os.Getenv("STORE_ADDRESS")
+	if address == "" {
+		address = "consul://localhost:8500"
+	}
 	return &config.BalancerConfig{
-		StoreAddress: "consul://localhost:8500",
+		StoreAddress: address,
 		StorePrefix:  "fusis-dev",
 		Interfaces: config.Interfaces{
 			Inbound:  "lo",

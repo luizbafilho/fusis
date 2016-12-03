@@ -11,7 +11,7 @@ before_install:
 before_script:
   - sudo modprobe ip_vs
 script:
-  - ./consul agent -dev &
+  - ./consul agent -dev --log-level err &
   - make ci
 after_success:
   - bash <(curl -s https://codecov.io/bash)

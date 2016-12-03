@@ -16,7 +16,7 @@ Vagrant.configure(2) do |config|
   config.vm.network "private_network", ip: "192.168.33.10"
 
   config.vm.synced_folder File.dirname(__FILE__),
-    "/home/vagrant/go/src/github.com/luizbafilho/fusis",
+    "/home/vagrant/gocode/src/github.com/luizbafilho/fusis",
     type: "nfs"
 
   config.vm.provider "vmware_fusion" do |provider, override|

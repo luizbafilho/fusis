@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"net"
 	"net/url"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	kv "github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/consul"
 	"github.com/docker/libkv/store/etcd"
+	"github.com/k0kubun/pp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/pkg/errors"
@@ -73,12 +75,20 @@ func New(config *config.BalancerConfig) (Store, error) {
 		return nil, ErrUnsupportedStore
 	}
 
+	//Validating open connection
+	_, err = net.Dial("tcp", u.Host)
+	if err != nil {
+		return nil, errors.Wrap(err, "Store connection failed. Make sure your store is up and running.")
+	}
+
+	pp.Println(scheme, u.Host)
 	kv, err := libkv.NewStore(
 		kv.Backend(scheme),
 		[]string{u.Host},
 		nil,
 	)
 	if err != nil {
+		kv.Close()
 		return nil, errors.Wrap(err, "Cannot create store consul")
 	}
 

@@ -1,7 +1,7 @@
 language: go
 sudo: true
 go:
-  - 1.6
+  - 1.7.3
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential ipvsadm iptables
@@ -11,7 +11,7 @@ before_install:
 before_script:
   - sudo modprobe ip_vs
 script:
-  - consul agent -dev &
+  - ./consul agent -dev &
   - make ci
 after_success:
   - bash <(curl -s https://codecov.io/bash)

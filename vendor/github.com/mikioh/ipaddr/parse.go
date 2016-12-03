@@ -14,10 +14,10 @@ import (
 //
 // Examples:
 //
-//	Parse("192.168.0.1")
+//	Parse("192.0.2.1")
 //	Parse("2001:db8::1/128")
-//	Parse("172.16.0.0/16")
-//	Parse("192.168.0.1,2001:db8::1/128,172.16.0.0/16")
+//	Parse("203.0.113.0/24")
+//	Parse("192.0.2.1,2001:db8::1/128,203.0.113.0/24")
 func Parse(s string) (*Cursor, error) {
 	poss, ps, err := parseMulti(s)
 	if err != nil {
@@ -68,6 +68,5 @@ func parse(s string) (*Position, *Prefix, error) {
 		m = net.CIDRMask(IPv6PrefixLen, IPv6PrefixLen)
 	}
 	p := NewPrefix(&net.IPNet{IP: ip, Mask: m})
-	pos := Position{IP: ip, Prefix: *p}
-	return &pos, p, nil
+	return &Position{IP: ip, Prefix: *p}, p, nil
 }

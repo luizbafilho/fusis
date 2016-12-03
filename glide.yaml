@@ -1,0 +1,54 @@
+package: github.com/luizbafilho/fusis
+import:
+- package: golang.org/x/net
+  version: 6cdc0daab091c43fc46193327e0047b4f883c613
+- package: github.com/Sirupsen/logrus
+  version: ^0.11.0
+- package: github.com/deckarep/golang-set
+  version: ^1.5.0
+- package: github.com/docker/libkv
+  version: ^0.2.1
+  subpackages:
+  - store
+  - store/consul
+  - store/etcd
+- package: github.com/fatih/structs
+- package: github.com/google/seesaw
+  subpackages:
+  - ipvs
+- package: github.com/hashicorp/logutils
+- package: github.com/hashicorp/serf
+  version: ^0.8.0
+  subpackages:
+  - serf
+- package: github.com/labstack/echo
+  version: ^3.0.3
+  subpackages:
+  - middleware
+- package: github.com/luizbafilho/leadership
+  version: ^0.1.0
+- package: github.com/mdlayher/arp
+- package: github.com/mikioh/ipaddr
+- package: github.com/osrg/gobgp
+  version: 4ecf30f884ae7578ef3ce1a34510d9dd02c6e2bf
+  subpackages:
+  - config
+  - packet/bgp
+  - server
+  - table
+- package: github.com/pkg/errors
+  version: ^0.8.0
+- package: github.com/spf13/cobra
+- package: github.com/spf13/viper
+- package: github.com/stretchr/testify
+  version: ^1.1.4
+  subpackages:
+  - mock
+- package: github.com/vishvananda/netlink
+- package: gopkg.in/go-playground/validator.v9
+  version: ^9.3.0
+testImport:
+- package: github.com/appleboy/gofight
+  version: ^2.0.0
+- package: gopkg.in/check.v1
+

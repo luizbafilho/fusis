@@ -72,10 +72,8 @@ type Writer struct {
 	handle  syscall.Handle
 	lastbuf bytes.Buffer
 	oldattr word
-	oldpos  coord
 }
 
-// NewColorable return new instance of Writer which handle escape sequence from File.
 func NewColorable(file *os.File) io.Writer {
 	if file == nil {
 		panic("nil passed instead of *os.File to NewColorable()")
@@ -85,18 +83,16 @@ func NewColorable(file *os.File) io.Writer {
 		var csbi consoleScreenBufferInfo
 		handle := syscall.Handle(file.Fd())
 		procGetConsoleScreenBufferInfo.Call(uintptr(handle), uintptr(unsafe.Pointer(&csbi)))
-		return &Writer{out: file, handle: handle, oldattr: csbi.attributes, oldpos: coord{0, 0}}
+		return &Writer{out: file, handle: handle, oldattr: csbi.attributes}
 	} else {
 		return file
 	}
 }
 
-// NewColorableStdout return new instance of Writer which handle escape sequence for stdout.
 func NewColorableStdout() io.Writer {
 	return NewColorable(os.Stdout)
 }
 
-// NewColorableStderr return new instance of Writer which handle escape sequence for stderr.
 func NewColorableStderr() io.Writer {
 	return NewColorable(os.Stderr)
 }
@@ -360,7 +356,6 @@ var color256 = map[int]int{
 	255: 0xeeeeee,
 }
 
-// Write write data on console
 func (w *Writer) Write(data []byte) (n int, err error) {
 	var csbi consoleScreenBufferInfo
 	procGetConsoleScreenBufferInfo.Call(uintptr(w.handle), uintptr(unsafe.Pointer(&csbi)))
@@ -649,11 +644,6 @@ loop:
 				ci.visible = 0
 				procSetConsoleCursorInfo.Call(uintptr(w.handle), uintptr(unsafe.Pointer(&ci)))
 			}
-		case 's':
-			procGetConsoleScreenBufferInfo.Call(uintptr(w.handle), uintptr(unsafe.Pointer(&csbi)))
-			w.oldpos = csbi.cursorPosition
-		case 'u':
-			procSetConsoleCursorPosition.Call(uintptr(w.handle), *(*uintptr)(unsafe.Pointer(&w.oldpos)))
 		}
 	}
 	return len(data) - w.lastbuf.Len(), nil

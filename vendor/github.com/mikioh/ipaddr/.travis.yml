@@ -1,0 +1,18 @@
+language: go
+
+os:
+- linux
+- osx
+
+go:
+- 1.5.4
+- 1.6.4
+- 1.7.4
+- tip
+
+script:
+- go test -v -race
+- go test -v -run=none -bench=. -benchmem
+
+notifications:
+  email: false

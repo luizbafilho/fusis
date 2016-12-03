@@ -13,9 +13,8 @@ import (
 // prefixes.
 type Cursor struct {
 	curr, start, end ipv6Int
-
-	pi int
-	ps []Prefix
+	pi               int
+	ps               []Prefix
 }
 
 func (c *Cursor) set(pi int, ip net.IP) {
@@ -40,7 +39,7 @@ func (c *Cursor) Last() *Position {
 	return &Position{IP: c.ps[len(c.ps)-1].Last(), Prefix: c.ps[len(c.ps)-1]}
 }
 
-// List returns a list of prefixes on the cursor c.
+// List returns the list of prefixes on the cursor c.
 func (c *Cursor) List() []Prefix {
 	return c.ps
 }
@@ -100,7 +99,7 @@ func (c *Cursor) Prev() *Position {
 // Reset resets all state and switches the prefixes to ps.
 // It uses the existing prefixes when ps is nil.
 func (c *Cursor) Reset(ps []Prefix) {
-	ps = sortAndDedup(ps, false)
+	ps = newSortedPrefixes(ps, sortAscending, false)
 	if len(ps) > 0 {
 		c.ps = ps
 	}
@@ -128,11 +127,11 @@ func (c *Cursor) Set(pos *Position) error {
 
 // NewCursor returns a new cursor.
 func NewCursor(ps []Prefix) *Cursor {
-	ps = sortAndDedup(ps, false)
+	ps = newSortedPrefixes(ps, sortAscending, false)
 	if len(ps) == 0 {
 		return nil
 	}
-	c := Cursor{ps: ps}
+	c := &Cursor{ps: ps}
 	c.set(0, c.ps[0].IP.To16())
-	return &c
+	return c
 }

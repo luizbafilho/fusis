@@ -6,14 +6,14 @@ import (
 
 	"github.com/hashicorp/logutils"
 
-	"gopkg.in/go-playground/validator.v8"
+	"gopkg.in/go-playground/validator.v9"
 )
 
 var validate *validator.Validate
 
 func init() {
-	config := &validator.Config{TagName: "validate"}
-	validate = validator.New(config)
+	// config := &validator.Config{TagName: "validate"}
+	validate = validator.New()
 }
 
 //Validater validates a config

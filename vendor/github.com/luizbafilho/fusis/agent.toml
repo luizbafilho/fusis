@@ -1,5 +1,0 @@
-
-balancer = "192.168.151.182:7940"
-port = 80
-service = "filmes"
-mode = "nat"

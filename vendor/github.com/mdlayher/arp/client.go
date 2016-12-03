@@ -73,6 +73,10 @@ func (c *Client) Close() error {
 // hardware address, Request allows sending many requests in a row,
 // retrieving the responses afterwards.
 func (c *Client) Request(ip net.IP) error {
+	if c.ip == nil {
+		return errNoIPv4Addr
+	}
+
 	// Create ARP packet for broadcast address to attempt to find the
 	// hardware address of the input IP address
 	arp, err := NewPacket(OperationRequest, c.ifi.HardwareAddr, c.ip, ethernet.Broadcast, ip)
@@ -201,6 +205,12 @@ func (c *Client) SetWriteDeadline(t time.Time) error {
 	return c.p.SetWriteDeadline(t)
 }
 
+// HardwareAddr fetches the hardware address for the interface associated
+// with the connection.
+func (c Client) HardwareAddr() net.HardwareAddr {
+	return c.ifi.HardwareAddr
+}
+
 // firstIPv4Addr attempts to retrieve the first detected IPv4 address from an
 // input slice of network addresses.
 func firstIPv4Addr(addrs []net.Addr) (net.IP, error) {
@@ -221,5 +231,5 @@ func firstIPv4Addr(addrs []net.Addr) (net.IP, error) {
 		}
 	}
 
-	return nil, errNoIPv4Addr
+	return nil, nil
 }

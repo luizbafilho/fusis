@@ -19,36 +19,59 @@ var cursorFirstLastIPTests = []struct {
 }{
 	// IPv4 prefixes
 	{
-		toPrefixes([]string{"0.0.0.0/0", "255.255.255.255/32"}),
-		net.ParseIP("0.0.0.0"), net.ParseIP("255.255.255.255"),
+		toPrefixes([]string{
+			"0.0.0.0/0",
+			"255.255.255.255/32",
+		}),
+		net.ParseIP("0.0.0.0"),
+		net.ParseIP("255.255.255.255"),
 	},
 	{
-		toPrefixes([]string{"192.168.0.0/32", "192.168.0.1/32", "192.168.0.2/32", "192.168.0.3/32", "192.168.4.0/24", "192.168.0.0/32", "192.168.0.1/32"}),
-		net.ParseIP("192.168.0.0"), net.ParseIP("192.168.4.255"),
+		toPrefixes([]string{
+			"192.168.0.0/32", "192.168.0.1/32", "192.168.0.2/32", "192.168.0.3/32",
+			"192.168.4.0/24", "192.168.0.0/32", "192.168.0.1/32",
+		}),
+		net.ParseIP("192.168.0.0"),
+		net.ParseIP("192.168.4.255"),
 	},
 	{
 		toPrefixes([]string{"192.168.0.1/32"}),
-		net.ParseIP("192.168.0.1"), net.ParseIP("192.168.0.1"),
+		net.ParseIP("192.168.0.1"),
+		net.ParseIP("192.168.0.1"),
 	},
 
 	// IPv6 prefixes
 	{
-		toPrefixes([]string{"::/0", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128"}),
-		net.ParseIP("::"), net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
+		toPrefixes([]string{
+			"::/0",
+			"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128",
+		}),
+		net.ParseIP("::"),
+		net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
 	},
 	{
-		toPrefixes([]string{"2001:db8::/64", "2001:db8:0:1::/64", "2001:db8:0:2::/64", "2001:db8:0:3::/64", "2001:db8:0:4::/64", "2001:db8::/64", "2001:db8::1/64"}),
-		net.ParseIP("2001:db8::"), net.ParseIP("2001:db8:0:4:ffff:ffff:ffff:ffff"),
+		toPrefixes([]string{
+			"2001:db8::/64", "2001:db8:0:1::/64", "2001:db8:0:2::/64", "2001:db8:0:3::/64",
+			"2001:db8:0:4::/64", "2001:db8::/64", "2001:db8::1/64",
+		}),
+		net.ParseIP("2001:db8::"),
+		net.ParseIP("2001:db8:0:4:ffff:ffff:ffff:ffff"),
 	},
 	{
 		toPrefixes([]string{"2001:db8::1/128"}),
-		net.ParseIP("2001:db8::1"), net.ParseIP("2001:db8::1"),
+		net.ParseIP("2001:db8::1"),
+		net.ParseIP("2001:db8::1"),
 	},
 
 	// Mixed prefixes
 	{
-		toPrefixes([]string{"192.168.0.1/32", "2001:db8::1/64", "192.168.255.0/24"}),
-		net.ParseIP("192.168.0.1"), net.ParseIP("2001:db8::ffff:ffff:ffff:ffff"),
+		toPrefixes([]string{
+			"192.168.0.1/32",
+			"2001:db8::1/64",
+			"192.168.255.0/24",
+		}),
+		net.ParseIP("192.168.0.1"),
+		net.ParseIP("2001:db8::ffff:ffff:ffff:ffff"),
 	},
 }
 
@@ -68,28 +91,49 @@ var cursorFirstLastPrefixTests = []struct {
 }{
 	// IPv4 prefixes
 	{
-		toPrefixes([]string{"0.0.0.0/0", "255.255.255.255/32"}),
-		toPrefix("0.0.0.0/0"), toPrefix("255.255.255.255/32"),
+		toPrefixes([]string{
+			"0.0.0.0/0",
+			"255.255.255.255/32",
+		}),
+		toPrefix("0.0.0.0/0"),
+		toPrefix("255.255.255.255/32"),
 	},
 	{
-		toPrefixes([]string{"192.168.0.0/32", "192.168.0.1/32", "192.168.0.2/32", "192.168.0.3/32", "192.168.4.0/24", "192.168.0.0/32", "192.168.0.1/32"}),
-		toPrefix("192.168.0.0/32"), toPrefix("192.168.4.0/24"),
+		toPrefixes([]string{
+			"192.168.0.0/32", "192.168.0.1/32", "192.168.0.2/32", "192.168.0.3/32",
+			"192.168.4.0/24", "192.168.0.0/32", "192.168.0.1/32",
+		}),
+		toPrefix("192.168.0.0/32"),
+		toPrefix("192.168.4.0/24"),
 	},
 
 	// IPv6 prefixes
 	{
-		toPrefixes([]string{"::/0", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128"}),
-		toPrefix("::/0"), toPrefix("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128"),
+		toPrefixes([]string{
+			"::/0",
+			"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128",
+		}),
+		toPrefix("::/0"),
+		toPrefix("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128"),
 	},
 	{
-		toPrefixes([]string{"2001:db8::/64", "2001:db8:0:1::/64", "2001:db8:0:2::/64", "2001:db8:0:3::/64", "2001:db8:0:4::/64", "2001:db8::/64", "2001:db8::1/64"}),
-		toPrefix("2001:db8::/64"), toPrefix("2001:db8:0:4::/64"),
+		toPrefixes([]string{
+			"2001:db8::/64", "2001:db8:0:1::/64", "2001:db8:0:2::/64", "2001:db8:0:3::/64",
+			"2001:db8:0:4::/64", "2001:db8::/64", "2001:db8::1/64",
+		}),
+		toPrefix("2001:db8::/64"),
+		toPrefix("2001:db8:0:4::/64"),
 	},
 
 	// Mixed prefixes
 	{
-		toPrefixes([]string{"192.168.0.1/32", "2001:db8::1/64", "192.168.255.0/24"}),
-		toPrefix("192.168.0.1/32"), toPrefix("2001:db8::/64"),
+		toPrefixes([]string{
+			"192.168.0.1/32",
+			"2001:db8::1/64",
+			"192.168.255.0/24",
+		}),
+		toPrefix("192.168.0.1/32"),
+		toPrefix("2001:db8::/64"),
 	},
 }
 
@@ -110,55 +154,79 @@ var cursorPrevNextTests = []struct {
 	// IPv4 prefixes
 	{
 		toPrefixes([]string{"192.168.0.0/24"}),
-		toPosition("192.168.0.0", "192.168.0.0/24"), nil, toPosition("192.168.0.1", "192.168.0.0/24"),
+		toPosition("192.168.0.0", "192.168.0.0/24"),
+		nil,
+		toPosition("192.168.0.1", "192.168.0.0/24"),
 	},
 	{
 		toPrefixes([]string{"192.168.0.0/24"}),
-		toPosition("192.168.0.255", "192.168.0.0/24"), toPosition("192.168.0.254", "192.168.0.0/24"), nil,
+		toPosition("192.168.0.255", "192.168.0.0/24"),
+		toPosition("192.168.0.254", "192.168.0.0/24"),
+		nil,
 	},
 	{
 		toPrefixes([]string{"192.168.0.0/24", "192.168.1.0/24"}),
-		toPosition("192.168.0.255", "192.168.0.0/24"), toPosition("192.168.0.254", "192.168.0.0/24"), toPosition("192.168.1.0", "192.168.1.0/24"),
+		toPosition("192.168.0.255", "192.168.0.0/24"),
+		toPosition("192.168.0.254", "192.168.0.0/24"),
+		toPosition("192.168.1.0", "192.168.1.0/24"),
 	},
 	{
 		toPrefixes([]string{"192.168.0.0/24", "192.168.1.0/24"}),
-		toPosition("192.168.1.0", "192.168.1.0/24"), toPosition("192.168.0.255", "192.168.0.0/24"), toPosition("192.168.1.1", "192.168.1.0/24"),
+		toPosition("192.168.1.0", "192.168.1.0/24"),
+		toPosition("192.168.0.255", "192.168.0.0/24"),
+		toPosition("192.168.1.1", "192.168.1.0/24"),
 	},
 
 	// IPv6 prefixes
 	{
 		toPrefixes([]string{"2001:db8::/64"}),
-		toPosition("2001:db8::", "2001:db8::/64"), nil, toPosition("2001:db8::1", "2001:db8::/64"),
+		toPosition("2001:db8::", "2001:db8::/64"),
+		nil,
+		toPosition("2001:db8::1", "2001:db8::/64"),
 	},
 	{
 		toPrefixes([]string{"2001:db8::/64"}),
-		toPosition("2001:db8::ffff:ffff:ffff:ffff", "2001:db8::/64"), toPosition("2001:db8::ffff:ffff:ffff:fffe", "2001:db8::/64"), nil,
+		toPosition("2001:db8::ffff:ffff:ffff:ffff", "2001:db8::/64"),
+		toPosition("2001:db8::ffff:ffff:ffff:fffe", "2001:db8::/64"),
+		nil,
 	},
 	{
 		toPrefixes([]string{"2001:db8::/64", "2001:db8:1::/64"}),
-		toPosition("2001:db8::ffff:ffff:ffff:ffff", "2001:db8::/64"), toPosition("2001:db8::ffff:ffff:ffff:fffe", "2001:db8::/64"), toPosition("2001:db8:1::", "2001:db8:1::/64"),
+		toPosition("2001:db8::ffff:ffff:ffff:ffff", "2001:db8::/64"),
+		toPosition("2001:db8::ffff:ffff:ffff:fffe", "2001:db8::/64"),
+		toPosition("2001:db8:1::", "2001:db8:1::/64"),
 	},
 	{
 		toPrefixes([]string{"2001:db8::/64", "2001:db8:1::/64"}),
-		toPosition("2001:db8:1::", "2001:db8:1::/64"), toPosition("2001:db8::ffff:ffff:ffff:ffff", "2001:db8::/64"), toPosition("2001:db8:1::1", "2001:db8:1::/64"),
+		toPosition("2001:db8:1::", "2001:db8:1::/64"),
+		toPosition("2001:db8::ffff:ffff:ffff:ffff", "2001:db8::/64"),
+		toPosition("2001:db8:1::1", "2001:db8:1::/64"),
 	},
 
 	// Mixed prefixes
 	{
 		toPrefixes([]string{"192.168.0.0/24", "2001:db8::/64"}),
-		toPosition("2001:db8::ffff:ffff:ffff:ffff", "2001:db8::/64"), toPosition("2001:db8::ffff:ffff:ffff:fffe", "2001:db8::/64"), nil,
+		toPosition("2001:db8::ffff:ffff:ffff:ffff", "2001:db8::/64"),
+		toPosition("2001:db8::ffff:ffff:ffff:fffe", "2001:db8::/64"),
+		nil,
 	},
 	{
 		toPrefixes([]string{"192.168.0.0/24", "2001:db8::/64"}),
-		toPosition("192.168.0.255", "192.168.0.0/24"), toPosition("192.168.0.254", "192.168.0.0/24"), toPosition("2001:db8::", "2001:db8::/64"),
+		toPosition("192.168.0.255", "192.168.0.0/24"),
+		toPosition("192.168.0.254", "192.168.0.0/24"),
+		toPosition("2001:db8::", "2001:db8::/64"),
 	},
 	{
 		toPrefixes([]string{"192.168.0.0/24", "::/64"}),
-		toPosition("192.168.0.255", "192.168.0.0/24"), toPosition("192.168.0.254", "192.168.0.0/24"), nil,
+		toPosition("192.168.0.255", "192.168.0.0/24"),
+		toPosition("192.168.0.254", "192.168.0.0/24"),
+		nil,
 	},
 	{
 		toPrefixes([]string{"192.168.0.0/24", "::/64"}),
-		toPosition("::ffff:ffff:ffff:ffff", "::/64"), toPosition("::ffff:ffff:ffff:fffe", "::/64"), toPosition("192.168.0.0", "192.168.0.0/24"),
+		toPosition("::ffff:ffff:ffff:ffff", "::/64"),
+		toPosition("::ffff:ffff:ffff:fffe", "::/64"),
+		toPosition("192.168.0.0", "192.168.0.0/24"),
 	},
 }
 
@@ -304,17 +372,28 @@ var newCursorTests = []struct {
 }{
 	// IPv4 prefixes
 	{
-		[]string{"192.168.0.0/32", "192.168.0.1/32", "192.168.0.2/32", "192.168.0.3/32", "192.168.4.0/24", "192.168.0.0/32", "192.168.0.1/32"},
+		[]string{
+			"192.168.0.0/32", "192.168.0.1/32", "192.168.0.2/32", "192.168.0.3/32",
+			"192.168.4.0/24", "192.168.0.0/32", "192.168.0.1/32",
+		},
 	},
 
 	// IPv6 prefixes
 	{
-		[]string{"2001:db8::/64", "2001:db8:0:1::/64", "2001:db8:0:2::/64", "2001:db8:0:3::/64", "2001:db8:0:4::/64", "2001:db8::/64", "2001:db8::1/64"},
+		[]string{
+			"2001:db8::/64", "2001:db8:0:1::/64", "2001:db8:0:2::/64", "2001:db8:0:3::/64",
+			"2001:db8:0:4::/64", "2001:db8::/64", "2001:db8::1/64",
+		},
 	},
 
 	// Mixed prefixes
 	{
-		[]string{"192.168.0.0/32", "192.168.0.1/32", "192.168.0.2/32", "192.168.0.3/32", "192.168.4.0/24", "192.168.0.0/32", "192.168.0.1/32", "2001:db8::/64", "2001:db8:0:1::/64", "2001:db8:0:2::/64", "2001:db8:0:3::/64", "2001:db8:0:4::/64", "2001:db8::/64", "2001:db8::1/64"},
+		[]string{
+			"192.168.0.0/32", "192.168.0.1/32", "192.168.0.2/32", "192.168.0.3/32",
+			"192.168.4.0/24", "192.168.0.0/32", "192.168.0.1/32", "2001:db8::/64",
+			"2001:db8:0:1::/64", "2001:db8:0:2::/64", "2001:db8:0:3::/64", "2001:db8:0:4::/64",
+			"2001:db8::/64", "2001:db8::1/64",
+		},
 	},
 }
 

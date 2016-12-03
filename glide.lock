@@ -1,0 +1,214 @@
+hash: c2abbd6b0bfebffc11c66e3bee644cca7a8f4a4dcd53cfd0c3b5dc60b66b21c7
+updated: 2016-12-03T01:23:24.297249806Z
+imports:
+- name: github.com/armon/go-metrics
+  version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
+- name: github.com/armon/go-radix
+  version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
+- name: github.com/coreos/etcd
+  version: 1f954dc9f4e22a13ea3a2d1b97967ad08d71d852
+  subpackages:
+  - client
+  - pkg/pathutil
+  - pkg/types
+- name: github.com/davecgh/go-spew
+  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
+  subpackages:
+  - spew
+- name: github.com/deckarep/golang-set
+  version: 52ba7f28f319e9d560acbf47c7fcf9b9ee7aa7d3
+- name: github.com/dgrijalva/jwt-go
+  version: 24c63f56522a87ec5339cc3567883f1039378fdb
+- name: github.com/docker/libkv
+  version: aabc039ad04deb721e234f99cd1b4aa28ac71a40
+  subpackages:
+  - store
+  - store/consul
+  - store/etcd
+- name: github.com/eapache/channels
+  version: 47238d5aae8c0fefd518ef2bee46290909cf8263
+- name: github.com/eapache/queue
+  version: 44cc805cf13205b55f69e14bcb69867d1ae92f98
+- name: github.com/fatih/structs
+  version: dc3312cb1a4513a366c4c9e622ad55c32df12ed3
+- name: github.com/fsnotify/fsnotify
+  version: fd9ec7deca8bf46ecd2a795baaacf2b3a9be1197
+- name: github.com/go-playground/locales
+  version: 273913d3b2ff7127452603d55dd3f6f888e4f268
+  subpackages:
+  - currency
+- name: github.com/go-playground/universal-translator
+  version: 8bf00f2bdf7faea5c3583d41f57bf1eb15b743d7
+- name: github.com/google/seesaw
+  version: f11734aa58f0f45d1715844228955a05cdc06f67
+  subpackages:
+  - ipvs
+  - netlink
+- name: github.com/hashicorp/consul
+  version: 91b0e874362c6053b6bc791f5ffb1b000d35ea81
+  subpackages:
+  - api
+- name: github.com/hashicorp/errwrap
+  version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
+- name: github.com/hashicorp/go-cleanhttp
+  version: ad28ea4487f05916463e2423a55166280e8254b5
+- name: github.com/hashicorp/go-msgpack
+  version: fa3f63826f7c23912c15263591e65d54d080b458
+  subpackages:
+  - codec
+- name: github.com/hashicorp/go-multierror
+  version: 8484912a3b9987857bac52e0c5fec2b95f419628
+- name: github.com/hashicorp/hcl
+  version: 37ab263305aaeb501a60eb16863e808d426e37f2
+  subpackages:
+  - hcl/ast
+  - hcl/parser
+  - hcl/scanner
+  - hcl/strconv
+  - hcl/token
+  - json/parser
+  - json/scanner
+  - json/token
+- name: github.com/hashicorp/logutils
+  version: 0dc08b1671f34c4250ce212759ebd880f743d883
+- name: github.com/hashicorp/memberlist
+  version: d16b8b733eddcffb36008dcc425a3b0824034bbb
+- name: github.com/hashicorp/serf
+  version: b9642a47e6139e50548b6f14588a1a3c0839660a
+  subpackages:
+  - coordinate
+  - serf
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/influxdata/influxdb
+  version: aff2d7ce649ead1dbb5fd930b09c6e037ef31e0f
+  subpackages:
+  - client/v2
+  - models
+  - pkg/escape
+- name: github.com/labstack/echo
+  version: 8d504c1b699c757b267255c53b3e5219f9974abc
+  subpackages:
+  - middleware
+- name: github.com/labstack/gommon
+  version: 2d272df536d051e737aea353b86c979d6e88bce0
+  subpackages:
+  - bytes
+  - color
+  - log
+  - random
+- name: github.com/luizbafilho/leadership
+  version: bfc7753dd48af19513b29deec23c364bf0f274eb
+- name: github.com/magiconair/properties
+  version: 9c47895dc1ce54302908ab8a43385d1f5df2c11c
+- name: github.com/mattn/go-colorable
+  version: 6c903ff4aa50920ca86087a280590b36b3152b9c
+- name: github.com/mattn/go-isatty
+  version: 66b8e73f3f5cda9f96b69efd03dd3d7fc4a5cdb8
+- name: github.com/mdlayher/arp
+  version: d035564bbb237a8495b1adde001ae65add2888c9
+- name: github.com/mdlayher/ethernet
+  version: 28018267bba4d651e8e0fcbca8aae7c13f4ce4ae
+- name: github.com/mdlayher/raw
+  version: 472104a05395b20ff1df7d8abe3efb400d68c3cc
+- name: github.com/miekg/dns
+  version: 58f52c57ce9df13460ac68200cef30a008b9c468
+- name: github.com/mikioh/ipaddr
+  version: 039ec096fa685ef2e6baa8d3b5a0389a4b230128
+- name: github.com/mitchellh/mapstructure
+  version: f3009df150dadf309fdee4a54ed65c124afad715
+- name: github.com/osrg/gobgp
+  version: 4ecf30f884ae7578ef3ce1a34510d9dd02c6e2bf
+  subpackages:
+  - config
+  - packet/bgp
+  - packet/bmp
+  - packet/mrt
+  - packet/rtr
+  - server
+  - table
+  - zebra
+- name: github.com/pelletier/go-buffruneio
+  version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
+- name: github.com/pelletier/go-toml
+  version: d464759235b8fd59f8ab4c44807d7c36e1678add
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/satori/go.uuid
+  version: b061729afc07e77a8aa4fad0a2fd840958f1942a
+- name: github.com/Sirupsen/logrus
+  version: d26492970760ca5d33129d2d799e34be5c4782eb
+- name: github.com/spf13/afero
+  version: 06b7e5f50606ecd49148a01a6008942d9b669217
+  subpackages:
+  - mem
+- name: github.com/spf13/cast
+  version: 24b6558033ffe202bf42f0f3b870dcc798dd2ba8
+- name: github.com/spf13/cobra
+  version: 9495bc009a56819bdb0ddbc1a373e29c140bc674
+- name: github.com/spf13/jwalterweatherman
+  version: 33c24e77fb80341fe7130ee7c594256ff08ccc46
+- name: github.com/spf13/pflag
+  version: 5ccb023bc27df288a957c5e994cd44fd19619465
+- name: github.com/spf13/viper
+  version: 651d9d916abc3c3d6a91a12549495caba5edffd2
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
+- name: github.com/stretchr/testify
+  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  subpackages:
+  - assert
+  - mock
+  - require
+  - suite
+- name: github.com/tylerb/graceful
+  version: 50a48b6e73fcc75b45e22c05b79629a67c79e938
+- name: github.com/ugorji/go
+  version: f1f1a805ed361a0e078bb537e4ea78cd37dcf065
+  subpackages:
+  - codec
+- name: github.com/valyala/fasttemplate
+  version: 3b874956e03f1636d171bda64b130f9135f42cff
+- name: github.com/vishvananda/netlink
+  version: 266f02d3a80fb75c33302a2c91e7632ec33c1f32
+  subpackages:
+  - nl
+- name: github.com/vishvananda/netns
+  version: 8ba1072b58e0c2a240eb5f6120165c7776c3e7b8
+- name: golang.org/x/crypto
+  version: 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
+  subpackages:
+  - acme
+  - acme/autocert
+- name: golang.org/x/net
+  version: 6cdc0daab091c43fc46193327e0047b4f883c613
+  subpackages:
+  - bpf
+  - context
+  - context/ctxhttp
+- name: golang.org/x/sys
+  version: c200b10b5d5e122be351b67af224adc6128af5bf
+  subpackages:
+  - unix
+- name: golang.org/x/text
+  version: 5c6cf4f9a2357d38515014cea8c488ed22bdab90
+  subpackages:
+  - transform
+  - unicode/norm
+- name: gopkg.in/go-playground/validator.v8
+  version: 941ce2cabc098467c3ebd66c5d705bc122f18b74
+- name: gopkg.in/go-playground/validator.v9
+  version: 941ce2cabc098467c3ebd66c5d705bc122f18b74
+- name: gopkg.in/tomb.v2
+  version: 9dde971544235898fc9720ed594059f79fd3273c
+- name: gopkg.in/yaml.v2
+  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
+testImports:
+- name: github.com/appleboy/gofight
+  version: beadc315fb676177c07a89c34159b9ca4e1aafd9
+- name: gopkg.in/check.v1
+  version: aa8c43564278bc4c58e8ca51bfc5f1c149925cf0

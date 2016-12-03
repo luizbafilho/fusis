@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/appleboy/gofight"
 	"github.com/luizbafilho/fusis/fusis/mocks"
@@ -45,7 +47,6 @@ func (s *ApiTestSuite) SetupTest() {
 		Name:      "test",
 		Address:   "192.168.1.1",
 		Port:      80,
-		Mode:      "nat",
 		Weight:    1,
 		ServiceId: "test",
 	}
@@ -189,5 +190,77 @@ func (s *ApiTestSuite) TestDeleteService_NotFound() {
 
 			assert.Equal(s.T(), http.StatusNotFound, r.Code)
 			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestAddDestination() {
+	s.balancer.On("GetService", s.service.Name).Return(&s.service, nil)
+	s.balancer.On("AddDestination", &s.service, &s.destination).Return(nil)
+
+	expectedBody, err := json.Marshal(s.destination)
+	assert.Nil(s.T(), err)
+
+	s.r.POST("/services/"+s.service.Name+"/destinations").
+		SetJSON(gofight.D{
+			"name":    s.destination.Name,
+			"address": s.destination.Address,
+			"weight":  1,
+			"port":    s.destination.Port,
+		}).
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusCreated, r.Code)
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestDeleteDestination() {
+	s.balancer.On("GetDestination", s.destination.Name).Return(&s.destination, nil)
+	s.balancer.On("DeleteDestination", &s.destination).Return(nil)
+
+	path := fmt.Sprintf("/services/%s/destinations/%s", s.service.Name, s.destination.Name)
+	s.r.DELETE(path).
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusNoContent, r.Code)
+			assert.Equal(s.T(), "", r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestAddCheck() {
+	spec := types.CheckSpec{ServiceID: s.service.Name, Interval: 5 * time.Second, Timeout: 5 * time.Second}
+	s.balancer.On("AddCheck", spec).Return(nil)
+
+	spec.ServiceID = s.service.GetId()
+	expectedBody, err := json.Marshal(spec)
+	assert.Nil(s.T(), err)
+
+	s.r.POST("/services/"+s.service.Name+"/check").
+		SetJSON(gofight.D{
+			"interval": 5,
+			"timeout":  5,
+		}).
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusCreated, r.Code)
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestAddDelete() {
+	s.balancer.On("GetService", s.service.GetId()).Return(&s.service, nil)
+
+	spec := types.CheckSpec{ServiceID: s.service.Name}
+	s.balancer.On("DeleteCheck", spec).Return(nil)
+
+	s.r.DELETE("/services/"+s.service.Name+"/check").
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusNoContent, r.Code)
+			assert.Equal(s.T(), "", r.Body.String())
 		})
 }

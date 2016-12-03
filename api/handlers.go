@@ -97,7 +97,7 @@ func (as ApiService) addCheck(c echo.Context) error {
 		return err
 	}
 
-	return c.NoContent(http.StatusNoContent)
+	return c.JSON(http.StatusCreated, check)
 }
 
 func (as ApiService) deleteCheck(c echo.Context) error {

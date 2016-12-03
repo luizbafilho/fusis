@@ -21,7 +21,7 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 		code = http.StatusConflict
 		response = ErrResponse{"error": v.Error()}
 	case types.ErrValidation:
-		code = http.StatusBadRequest
+		code = http.StatusUnprocessableEntity
 		response = ErrResponse{"error": v.Errors}
 	case *echo.HTTPError:
 		response = ErrResponse{"error": v.Message}

@@ -1,297 +1,193 @@
-package api_test
+package api
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
-	"strings"
+	"testing"
 
-	"github.com/luizbafilho/fusis/api"
+	"github.com/appleboy/gofight"
+	"github.com/luizbafilho/fusis/fusis/mocks"
 	"github.com/luizbafilho/fusis/types"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-func (s *S) TestNewAPI(c *check.C) {
-	apiInst := api.NewAPI(nil)
-	c.Assert(apiInst, check.NotNil)
+type ApiTestSuite struct {
+	suite.Suite
+
+	api      ApiService
+	balancer *mocks.Balancer
+
+	r           *gofight.RequestConfig
+	service     types.Service
+	destination types.Destination
 }
 
-func (s *S) TestServiceList(c *check.C) {
-	err := s.bal.AddService(&types.Service{Name: "myservice"})
-	c.Assert(err, check.IsNil)
-	resp, err := http.Get(s.srv.URL + "/services")
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result []types.Service
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, []types.Service{{Name: "myservice"}})
+func TestStateTestSuite(t *testing.T) {
+	suite.Run(t, new(ApiTestSuite))
 }
 
-func (s *S) TestServiceListEmpty(c *check.C) {
-	resp, err := http.Get(s.srv.URL + "/services")
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	c.Assert(data, check.DeepEquals, []byte{})
-}
+func (s *ApiTestSuite) SetupTest() {
+	s.balancer = new(mocks.Balancer)
+	s.api = NewAPI(s.balancer)
 
-func (s *S) TestServiceGet(c *check.C) {
-	err := s.bal.AddService(&types.Service{Name: "myservice"})
-	c.Assert(err, check.IsNil)
-	resp, err := http.Get(s.srv.URL + "/services/myservice")
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result types.Service
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, types.Service{Name: "myservice"})
-}
-
-func (s *S) TestServiceGetNotFound(c *check.C) {
-	err := s.bal.AddService(&types.Service{Name: "myservice"})
-	c.Assert(err, check.IsNil)
-	resp, err := http.Get(s.srv.URL + "/services/myservice2")
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result map[string]string
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, map[string]string{"error": "service not found"})
-}
-
-func (s *S) TestServiceCreate(c *check.C) {
-	body := strings.NewReader(`{"name": "ahoy", "port": 1040, "protocol": "tcp", "mode": "nat", "scheduler": "rr"}`)
-	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
-	c.Assert(err, check.IsNil)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result types.Service
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, types.Service{
-		Name:      "ahoy",
-		Port:      1040,
+	s.r = gofight.New()
+	s.service = types.Service{
+		Name:      "test",
+		Address:   "10.0.1.1",
+		Port:      80,
 		Mode:      "nat",
+		Scheduler: "lc",
 		Protocol:  "tcp",
-		Scheduler: "rr",
-	})
-	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
-	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/ahoy`)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
-}
+	}
 
-func (s *S) TestServiceCreateValidationError(c *check.C) {
-	body := strings.NewReader(`{"id": "mysrv"}`)
-	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
-	c.Assert(err, check.IsNil)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result map[string]map[string]string
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, map[string]map[string]string{
-		"errors": {
-			"Name":      "non zero value required",
-			"Port":      "non zero value required",
-			"Protocol":  "non zero value required",
-			"Mode":      "non zero value required",
-			"Scheduler": "non zero value required",
-		},
-	})
-	c.Assert(resp.StatusCode, check.Equals, http.StatusBadRequest)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
-}
-
-func (s *S) TestServiceCreateConflict(c *check.C) {
-	err := s.bal.AddService(&types.Service{Name: "mysrv"})
-	c.Assert(err, check.IsNil)
-	body := strings.NewReader(`{"name": "mysrv", "port": 1040, "protocol": "tcp","mode": "nat", "scheduler": "rr"}`)
-	resp, err := http.Post(s.srv.URL+"/services", "application/json", body)
-	c.Assert(err, check.IsNil)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result map[string]string
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, map[string]string{
-		"error": "service already exists",
-	})
-	c.Assert(resp.StatusCode, check.Equals, http.StatusConflict)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
-}
-
-func (s *S) TestServiceDelete(c *check.C) {
-	err := s.bal.AddService(&types.Service{Name: "myservice"})
-	c.Assert(err, check.IsNil)
-	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice", nil)
-	c.Assert(err, check.IsNil)
-	resp, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
-	_, err = s.bal.GetService("myservice")
-	c.Assert(err, check.Equals, types.ErrServiceNotFound)
-}
-
-func (s *S) TestServiceDeleteNotFound(c *check.C) {
-	err := s.bal.AddService(&types.Service{Name: "myservice"})
-	c.Assert(err, check.IsNil)
-	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice2", nil)
-	c.Assert(err, check.IsNil)
-	resp, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
-}
-
-func (s *S) TestDestinationCreate(c *check.C) {
-	err := s.bal.AddService(&types.Service{Name: "myservice"})
-	c.Assert(err, check.IsNil)
-	body := strings.NewReader(`{"name": "myname", "address": "myhost", "port": 1234}`)
-	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
-	c.Assert(err, check.IsNil)
-	resp, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result types.Destination
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, types.Destination{
-		Name:      "myname",
-		Address:   "myhost",
-		Port:      1234,
+	s.destination = types.Destination{
+		Name:      "test",
+		Address:   "192.168.1.1",
+		Port:      80,
+		Mode:      "nat",
 		Weight:    1,
-		Mode:      "route",
-		ServiceId: "myservice",
-	})
-	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
-	c.Assert(resp.Header.Get("Location"), check.Matches, `/services/myservice/destinations/myname`)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+		ServiceId: "test",
+	}
 }
 
-func (s *S) TestDestinationCreateValidationError(c *check.C) {
-	err := s.bal.AddService(&types.Service{Name: "myservice"})
-	c.Assert(err, check.IsNil)
-	body := strings.NewReader(`{"id": "mydest"}`)
-	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
-	c.Assert(err, check.IsNil)
-	resp, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result map[string]map[string]string
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, map[string]map[string]string{
-		"errors": {
-			"Name":    "non zero value required",
-			"Port":    "non zero value required",
-			"Address": "non zero value required",
+func (s *ApiTestSuite) TestGetServices() {
+	s.balancer.On("GetServices").Return([]types.Service{})
+
+	expectedBody, err := json.Marshal([]types.Service{})
+	assert.Nil(s.T(), err)
+
+	s.r.GET("/services").
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestGetService() {
+	s.balancer.On("GetService", "testing").Return(&s.service, nil)
+
+	expectedBody, err := json.Marshal(s.service)
+	assert.Nil(s.T(), err)
+
+	s.r.GET("/services/testing").
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestGetService_NotFound() {
+	s.balancer.On("GetService", "testing").Return(&s.service, types.ErrServiceNotFound)
+
+	expectedBody, _ := json.Marshal(map[string]string{
+		"error": types.ErrServiceNotFound.Error(),
+	})
+
+	s.r.GET("/services/testing").
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			assert.Equal(s.T(), http.StatusNotFound, r.Code)
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestAddService() {
+	s.balancer.On("AddService", &s.service).Return(nil)
+
+	expectedBody, err := json.Marshal(s.service)
+	assert.Nil(s.T(), err)
+
+	s.r.POST("/services").
+		SetJSON(gofight.D{
+			"name":      s.service.Name,
+			"address":   s.service.Address,
+			"port":      s.service.Port,
+			"mode":      s.service.Mode,
+			"scheduler": s.service.Scheduler,
+			"protocol":  s.service.Protocol,
+		}).
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusCreated, r.Code)
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestAddService_Validation() {
+	err := types.ErrValidation{
+		Type: "service",
+		Errors: map[string]string{
+			"name": "field is required",
 		},
-	})
-	c.Assert(resp.StatusCode, check.Equals, http.StatusBadRequest)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
-}
-
-func (s *S) TestDestinationCreateServiceNotFound(c *check.C) {
-	body := strings.NewReader(`{"id": "mydest"}`)
-	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
-	c.Assert(err, check.IsNil)
-	resp, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result map[string]string
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, map[string]string{
-		"error": "service not found",
-	})
-	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
-}
-
-func (s *S) TestDestinationCreateConflict(c *check.C) {
-	srv := &types.Service{Name: "myservice"}
-	err := s.bal.AddService(srv)
-	c.Assert(err, check.IsNil)
-	dst := &types.Destination{
-		Name:      "mydest",
-		ServiceId: "myservice",
 	}
-	err = s.bal.AddDestination(srv, dst)
-	c.Assert(err, check.IsNil)
-	body := strings.NewReader(`{"name": "mydest", "address": "myhost", "port": 1234}`)
-	req, err := http.NewRequest("POST", s.srv.URL+"/services/myservice/destinations", body)
-	c.Assert(err, check.IsNil)
-	resp, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	data, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil)
-	var result map[string]string
-	err = json.Unmarshal(data, &result)
-	c.Assert(err, check.IsNil)
-	c.Assert(result, check.DeepEquals, map[string]string{
-		"error": "destination already exists",
+	s.balancer.On("AddService", &types.Service{Address: s.service.Address}).Return(err)
+
+	expectedBody, _ := json.Marshal(map[string]interface{}{
+		"error": err.Errors,
 	})
-	c.Assert(resp.StatusCode, check.Equals, http.StatusConflict)
-	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+
+	s.r.POST("/services").
+		SetJSON(gofight.D{
+			"address": s.service.Address,
+		}).
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusUnprocessableEntity, r.Code)
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
 }
 
-func (s *S) TestDestinationDelete(c *check.C) {
-	srv := &types.Service{Name: "myservice"}
-	err := s.bal.AddService(srv)
-	c.Assert(err, check.IsNil)
-	dst := &types.Destination{
-		Name:      "mydest",
-		Address:   "h1",
-		ServiceId: "myservice",
-	}
-	err = s.bal.AddDestination(srv, dst)
-	c.Assert(err, check.IsNil)
-	dst.Name = "mydest2"
-	dst.Address = "h2"
-	err = s.bal.AddDestination(srv, dst)
-	c.Assert(err, check.IsNil)
-	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)
-	c.Assert(err, check.IsNil)
-	resp, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
-	srv, err = s.bal.GetService("myservice")
-	c.Assert(err, check.IsNil)
-	c.Assert(s.bal.GetDestinations(srv), check.DeepEquals, []types.Destination{{
-		Name:      "mydest2",
-		Address:   "h2",
-		ServiceId: "myservice",
-	}})
-	req, err = http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest2", nil)
-	c.Assert(err, check.IsNil)
-	resp, err = http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
-	srv, err = s.bal.GetService("myservice")
-	c.Assert(err, check.IsNil)
-	c.Assert(s.bal.GetDestinations(srv), check.DeepEquals, []types.Destination{})
+func (s *ApiTestSuite) TestAddService_Conflict() {
+	s.balancer.On("AddService", &s.service).Return(types.ErrServiceConflict)
+
+	expectedBody, _ := json.Marshal(map[string]interface{}{
+		"error": types.ErrServiceConflict.Error(),
+	})
+
+	s.r.POST("/services").
+		SetJSON(gofight.D{
+			"name":      s.service.Name,
+			"address":   s.service.Address,
+			"port":      s.service.Port,
+			"mode":      s.service.Mode,
+			"scheduler": s.service.Scheduler,
+			"protocol":  s.service.Protocol,
+		}).
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusConflict, r.Code)
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
 }
 
-func (s *S) TestDestinationDeleteNotFound(c *check.C) {
-	srv := &types.Service{Name: "myservice"}
-	err := s.bal.AddService(srv)
-	c.Assert(err, check.IsNil)
-	req, err := http.NewRequest("DELETE", s.srv.URL+"/services/myservice/destinations/mydest", nil)
-	c.Assert(err, check.IsNil)
-	resp, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusNotFound)
+func (s *ApiTestSuite) TestDeleteService() {
+	s.balancer.On("DeleteService", s.service.Name).Return(nil)
+
+	s.r.DELETE("/services/"+s.service.Name).
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusNoContent, r.Code)
+			assert.Equal(s.T(), "", r.Body.String())
+		})
+}
+
+func (s *ApiTestSuite) TestDeleteService_NotFound() {
+	s.balancer.On("DeleteService", s.service.Name).Return(types.ErrServiceNotFound)
+
+	expectedBody, _ := json.Marshal(map[string]interface{}{
+		"error": types.ErrServiceNotFound.Error(),
+	})
+
+	s.r.DELETE("/services/"+s.service.Name).
+		Run(s.api.echo, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+			s.balancer.AssertExpectations(s.T())
+
+			assert.Equal(s.T(), http.StatusNotFound, r.Code)
+			assert.Equal(s.T(), string(expectedBody), r.Body.String())
+		})
 }

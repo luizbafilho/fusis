@@ -1,6 +1,7 @@
 package fusis
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -18,7 +19,10 @@ type OperationsTestSuite struct {
 	destination types.Destination
 }
 
-func TestStateTestSuite(t *testing.T) {
+func TestOperationsSuite(t *testing.T) {
+	if os.Getenv("TRAVIS") == "true" {
+		t.Skip("Skipping test because travis-ci do not allow iptables")
+	}
 	suite.Run(t, new(OperationsTestSuite))
 }
 

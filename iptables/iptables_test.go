@@ -114,6 +114,10 @@ func TestIptablesSync(t *testing.T) {
 }
 
 func TestAddRule(t *testing.T) {
+	if os.Getenv("TRAVIS") == "true" {
+		t.Skip("Skipping test because travis-ci do not allow iptables")
+	}
+
 	// crete iptablesMngr from mocked config
 	iptablesMngr, err := New(defaultConfig())
 	assert.Nil(t, err)
@@ -142,6 +146,10 @@ func TestAddRule(t *testing.T) {
 }
 
 func TestRemoveRule(t *testing.T) {
+	if os.Getenv("TRAVIS") == "true" {
+		t.Skip("Skipping test because travis-ci do not allow iptables")
+	}
+
 	// crete iptablesMngr from mocked config
 	iptablesMngr, err := New(defaultConfig())
 	assert.Nil(t, err)
@@ -174,6 +182,10 @@ func TestRemoveRule(t *testing.T) {
 }
 
 func TestServiceToSnatRule(t *testing.T) {
+	if os.Getenv("TRAVIS") == "true" {
+		t.Skip("Skipping test because travis-ci do not allow iptables")
+	}
+
 	// create iptablesMngr from mocked config
 	iptablesMngr, err := New(defaultConfig())
 	assert.Nil(t, err)

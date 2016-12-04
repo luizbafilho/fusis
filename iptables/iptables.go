@@ -3,7 +3,6 @@ package iptables
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/types"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -63,6 +63,10 @@ func New(config *config.BalancerConfig) (*IptablesMngr, error) {
 		if err != nil {
 			return nil, ErrIptablesRule
 		}
+	}
+
+	if err := enableContrack(); err != nil {
+		return nil, err
 	}
 
 	return &IptablesMngr{
@@ -230,4 +234,12 @@ func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
 	}
 
 	return rules, nil
+}
+
+func enableContrack() error {
+	if err := net.SetSysctl("net.ipv4.vs.conntrack", "1"); err != nil {
+		return errors.Wrap(err, "enabling Contrack failed")
+	}
+
+	return nil
 }

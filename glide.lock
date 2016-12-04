@@ -1,5 +1,5 @@
-hash: c2abbd6b0bfebffc11c66e3bee644cca7a8f4a4dcd53cfd0c3b5dc60b66b21c7
-updated: 2016-12-03T01:23:24.297249806Z
+hash: 83907d6cc8b3eca2beffc602df03b10da3867168bfbce1907a775a76ca5d1fd1
+updated: 2016-12-04T15:32:27.011793232Z
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -52,6 +52,8 @@ imports:
   version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-cleanhttp
   version: ad28ea4487f05916463e2423a55166280e8254b5
+- name: github.com/hashicorp/go-memdb
+  version: 98f52f52d7a476958fa9da671354d270c50661a7
 - name: github.com/hashicorp/go-msgpack
   version: fa3f63826f7c23912c15263591e65d54d080b458
   subpackages:
@@ -199,8 +201,6 @@ imports:
   subpackages:
   - transform
   - unicode/norm
-- name: gopkg.in/go-playground/validator.v8
-  version: 941ce2cabc098467c3ebd66c5d705bc122f18b74
 - name: gopkg.in/go-playground/validator.v9
   version: 941ce2cabc098467c3ebd66c5d705bc122f18b74
 - name: gopkg.in/tomb.v2

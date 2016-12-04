@@ -22,8 +22,3 @@ _testmain.go
 *.exe
 *.test
 *.prof
-*.test
-*.out
-*.txt
-cover.html
-README.html

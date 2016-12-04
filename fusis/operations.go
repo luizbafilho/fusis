@@ -3,8 +3,6 @@ package fusis
 import (
 	"time"
 
-	validator "gopkg.in/go-playground/validator.v9"
-
 	"github.com/luizbafilho/fusis/types"
 )
 
@@ -24,18 +22,11 @@ func (b *FusisBalancer) GetService(name string) (*types.Service, error) {
 
 // AddService ...
 func (b *FusisBalancer) AddService(svc *types.Service) error {
-	// Validating service
-	if err := b.validateService(svc); err != nil {
-		return err
-	}
-
-	// Verifies if service is already in the system
-	if _, err := b.state.GetService(svc.GetId()); err == nil {
-		return types.ErrServiceConflict
-	}
-
-	if err := b.ipam.AllocateVIP(svc); err != nil {
-		return err
+	// Allocate a new VIP if no address provided
+	if svc.Address == "" {
+		if err := b.ipam.AllocateVIP(svc); err != nil {
+			return err
+		}
 	}
 
 	return b.store.AddService(svc)
@@ -65,23 +56,6 @@ func (b *FusisBalancer) AddDestination(svc *types.Service, dst *types.Destinatio
 	}
 	if dst.Mode == "" {
 		dst.Mode = "nat"
-	}
-
-	// Validating destination
-	if err := b.validateDestination(dst); err != nil {
-		return err
-	}
-
-	// Verifies if destination is already in the system
-	if _, err := b.state.GetDestination(dst.GetId()); err == nil {
-		return types.ErrDestinationConflict
-	}
-
-	// Check if the new destination is unique
-	for _, existDst := range b.state.GetDestinations(svc) {
-		if dst.Equal(existDst) {
-			return types.ErrDestinationConflict
-		}
 	}
 
 	//TODO: Configurate destination
@@ -144,29 +118,5 @@ func (b *FusisBalancer) setupDestination(svc *types.Service, dst *types.Destinat
 	// 	logrus.Errorf("FusisBalancer: add-balancer event error: %v", err)
 	// 	return err
 	// }
-	return nil
-}
-
-func (b *FusisBalancer) validateService(svc *types.Service) error {
-	if err := b.validate.Struct(svc); err != nil {
-		errValidation := types.ErrValidation{Type: "service", Errors: make(map[string]string)}
-		for _, err := range err.(validator.ValidationErrors) {
-			errValidation.Errors[err.Field()] = getValidationMessage(err)
-		}
-		return errValidation
-	}
-
-	return nil
-}
-
-func (b *FusisBalancer) validateDestination(dst *types.Destination) error {
-	if err := b.validate.Struct(dst); err != nil {
-		errValidation := types.ErrValidation{Type: "destination", Errors: make(map[string]string)}
-		for _, err := range err.(validator.ValidationErrors) {
-			errValidation.Errors[err.Field()] = getValidationMessage(err)
-		}
-		return errValidation
-	}
-
 	return nil
 }

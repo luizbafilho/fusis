@@ -36,6 +36,9 @@ func (s *OperationsTestSuite) SetupSuite() {
 		assert.Fail(s.T(), "balancer did not become leader")
 	})
 
+}
+
+func (s *OperationsTestSuite) SetupTest() {
 	s.service = types.Service{
 		Name:      "test",
 		Address:   "10.0.1.1",
@@ -88,8 +91,22 @@ func (s *OperationsTestSuite) TestAddService() {
 
 	assert.Equal(s.T(), []types.Service{s.service}, s.balancer.GetServices())
 
+}
+
+func (s *OperationsTestSuite) TestAddService_VipAllocation() {
+	s.service.Address = ""
+	err := s.balancer.AddService(&s.service)
+	assert.Nil(s.T(), err)
+	time.Sleep(500 * time.Millisecond)
+
 	//Asserting vip allocation
 	assert.Equal(s.T(), "192.168.0.1", s.service.Address)
+}
+
+func (s *OperationsTestSuite) TestAddService_Validation() {
+	err := s.balancer.AddService(&s.service)
+	assert.Nil(s.T(), err)
+	time.Sleep(500 * time.Millisecond)
 
 	//Asserting struct validation
 	err = s.balancer.AddService(&types.Service{})
@@ -104,10 +121,33 @@ func (s *OperationsTestSuite) TestAddService() {
 		},
 	}
 	assert.Equal(s.T(), errValidation, err)
+}
 
-	// Asserting conflict
+func (s *OperationsTestSuite) TestAddService_Uniqueness() {
+	err := s.balancer.AddService(&s.service)
+	assert.Nil(s.T(), err)
+	time.Sleep(500 * time.Millisecond)
+
+	//Asserting name uniqueness
 	err = s.balancer.AddService(&s.service)
-	assert.Equal(s.T(), types.ErrServiceConflict, err)
+	errValidation := types.ErrValidation{
+		Type: "service",
+		Errors: map[string]string{
+			"Name": "field must be unique",
+		},
+	}
+	assert.Equal(s.T(), errValidation, err)
+
+	//Asserting ipvs uniqueness
+	s.service.Name = "different-name"
+	err = s.balancer.AddService(&s.service)
+	errValidation = types.ErrValidation{
+		Type: "service",
+		Errors: map[string]string{
+			"ipvs": "address, port and protocol belongs to another service. It must be unique.",
+		},
+	}
+	assert.Equal(s.T(), errValidation, err)
 }
 
 func (s *OperationsTestSuite) TestGetService() {
@@ -149,6 +189,29 @@ func (s *OperationsTestSuite) TestAddDestination() {
 
 	assert.Equal(s.T(), []types.Destination{s.destination}, s.balancer.GetDestinations(&s.service))
 
+	//Asserting default
+	dst := &types.Destination{}
+	_ = s.balancer.AddDestination(&s.service, dst)
+	assert.Equal(s.T(), "nat", dst.Mode)
+	assert.Equal(s.T(), int32(1), dst.Weight)
+}
+
+func (s *OperationsTestSuite) TestAddDestination_SetDefaults() {
+	//Asserting default
+	dst := &types.Destination{}
+	_ = s.balancer.AddDestination(&s.service, dst)
+	assert.Equal(s.T(), "nat", dst.Mode)
+	assert.Equal(s.T(), int32(1), dst.Weight)
+}
+
+func (s *OperationsTestSuite) TestAddDestination_Validation() {
+	err := s.balancer.AddService(&s.service)
+	assert.Nil(s.T(), err)
+
+	err = s.balancer.AddDestination(&s.service, &s.destination)
+	assert.Nil(s.T(), err)
+	time.Sleep(500 * time.Millisecond)
+
 	//Asserting struct validation
 	err = s.balancer.AddDestination(&s.service, &types.Destination{})
 	errValidation := types.ErrValidation{
@@ -161,21 +224,42 @@ func (s *OperationsTestSuite) TestAddDestination() {
 		},
 	}
 	assert.Equal(s.T(), errValidation, err)
+}
 
-	// Asserting conflict
+func (s *OperationsTestSuite) TestAddDestination_Uniqueness() {
+	err := s.balancer.AddService(&s.service)
+	assert.Nil(s.T(), err)
+
 	err = s.balancer.AddDestination(&s.service, &s.destination)
-	assert.Equal(s.T(), types.ErrDestinationConflict, err)
+	assert.Nil(s.T(), err)
+	time.Sleep(500 * time.Millisecond)
 
-	//Asserting default
-	dst := &types.Destination{}
-	_ = s.balancer.AddDestination(&s.service, dst)
-	assert.Equal(s.T(), "nat", dst.Mode)
-	assert.Equal(s.T(), int32(1), dst.Weight)
+	//Asserting name uniqueness
+	err = s.balancer.AddDestination(&s.service, &s.destination)
+	errValidation := types.ErrValidation{
+		Type: "destination",
+		Errors: map[string]string{
+			"Name": "field must be unique",
+		},
+	}
+	assert.Equal(s.T(), errValidation, err)
+
+	//Asserting ivpvs uniqueness
+	s.destination.Name = "unique-name"
+	err = s.balancer.AddDestination(&s.service, &s.destination)
+	errValidation = types.ErrValidation{
+		Type: "destination",
+		Errors: map[string]string{
+			"ipvs": "address and port belongs to another destination. It must be unique.",
+		},
+	}
+	assert.Equal(s.T(), errValidation, err)
 }
 
 func (s *OperationsTestSuite) TestDeleteDestination() {
 	err := s.balancer.AddService(&s.service)
 	assert.Nil(s.T(), err)
+	time.Sleep(500 * time.Millisecond)
 
 	err = s.balancer.AddDestination(&s.service, &s.destination)
 	assert.Nil(s.T(), err)

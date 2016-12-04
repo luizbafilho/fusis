@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	validator "gopkg.in/go-playground/validator.v9"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/libkv"
 	kv "github.com/docker/libkv/store"
@@ -58,6 +60,7 @@ type FusisStore struct {
 
 	prefix string
 
+	validate            *validator.Validate
 	servicesChannels    []chan []types.Service
 	destinationChannels []chan []types.Destination
 	checksChannels      []chan []types.CheckSpec
@@ -94,9 +97,15 @@ func New(config *config.BalancerConfig) (Store, error) {
 	dstsChs := []chan []types.Destination{}
 	checksChs := []chan []types.CheckSpec{}
 
+	validate := validator.New()
+	// Registering custom validations
+	validate.RegisterValidation("protocols", validateValues(types.Protocols))
+	validate.RegisterValidation("schedulers", validateValues(types.Schedulers))
+
 	fusisStore := &FusisStore{
 		kv:                  kv,
 		prefix:              config.StorePrefix,
+		validate:            validate,
 		servicesChannels:    svcsChs,
 		destinationChannels: dstsChs,
 		checksChannels:      checksChs,
@@ -112,9 +121,6 @@ func New(config *config.BalancerConfig) (Store, error) {
 func (s *FusisStore) GetKV() kv.Store {
 	return s.kv
 }
-
-// func (s *FusisStore) GetService(serviceId string) (types.Service, err) {
-// }
 
 func (s *FusisStore) GetServices() ([]types.Service, error) {
 	svcs := []types.Service{}
@@ -158,29 +164,76 @@ func (s *FusisStore) GetDestinations() ([]types.Destination, error) {
 	return dsts, nil
 }
 
+// AddService adds a new services to store. It validates the name
+// uniqueness and the IPVS uniqueness by saving the IPVS key
+// in the store, which consists in a combination of address, port
+// and protocol.
 func (s *FusisStore) AddService(svc *types.Service) error {
-	key := s.key("services", svc.GetId(), "config")
+	svcKey := s.key("services", svc.GetId(), "config")
+	ipvsKey := s.key("ipvs-ids", "services", svc.IpvsId())
+	// Validating service
+	if err := s.validateService(svc); err != nil {
+		return err
+	}
+	if err := s.validateServiceNameUniqueness(svcKey); err != nil {
+		return err
+	}
+	if err := s.validateServiceIpvsUniqueness(ipvsKey); err != nil {
+		return err
+	}
 
+	// TODO: Make the persistence of service and ipvs id atomic.
+	// Pesisting service
 	value, err := json.Marshal(svc)
 	if err != nil {
 		return errors.Wrapf(err, "error marshaling service: %v", svc)
 	}
-
-	err = s.kv.Put(key, value, nil)
+	err = s.kv.Put(svcKey, value, nil)
 	if err != nil {
 		return errors.Wrapf(err, "error sending service to store: %v", svc)
+	}
+
+	// Persisting IPVS key. So it can be validated.
+	err = s.kv.Put(ipvsKey, []byte("true"), nil)
+	if err != nil {
+		return errors.Wrapf(err, "error sending service ipvs id to store: %v", svc.IpvsId())
 	}
 
 	return nil
 }
 
+func (s *FusisStore) GetService(serviceId string) (*types.Service, error) {
+	key := s.key("services", serviceId, "config")
+	kvPair, err := s.kv.Get(key)
+	if err != nil {
+		if err == kv.ErrKeyNotFound {
+			return nil, types.ErrServiceNotFound
+		}
+		return nil, errors.Wrap(err, "GetService from store failed")
+	}
+
+	svc := &types.Service{}
+	if err := json.Unmarshal(kvPair.Value, svc); err != nil {
+		return nil, errors.Wrap(err, "Unmarshal service from store failed")
+	}
+
+	return svc, nil
+}
+
 func (s *FusisStore) DeleteService(svc *types.Service) error {
 	key := s.key("services", svc.GetId())
-
 	err := s.kv.DeleteTree(key)
 	if err != nil {
 		return errors.Wrapf(err, "error trying to delete service: %v", svc)
 	}
+
+	ipvsKey := s.key("ipvs-ids", "services", svc.IpvsId())
+	err = s.kv.Delete(ipvsKey)
+	if err != nil {
+		return errors.Wrapf(err, "error trying to delete service ipvs id: %s", ipvsKey)
+	}
+
+	// TODO: Delete all dependent destinations and checks
 
 	return nil
 }
@@ -229,31 +282,54 @@ func (s *FusisStore) WatchServices() {
 }
 
 func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) error {
-	key := s.key("destinations", svc.GetId(), dst.GetId())
+	dstKey := s.key("destinations", svc.GetId(), dst.GetId())
+	ipvsKey := s.key("ipvs-ids", "destinations", dst.IpvsId())
 
+	// Validating destination
+	if err := s.validateDestination(dst); err != nil {
+		return err
+	}
+	if err := s.validateDestinationNameUniqueness(dstKey); err != nil {
+		return err
+	}
+	if err := s.validateDestinationIpvsUniqueness(ipvsKey); err != nil {
+		return err
+	}
+
+	// Persisting destination
 	value, err := json.Marshal(dst)
 	if err != nil {
 		return errors.Wrapf(err, "error marshaling destination: %v", dst)
 	}
-
-	err = s.kv.Put(key, value, nil)
+	err = s.kv.Put(dstKey, value, nil)
 	if err != nil {
 		return errors.Wrapf(err, "error sending destination to store: %v", dst)
 	}
-	log.Debugf("[store] Added destination: %s with key: %s", value, key)
+	log.Debugf("[store] Added destination: %s with key: %s", value, dstKey)
+
+	// Persisting IPVS key. So it can be validated.
+	err = s.kv.Put(ipvsKey, []byte("true"), nil)
+	if err != nil {
+		return errors.Wrapf(err, "error sending destination ipvs id to store: %v", dst.IpvsId())
+	}
 
 	return nil
 }
 
 func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destination) error {
 	key := s.key("destinations", svc.GetId(), dst.GetId())
-	// key := fmt.Sprintf("fusis/destinations/%s/%s", svc.GetId(), dst.GetId())
 
 	err := s.kv.DeleteTree(key)
 	if err != nil {
 		return errors.Wrapf(err, "error trying to delete destination: %v", dst)
 	}
 	log.Debugf("[store] Deleted destination: %s", key)
+
+	ipvsKey := s.key("ipvs-ids", "destinations", dst.IpvsId())
+	err = s.kv.Delete(ipvsKey)
+	if err != nil {
+		return errors.Wrapf(err, "error trying to delete destination ipvs id: %s", ipvsKey)
+	}
 
 	return nil
 }

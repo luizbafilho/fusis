@@ -62,7 +62,7 @@ func (svc Service) IsNat() bool {
 	return svc.Mode == NAT
 }
 
-func (svc Service) KernelKey() string {
+func (svc Service) IpvsId() string {
 	return fmt.Sprintf("%s-%d-%s", svc.Address, svc.Port, svc.Protocol)
 }
 
@@ -83,7 +83,7 @@ func (dst Destination) GetId() string {
 	return dst.Name
 }
 
-func (dst Destination) KernelKey() string {
+func (dst Destination) IpvsId() string {
 	return fmt.Sprintf("%s-%d", dst.Address, dst.Port)
 }
 

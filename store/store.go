@@ -149,6 +149,9 @@ func (s *FusisStore) GetDestinations() ([]types.Destination, error) {
 	dsts := []types.Destination{}
 	entries, err := s.kv.List("fusis/destinations")
 	if err != nil {
+		if err == kv.ErrKeyNotFound {
+			return dsts, nil
+		}
 		return nil, err
 	}
 
@@ -221,6 +224,8 @@ func (s *FusisStore) GetService(serviceId string) (*types.Service, error) {
 }
 
 func (s *FusisStore) DeleteService(svc *types.Service) error {
+	// TODO: Make all these actions atomic
+
 	key := s.key("services", svc.GetId())
 	err := s.kv.DeleteTree(key)
 	if err != nil {
@@ -233,7 +238,31 @@ func (s *FusisStore) DeleteService(svc *types.Service) error {
 		return errors.Wrapf(err, "error trying to delete service ipvs id: %s", ipvsKey)
 	}
 
-	// TODO: Delete all dependent destinations and checks
+	// Deleting dependent destionations
+	dsts, err := s.GetDestinations()
+	if err != nil {
+		return errors.Wrapf(err, "get destinations from deleted service failed: %#v", svc)
+	}
+
+	for _, dst := range dsts {
+		if dst.ServiceId == svc.GetId() {
+			if err := s.DeleteDestination(svc, &dst); err != nil {
+				return errors.Wrap(err, "deleting dependent destination failed")
+			}
+		}
+	}
+
+	// Deleting checks
+	exists, err := s.kv.Exists(s.key("checks", svc.GetId()))
+	if err != nil {
+		return errors.Wrapf(err, "verifying health check to service: %s failed", svc.GetId())
+	}
+
+	if exists {
+		if err := s.DeleteCheck(types.CheckSpec{ServiceID: svc.GetId()}); err != nil {
+			return errors.Wrap(err, "deleting dependent check failed")
+		}
+	}
 
 	return nil
 }

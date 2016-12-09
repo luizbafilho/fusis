@@ -14,6 +14,16 @@ import (
 	"github.com/luizbafilho/fusis/types"
 )
 
+// An ErrorResponse reports the error caused by an API request
+type ErrorResponse struct {
+	// HTTP response that caused this error
+	Response *http.Response
+
+	// Error message
+	Err  string            `json:"error"`
+	Errs map[string]string `json:"errors"`
+}
+
 type Client struct {
 	Addr       string
 	HttpClient *http.Client
@@ -40,22 +50,25 @@ func NewClient(addr string) *Client {
 	}
 }
 
-func (c *Client) GetServices() ([]*types.Service, error) {
+func (c *Client) GetServices() ([]types.Service, *http.Response, error) {
+	svcs := []types.Service{}
 	resp, err := c.HttpClient.Get(c.path("services"))
 	if err != nil {
-		return nil, err
+		return svcs, resp, err
 	}
 	defer resp.Body.Close()
-	var services []*types.Service
-	switch resp.StatusCode {
-	case http.StatusOK:
-		err = decode(resp.Body, &services)
-	case http.StatusNoContent:
-		services = []*types.Service{}
-	default:
-		return nil, formatError(resp)
+
+	err = checkResponse(resp)
+	if err != nil {
+		return svcs, resp, err
 	}
-	return services, err
+
+	err = decode(resp.Body, &svcs)
+	if err != nil {
+		return svcs, resp, err
+	}
+
+	return svcs, resp, nil
 }
 
 func (c *Client) GetService(id string) (*types.Service, error) {
@@ -182,6 +195,23 @@ func decode(body io.Reader, obj interface{}) error {
 	return nil
 }
 
+func checkResponse(r *http.Response) error {
+	if c := r.StatusCode; c >= 200 && c <= 299 {
+		return nil
+	}
+
+	errorResponse := &ErrorResponse{Response: r}
+	data, err := ioutil.ReadAll(r.Body)
+	if err == nil && len(data) > 0 {
+		err := json.Unmarshal(data, errorResponse)
+		if err != nil {
+			return err
+		}
+	}
+
+	return errorResponse
+}
+
 func formatError(resp *http.Response) error {
 	body, _ := ioutil.ReadAll(resp.Body)
 	return fmt.Errorf("Request failed. Status Code: %v. Body: %q", resp.StatusCode, string(body))
@@ -194,4 +224,14 @@ func (c Client) path(paths ...string) string {
 func idFromLocation(resp *http.Response) string {
 	parts := strings.Split(resp.Header.Get("Location"), "/")
 	return parts[len(parts)-1]
+}
+
+func (r *ErrorResponse) Error() string {
+	var msg interface{}
+	msg = r.Errs
+	if r.Err != "" {
+		msg = r.Err
+	}
+
+	return fmt.Sprintf("%v %v: %d %v", r.Response.Request.Method, r.Response.Request.URL, r.Response.StatusCode, msg)
 }

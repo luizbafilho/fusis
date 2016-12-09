@@ -172,8 +172,8 @@ cat <<"MSG"
 
 MSG
 printf '\e[0m'
-echo 'Your $GOPATH is /home/vagrant/go'
-echo 'Fusis code is in /home/vagrant/go/src/github.com/luizbafilho/fusis'
+echo 'Your $GOPATH is /home/vagrant/gocode'
+echo 'Fusis code is in /home/vagrant/gocode/src/github.com/luizbafilho/fusis'
 echo "For your convinience it's linked in /home/vagrant/fusis"
 echo 'Build fusis with `make` and start `make run`'
 printf "\n"
@@ -182,7 +182,7 @@ EOF
 
     # fusis folder was mounted as root, we neet the parent folders as vagrant
     echo '\033[0;32m''Ensure project folder tree has the right ownership'
-    f='/home/vagrant/go/src/github.com/luizbafilho'
+    f='/home/vagrant/gocode/src/github.com/luizbafilho'
     while [[ $f != '/home/vagrant' ]]; do chown vagrant: $f; f=$(dirname $f); done;
   SHELL
 
@@ -193,7 +193,7 @@ EOF
     privileged: false,
     keep_color: true,
     name: 'Configure development environment',
-    env: { HOME: '/home/vagrant', GOPATH: '/home/vagrant/go' },
+    env: { HOME: '/home/vagrant', GOPATH: '/home/vagrant/gocode' },
     inline: <<-SHELL
 
     # configure GOPATH and and go binaries to vagrant user
@@ -225,11 +225,5 @@ outbound = "$(ip r | grep '^default' | cut -f 5 -d ' ')"
 [ipam]
 ranges = ["192.168.0.0/24"]
 EOF
-
-    # better download the project dependencies
-    echo '\033[0;32m''go get'
-    PATH="$GOPATH/bin:$PATH"
-    cd $HOME/fusis
-    go get -v .
   SHELL
 end

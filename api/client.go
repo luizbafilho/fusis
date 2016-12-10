@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,16 +14,6 @@ import (
 
 	"github.com/luizbafilho/fusis/types"
 )
-
-// An ErrorResponse reports the error caused by an API request
-type ErrorResponse struct {
-	// HTTP response that caused this error
-	Response *http.Response
-
-	// Error message
-	Err  string            `json:"error"`
-	Errs map[string]string `json:"errors"`
-}
 
 type Client struct {
 	Addr       string
@@ -50,65 +41,66 @@ func NewClient(addr string) *Client {
 	}
 }
 
-func (c *Client) GetServices() ([]types.Service, *http.Response, error) {
+func (c *Client) GetServices() ([]types.Service, error) {
 	svcs := []types.Service{}
 	resp, err := c.HttpClient.Get(c.path("services"))
 	if err != nil {
-		return svcs, resp, err
+		return svcs, err
 	}
 	defer resp.Body.Close()
 
 	err = checkResponse(resp)
 	if err != nil {
-		return svcs, resp, err
+		return svcs, err
 	}
 
 	err = decode(resp.Body, &svcs)
 	if err != nil {
-		return svcs, resp, err
+		return svcs, err
 	}
 
-	return svcs, resp, nil
+	return svcs, nil
 }
 
 func (c *Client) GetService(id string) (*types.Service, error) {
+	var svc *types.Service
+
 	resp, err := c.HttpClient.Get(c.path("services", id))
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	var svc *types.Service
-	switch resp.StatusCode {
-	case http.StatusOK:
-		err = decode(resp.Body, &svc)
-	case http.StatusNotFound:
-		return nil, types.ErrServiceNotFound
-	default:
-		return nil, formatError(resp)
+
+	err = checkResponse(resp)
+	if err != nil {
+		return svc, err
 	}
-	return svc, err
+
+	err = decode(resp.Body, &svc)
+	if err != nil {
+		return svc, err
+	}
+
+	return svc, nil
 }
 
-func (c *Client) CreateService(svc types.Service) (string, error) {
+func (c *Client) CreateService(svc types.Service) error {
 	json, err := encode(svc)
 	if err != nil {
-		return "", err
+		return err
 	}
 	resp, err := c.HttpClient.Post(c.path("services"), "application/json", json)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer resp.Body.Close()
-	var id string
-	switch resp.StatusCode {
-	case http.StatusCreated:
-		id = idFromLocation(resp)
-	case http.StatusConflict:
-		err = types.ErrServiceConflict
-	default:
-		err = formatError(resp)
+
+	err = checkResponse(resp)
+	if err != nil {
+		return err
 	}
-	return id, err
+
+	return nil
 }
 
 func (c *Client) DeleteService(id string) error {
@@ -121,14 +113,13 @@ func (c *Client) DeleteService(id string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusNotFound:
-		err = types.ErrServiceNotFound
-	case http.StatusNoContent:
-	default:
-		err = formatError(resp)
+
+	err = checkResponse(resp)
+	if err != nil {
+		return err
 	}
-	return err
+
+	return nil
 }
 
 func (c *Client) AddDestination(dst types.Destination) (string, error) {
@@ -200,16 +191,31 @@ func checkResponse(r *http.Response) error {
 		return nil
 	}
 
-	errorResponse := &ErrorResponse{Response: r}
+	var errMsg struct {
+		Error interface{}
+	}
+
 	data, err := ioutil.ReadAll(r.Body)
 	if err == nil && len(data) > 0 {
-		err := json.Unmarshal(data, errorResponse)
+		err := json.Unmarshal(data, &errMsg)
 		if err != nil {
 			return err
 		}
+
+		switch r.StatusCode {
+		case http.StatusNotFound:
+			err = types.ErrNotFound(errMsg.Error.(string))
+		case http.StatusUnprocessableEntity:
+			err = types.ErrValidation{Errors: errMsg.Error.(map[string]string)}
+		default:
+			err = errors.New(errMsg.Error.(string))
+		}
+
+		return err
+
 	}
 
-	return errorResponse
+	return fmt.Errorf("Request failed. Empty response from the server. Status Code: %v. ", r.StatusCode)
 }
 
 func formatError(resp *http.Response) error {
@@ -226,12 +232,12 @@ func idFromLocation(resp *http.Response) string {
 	return parts[len(parts)-1]
 }
 
-func (r *ErrorResponse) Error() string {
-	var msg interface{}
-	msg = r.Errs
-	if r.Err != "" {
-		msg = r.Err
-	}
-
-	return fmt.Sprintf("%v %v: %d %v", r.Response.Request.Method, r.Response.Request.URL, r.Response.StatusCode, msg)
-}
+// func (r *ErrorResponse) Error() string {
+// 	var msg interface{}
+// 	msg = r.Errs
+// 	if r.Err != "" {
+// 		msg = r.Err
+// 	}
+//
+// 	return fmt.Sprintf("%v %v: %d %v", r.Response.Request.Method, r.Response.Request.URL, r.Response.StatusCode, msg)
+// }

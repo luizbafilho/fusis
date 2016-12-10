@@ -1,7 +1,7 @@
 package api_test
 
 import (
-	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +26,7 @@ func TestClientGetServices(t *testing.T) {
 	}))
 	defer srv.Close()
 	cli := api.NewClient(srv.URL)
-	result, _, err := cli.GetServices()
+	result, err := cli.GetServices()
 	assert.Nil(t, err)
 	assert.Equal(t, []types.Service{
 		{Name: "name1"},
@@ -43,7 +43,7 @@ func TestClientGetServicesEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 	cli := api.NewClient(srv.URL)
-	result, _, err := cli.GetServices()
+	result, err := cli.GetServices()
 	assert.Nil(t, err)
 	assert.Equal(t, []types.Service{}, result)
 }
@@ -55,145 +55,97 @@ func TestClientGetServicesError(t *testing.T) {
 	}))
 	defer srv.Close()
 	cli := api.NewClient(srv.URL)
-	_, _, err := cli.GetServices()
-	assert.Equal(t, err.Error(), fmt.Sprintf("GET %s/services: 500 any error", srv.URL))
+	_, err := cli.GetServices()
+	assert.Equal(t, err.Error(), "any error")
+}
+
+func TestClientGetService(t *testing.T) {
+	var req *http.Request
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte(`{"name": "name1"}`))
+	}))
+	defer srv.Close()
+	cli := api.NewClient(srv.URL)
+	result, err := cli.GetService("name1")
+	assert.Nil(t, err)
+	assert.Equal(t, &types.Service{Name: "name1"}, result)
+
+	assert.Equal(t, req.Method, "GET")
+	assert.Equal(t, req.URL.Path, "/services/name1")
 }
 
 //
-// func (s *S) TestClientGetService(c *check.C) {
-// 	var req *http.Request
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		req = r
-// 		w.Write([]byte(`{"name": "name1"}`))
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	result, err := cli.GetService("name1")
-// 	c.Assert(err, check.IsNil)
-// 	c.Assert(result, check.DeepEquals, &types.Service{
-// 		Name: "name1",
-// 	})
-// 	c.Assert(req.Method, check.Equals, "GET")
-// 	c.Assert(req.URL.Path, check.Equals, "/services/name1")
-// }
-//
-// func (s *S) TestClientGetServiceNotFound(c *check.C) {
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		w.WriteHeader(http.StatusNotFound)
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	result, err := cli.GetService("id1")
-// 	c.Assert(err, check.Equals, types.ErrServiceNotFound)
-// 	c.Assert(result, check.IsNil)
-// }
-//
-// func (s *S) TestClientGetServiceError(c *check.C) {
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		w.Write([]byte("some error"))
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	result, err := cli.GetService("id1")
-// 	c.Assert(err, check.ErrorMatches, "Request failed. Status Code: 500. Body: \"some error\"")
-// 	c.Assert(result, check.IsNil)
-// }
-//
-// func (s *S) TestClientGetServiceUnparseable(c *check.C) {
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		w.Write([]byte("invalid"))
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	result, err := cli.GetService("id1")
-// 	c.Assert(err, check.ErrorMatches, "unable to unmarshal body \"invalid\": invalid character 'i' looking for beginning of value")
-// 	c.Assert(result, check.IsNil)
-// }
-//
-// func (s *S) TestClientCreateService(c *check.C) {
-// 	var (
-// 		req  *http.Request
-// 		body []byte
-// 		err  error
-// 	)
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		req = r
-// 		body, err = ioutil.ReadAll(r.Body)
-// 		c.Assert(err, check.IsNil)
-// 		w.Header().Set("Location", "/services/mysvc")
-// 		w.WriteHeader(http.StatusCreated)
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	id, err := cli.CreateService(types.Service{Name: "name1"})
-// 	c.Assert(err, check.IsNil)
-// 	c.Assert(id, check.Equals, "mysvc")
-// 	c.Assert(req.Method, check.Equals, "POST")
-// 	c.Assert(req.URL.Path, check.Equals, "/services")
-// 	c.Assert(req.Header.Get("Content-Type"), check.Equals, "application/json")
-// 	var result types.Service
-// 	err = json.Unmarshal(body, &result)
-// 	c.Assert(err, check.IsNil)
-// 	c.Assert(result, check.DeepEquals, types.Service{Name: "name1"})
-// }
-//
-// func (s *S) TestClientCreateServiceConflict(c *check.C) {
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		w.WriteHeader(http.StatusConflict)
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	id, err := cli.CreateService(types.Service{Name: "name1"})
-// 	c.Assert(err, check.Equals, types.ErrServiceConflict)
-// 	c.Assert(id, check.Equals, "")
-// }
-//
-// func (s *S) TestClientCreateServiceInvalidStatus(c *check.C) {
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		w.WriteHeader(http.StatusOK)
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	id, err := cli.CreateService(types.Service{Name: "name1"})
-// 	c.Assert(err, check.ErrorMatches, "Request failed. Status Code: 200. Body: \"\"")
-// 	c.Assert(id, check.Equals, "")
-// }
-//
-// func (s *S) TestClientDeleteService(c *check.C) {
-// 	var req *http.Request
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		req = r
-// 		w.WriteHeader(http.StatusNoContent)
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	err := cli.DeleteService("id1")
-// 	c.Assert(err, check.IsNil)
-// 	c.Assert(req.Method, check.Equals, "DELETE")
-// 	c.Assert(req.URL.Path, check.Equals, "/services/id1")
-// }
-//
-// func (s *S) TestClientDeleteServiceInvalidStatus(c *check.C) {
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	err := cli.DeleteService("id1")
-// 	c.Assert(err, check.ErrorMatches, "Request failed. Status Code: 500. Body: \"\"")
-// }
-//
-// func (s *S) TestClientDeleteServiceNotFound(c *check.C) {
-// 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		w.WriteHeader(http.StatusNotFound)
-// 	}))
-// 	defer srv.Close()
-// 	cli := api.NewClient(srv.URL)
-// 	err := cli.DeleteService("id1")
-// 	c.Assert(err, check.Equals, types.ErrServiceNotFound)
-// }
-//
+func TestClientGetServiceNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "service not found"}`))
+	}))
+	defer srv.Close()
+	cli := api.NewClient(srv.URL)
+	_, err := cli.GetService("id1")
+	assert.Equal(t, err.Error(), "service not found")
+}
+
+func TestClientCreateService(t *testing.T) {
+	var (
+		req  *http.Request
+		body []byte
+		err  error
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		body, err = ioutil.ReadAll(r.Body)
+		assert.Nil(t, err)
+		w.Header().Set("Location", "/services/name1")
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	cli := api.NewClient(srv.URL)
+	err = cli.CreateService(types.Service{Name: "name1"})
+
+	assert.Nil(t, err)
+	assert.Equal(t, req.Method, "POST")
+	assert.Equal(t, req.URL.Path, "/services")
+	assert.Equal(t, req.Header.Get("Content-Type"), "application/json")
+}
+
+func TestClientCreateService_Validation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	}))
+	defer srv.Close()
+	cli := api.NewClient(srv.URL)
+	err := cli.CreateService(types.Service{Name: "name1"})
+	assert.NotNil(t, err)
+}
+
+func TestClientDeleteService(t *testing.T) {
+	var req *http.Request
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	cli := api.NewClient(srv.URL)
+	err := cli.DeleteService("id1")
+	assert.Nil(t, err)
+	assert.Equal(t, req.Method, "DELETE")
+	assert.Equal(t, req.URL.Path, "/services/id1")
+}
+
+func TestClientDeleteService_NotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "service not found"}`))
+	}))
+	defer srv.Close()
+	cli := api.NewClient(srv.URL)
+	err := cli.DeleteService("id1")
+	assert.Equal(t, err.Error(), "service not found")
+}
+
 // func (s *S) TestClientAddDestination(c *check.C) {
 // 	var (
 // 		req  *http.Request

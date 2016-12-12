@@ -1,12 +1,12 @@
-hash: 83907d6cc8b3eca2beffc602df03b10da3867168bfbce1907a775a76ca5d1fd1
-updated: 2016-12-04T15:32:27.011793232Z
+hash: 611b3f4879fb94ad23008a447a6a9da7fe8cdaaf01f1f7a7ba7490b6e10d9715
+updated: 2016-12-12T22:42:20.097012633Z
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
 - name: github.com/armon/go-radix
   version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
 - name: github.com/coreos/etcd
-  version: 1f954dc9f4e22a13ea3a2d1b97967ad08d71d852
+  version: be740dc4362bf90d63650ddb809daf8f5abd16a6
   subpackages:
   - client
   - pkg/pathutil
@@ -18,7 +18,7 @@ imports:
 - name: github.com/deckarep/golang-set
   version: 52ba7f28f319e9d560acbf47c7fcf9b9ee7aa7d3
 - name: github.com/dgrijalva/jwt-go
-  version: 24c63f56522a87ec5339cc3567883f1039378fdb
+  version: 9ed569b5d1ac936e6494082958d63a6aa4fff99a
 - name: github.com/docker/libkv
   version: aabc039ad04deb721e234f99cd1b4aa28ac71a40
   subpackages:
@@ -45,7 +45,7 @@ imports:
   - ipvs
   - netlink
 - name: github.com/hashicorp/consul
-  version: 91b0e874362c6053b6bc791f5ffb1b000d35ea81
+  version: 17db4a572287f2b0cf93e47339a17db522f12d45
   subpackages:
   - api
 - name: github.com/hashicorp/errwrap
@@ -74,7 +74,7 @@ imports:
 - name: github.com/hashicorp/logutils
   version: 0dc08b1671f34c4250ce212759ebd880f743d883
 - name: github.com/hashicorp/memberlist
-  version: d16b8b733eddcffb36008dcc425a3b0824034bbb
+  version: 56f5fd70afa73f13bbe529192aeb3dc7bc4bc960
 - name: github.com/hashicorp/serf
   version: b9642a47e6139e50548b6f14588a1a3c0839660a
   subpackages:
@@ -83,7 +83,7 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/influxdata/influxdb
-  version: aff2d7ce649ead1dbb5fd930b09c6e037ef31e0f
+  version: 855c567c67d7fff1e2f91617c292ea20cf26e53c
   subpackages:
   - client/v2
   - models
@@ -93,20 +93,20 @@ imports:
   subpackages:
   - middleware
 - name: github.com/labstack/gommon
-  version: 2d272df536d051e737aea353b86c979d6e88bce0
+  version: 447fe7433567c785af957e549aadae2bf2000071
   subpackages:
   - bytes
   - color
   - log
   - random
 - name: github.com/luizbafilho/leadership
-  version: bfc7753dd48af19513b29deec23c364bf0f274eb
+  version: d62f2888864f584c2f4f6e7a7887945c75d277e7
 - name: github.com/magiconair/properties
   version: 9c47895dc1ce54302908ab8a43385d1f5df2c11c
 - name: github.com/mattn/go-colorable
-  version: 6c903ff4aa50920ca86087a280590b36b3152b9c
+  version: d228849504861217f796da67fae4f6e347643f15
 - name: github.com/mattn/go-isatty
-  version: 66b8e73f3f5cda9f96b69efd03dd3d7fc4a5cdb8
+  version: 30a891c33c7cde7b02a981314b4228ec99380cca
 - name: github.com/mdlayher/arp
   version: d035564bbb237a8495b1adde001ae65add2888c9
 - name: github.com/mdlayher/ethernet
@@ -114,11 +114,11 @@ imports:
 - name: github.com/mdlayher/raw
   version: 472104a05395b20ff1df7d8abe3efb400d68c3cc
 - name: github.com/miekg/dns
-  version: 58f52c57ce9df13460ac68200cef30a008b9c468
+  version: 4744e915eb51a9defb5fb13c24ce2c8408d2fd98
 - name: github.com/mikioh/ipaddr
-  version: 039ec096fa685ef2e6baa8d3b5a0389a4b230128
+  version: 9ea9208ba287b3ccf2d3e357843ad453e8a4e2f7
 - name: github.com/mitchellh/mapstructure
-  version: f3009df150dadf309fdee4a54ed65c124afad715
+  version: bfdb1a85537d60bc7e954e600c250219ea497417
 - name: github.com/osrg/gobgp
   version: 4ecf30f884ae7578ef3ce1a34510d9dd02c6e2bf
   subpackages:
@@ -133,7 +133,7 @@ imports:
 - name: github.com/pelletier/go-buffruneio
   version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
 - name: github.com/pelletier/go-toml
-  version: d464759235b8fd59f8ab4c44807d7c36e1678add
+  version: ce7be745f09fe4ff89af8e3ea744e1deabf20ee3
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/pmezard/go-difflib
@@ -145,7 +145,7 @@ imports:
 - name: github.com/Sirupsen/logrus
   version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/spf13/afero
-  version: 06b7e5f50606ecd49148a01a6008942d9b669217
+  version: 2f30b2a92c0e5700bcfe4715891adb1f2a7a406d
   subpackages:
   - mem
 - name: github.com/spf13/cast
@@ -168,21 +168,21 @@ imports:
   - require
   - suite
 - name: github.com/tylerb/graceful
-  version: 50a48b6e73fcc75b45e22c05b79629a67c79e938
+  version: 4df1190835320af7076dfcf27b3d071fd3612caf
 - name: github.com/ugorji/go
-  version: f1f1a805ed361a0e078bb537e4ea78cd37dcf065
+  version: 9c7f9b7a2bc3a520f7c7b30b34b7f85f47fe27b6
   subpackages:
   - codec
 - name: github.com/valyala/fasttemplate
   version: 3b874956e03f1636d171bda64b130f9135f42cff
 - name: github.com/vishvananda/netlink
-  version: 266f02d3a80fb75c33302a2c91e7632ec33c1f32
+  version: 7a823e360eee9619b585d41579dfd445a8f788cb
   subpackages:
   - nl
 - name: github.com/vishvananda/netns
   version: 8ba1072b58e0c2a240eb5f6120165c7776c3e7b8
 - name: golang.org/x/crypto
-  version: 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
+  version: 9a6f0a01987842989747adff311d80750ba25530
   subpackages:
   - acme
   - acme/autocert
@@ -193,22 +193,22 @@ imports:
   - context
   - context/ctxhttp
 - name: golang.org/x/sys
-  version: c200b10b5d5e122be351b67af224adc6128af5bf
+  version: 478fcf54317e52ab69f40bb4c7a1520288d7f7ea
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 5c6cf4f9a2357d38515014cea8c488ed22bdab90
+  version: 47a200a05c8b3fd1b698571caecbb68beb2611ec
   subpackages:
   - transform
   - unicode/norm
 - name: gopkg.in/go-playground/validator.v9
-  version: 941ce2cabc098467c3ebd66c5d705bc122f18b74
+  version: 49fccadad19338f93f46a5abdafc44cd731cf7a7
 - name: gopkg.in/tomb.v2
-  version: 9dde971544235898fc9720ed594059f79fd3273c
+  version: d5d1b5820637886def9eef33e03a27a9f166942c
 - name: gopkg.in/yaml.v2
   version: a5b47d31c556af34a302ce5d659e6fea44d90de0
 testImports:
 - name: github.com/appleboy/gofight
   version: beadc315fb676177c07a89c34159b9ca4e1aafd9
 - name: gopkg.in/check.v1
-  version: aa8c43564278bc4c58e8ca51bfc5f1c149925cf0
+  version: 20d25e2804050c1cd24a7eea1e7a6447dd0e74ec

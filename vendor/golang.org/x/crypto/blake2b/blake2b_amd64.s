@@ -20,7 +20,7 @@ GLOBL ·iv2<>(SB), (NOPTR+RODATA), $16
 
 DATA ·iv3<>+0x00(SB)/8, $0x1f83d9abfb41bd6b
 DATA ·iv3<>+0x08(SB)/8, $0x5be0cd19137e2179
-GLOBL ·iv3<>(SB), (NOPTR+RODATA), $32
+GLOBL ·iv3<>(SB), (NOPTR+RODATA), $16
 
 DATA ·c40<>+0x00(SB)/8, $0x0201000706050403
 DATA ·c40<>+0x08(SB)/8, $0x0a09080f0e0d0c0b
@@ -269,7 +269,7 @@ noinc:
 TEXT ·supportSSE4(SB), 4, $0-1
 	MOVL $1, AX
 	CPUID
-	SHRL $15, CX  // Bit 15 indicates SSE4 support
+	SHRL $19, CX  // Bit 19 indicates SSE4 support
 	ANDL $1, CX  // CX != 0 if support SSE4
 	MOVB CX, ret+0(FP)
 	RET

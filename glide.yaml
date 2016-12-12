@@ -26,7 +26,7 @@ import:
   subpackages:
   - middleware
 - package: github.com/luizbafilho/leadership
-  version: ^0.1.0
+  version: d62f2888864f584c2f4f6e7a7887945c75d277e7
 - package: github.com/mdlayher/arp
 - package: github.com/mikioh/ipaddr
 - package: github.com/osrg/gobgp

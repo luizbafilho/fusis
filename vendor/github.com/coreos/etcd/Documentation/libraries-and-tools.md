@@ -34,6 +34,7 @@
 **Scala libraries**
 
 - [maciej/etcd-client](https://github.com/maciej/etcd-client) - Supports v2. Akka HTTP-based fully async client
+- [eiipii/etcdhttpclient](https://bitbucket.org/eiipii/etcdhttpclient) - Supports v2. Async HTTP client based on Netty and Scala Futures.
 
 **Python libraries**
 
@@ -122,7 +123,9 @@
 **Projects using etcd**
 
 - [binocarlos/yoda](https://github.com/binocarlos/yoda) - etcd + ZeroMQ
+- [blox/blox](https://github.com/blox/blox) - a collection of open source projects for container management and orchestration with AWS ECS
 - [calavera/active-proxy](https://github.com/calavera/active-proxy) - HTTP Proxy configured with etcd
+- [chain/chain](https://github.com/chain/chain) - software designed to operate and connect to highly scalable permissioned blockchain networks 
 - [derekchiang/etcdplus](https://github.com/derekchiang/etcdplus) - A set of distributed synchronization primitives built upon etcd
 - [go-discover](https://github.com/flynn/go-discover) - service discovery in Go
 - [gleicon/goreman](https://github.com/gleicon/goreman/tree/etcd) - Branch of the Go Foreman clone with etcd support

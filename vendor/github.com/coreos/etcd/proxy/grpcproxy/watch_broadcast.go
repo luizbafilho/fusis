@@ -25,8 +25,6 @@ import (
 
 // watchBroadcast broadcasts a server watcher to many client watchers.
 type watchBroadcast struct {
-	// wbs is the backpointer to all broadcasts on this range
-	wbs *watchBroadcasts
 	// cancel stops the underlying etcd server watcher and closes ch.
 	cancel context.CancelFunc
 	donec  chan struct{}
@@ -89,8 +87,8 @@ func (wb *watchBroadcast) bcast(wr clientv3.WatchResponse) {
 	for r := range wb.receivers {
 		r.send(wr)
 	}
-	if wb.size() > 0 {
-		eventsCoalescing.Add(float64(wb.size() - 1))
+	if len(wb.receivers) > 0 {
+		eventsCoalescing.Add(float64(len(wb.receivers) - 1))
 	}
 }
 
@@ -135,7 +133,7 @@ func (wb *watchBroadcast) delete(w *watcher) {
 		panic("deleting missing watcher from broadcast")
 	}
 	delete(wb.receivers, w)
-	if !wb.empty() {
+	if len(wb.receivers) > 0 {
 		// do not dec the only left watcher for coalescing.
 		watchersCoalescing.Dec()
 	}

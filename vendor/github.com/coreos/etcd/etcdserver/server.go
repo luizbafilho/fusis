@@ -733,7 +733,9 @@ func (s *EtcdServer) run() {
 			plog.Infof("the data-dir used by this member must be removed.")
 			return
 		case <-getSyncC():
-			s.sync(s.Cfg.ReqTimeout())
+			if s.store.HasTTLKeys() {
+				s.sync(s.Cfg.ReqTimeout())
+			}
 		case <-s.stop:
 			return
 		}
@@ -1095,8 +1097,6 @@ func (s *EtcdServer) Term() uint64 { return atomic.LoadUint64(&s.r.term) }
 func (s *EtcdServer) Lead() uint64 { return atomic.LoadUint64(&s.r.lead) }
 
 func (s *EtcdServer) Leader() types.ID { return types.ID(s.Lead()) }
-
-func (s *EtcdServer) IsPprofEnabled() bool { return s.Cfg.EnablePprof }
 
 // configure sends a configuration change through consensus and
 // then waits for it to be applied to the server. It

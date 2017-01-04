@@ -1,17 +1,34 @@
 Fusis Balancer  [![Build Status](https://travis-ci.org/luizbafilho/fusis.svg?branch=master)](https://travis-ci.org/luizbafilho/fusis)
 ======
 
-Fusis Balancer is a software [Layer 4](https://en.wikipedia.org/wiki/Transport_layer) Load Balancer powered by Linux's [IPVS](http://www.linuxvirtualserver.org/). It exposes a HTTP API to manage your services dynamically.
-
-A layer 3 balancer take decisions based only on IP address (source and destination), a layer 4 balancer can also see transport information like TCP and UDP ports. Being a software balancer, it's tailored to be easy to deploy and scale.
+Fusis Balancer is a software [Layer 4](https://en.wikipedia.org/wiki/Transport_layer) Load Balancer powered by Linux's [IPVS](http://www.linuxvirtualserver.org/). It is a control plane for IPVS and adds distribution, fault tolerance, self-configuration and a nice JSON API to it.
 
 ## Why?
+IPVS is hard. Fusis is an abstraction to make it easier to deal with IPVS and make its way to production without problems.
+
 The goal of this project is to provide a friendly way to use IPVS.
 
-It will be responsible for detecting new/failed nodes and add/remove routes to them automatically configuring the network to do so.
+## Fault Tolerance
+To make sure Fusis does not become a Single Point of Failure in your infrastructure, the Fusis can operate in two modes: `Failover` or `Distributed` modes.
+
+### Failover
+In this mode, there is always one single instance balancing the traffic, and `N` others working as secondary instances. Once the Primary is down, a secondary instance becomes the primary and starts balancing the load.
+
+### Distribute
+In this mode, all instances balance the traffic. To distribute the traffic to every instance, we need to make use of `ECMP`, so, the router can distribute the traffic equally. Fusis integrates out of the box with BGP without any external dependencies. With a basic configuration, you can peer with your BGP infrastructure and have a distributed load balancer.
+
+```TOML
+[bgp]
+as = 100
+router-id = "192.168.151.182"
+
+  [[bgp.neighbors]]
+  address = "192.168.151.178"
+  peer-as = 100
+```
 
 ## State
-This project it's under heavy development, it's not usable yet, but you can **Star** :star: the project and follow the updates.
+This project it is under heavy development, it is not usable yet, but you can **Star** :star: the project and follow the updates.
 
 ## Dependencies
 * Linux kernel >= 2.6.10 or with IPVS module installed
@@ -34,7 +51,7 @@ WIP
 vagrant up
 ```
 Watch the message at the end of vagrant provision process.
-It'll provide you with user, password and where the project code is.
+It will provide you with the user, password and where the project code is.
 
 3. Login
 ```bash
@@ -66,7 +83,7 @@ From another host, send a HTTP request to the API querying for available service
 ``` bash
 curl -i {IP OF FUSIS HOST}:8000/services
 ```
-And you should get:
+So you should get:
 ```
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8
@@ -76,7 +93,7 @@ Content-Length: 3
 []
 ```
 
-Just for testing purposes, lets add a route to a fake IPv4 by runnging this on the fusis host:
+Just for testing purposes, lets add a route to a fake IPv4 by running this on the fusis host:
 
 ``` bash
 sudo ipvsadm -A -t 10.0.0.1:80 -s rr
@@ -97,13 +114,3 @@ Content-Length: 94
 
 [{"Name":"","Host":"10.0.0.1","Port":80,"Protocol":"tcp","Scheduler":"rr","Destinations":[]}]
 ```
-
-### Logging
-Fusis uses [Logrus](https://github.com/Sirupsen/logrus) as its logging system.
-By default, Fusis logs to stdout every minute.
-You can change its log collection interval by passing the following command line argument:
-
-```bash
-# The argument --log-interval or -i. The value is in seconds
-sudo fusis balancer --bootstrap --log-interval 10
- ```

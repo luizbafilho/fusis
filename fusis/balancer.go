@@ -43,7 +43,7 @@ type Balancer interface {
 
 // Balancer represents the Load Balancer
 type FusisBalancer struct {
-	sync.Mutex
+	sync.RWMutex
 
 	config        *config.BalancerConfig
 	ipvsMngr      ipvs.Syncer
@@ -132,13 +132,13 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 		return nil, fmt.Errorf("Error cleaning up network vips: %v", err)
 	}
 
-	balancer.loadInitialState()
-
 	go balancer.watchLeaderChanges()
 	go balancer.watchStore()
 	go balancer.watchState()
 
 	go metrics.Monitor()
+
+	balancer.loadInitialState()
 
 	return balancer, nil
 }
@@ -228,12 +228,20 @@ func (b *FusisBalancer) handleStateChange() (error, string) {
 }
 
 func (b *FusisBalancer) IsLeader() bool {
-	return b.candidate != nil && b.candidate.IsLeader()
+	b.RLock()
+	if b.candidate == nil {
+		return false
+	}
+	b.RUnlock()
+
+	return b.candidate.IsLeader()
 }
 
 func (b *FusisBalancer) watchLeaderChanges() {
 	candidate := leadership.NewCandidate(b.store.GetKV(), b.config.StorePrefix+"/leader", b.config.Name, 20*time.Second)
+	b.Lock()
 	b.candidate = candidate
+	b.Unlock()
 
 	electedCh, _ := b.candidate.RunForElection()
 	if b.isAnycast() {

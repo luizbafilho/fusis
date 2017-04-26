@@ -122,28 +122,18 @@ func (c *Client) DeleteService(id string) error {
 	return nil
 }
 
-func (c *Client) AddDestination(dst types.Destination) (string, error) {
+func (c *Client) AddDestination(dst types.Destination) error {
 	json, err := encode(dst)
 	if err != nil {
-		return "", err
+		return err
 	}
 	resp, err := c.HttpClient.Post(c.path("services", dst.ServiceId, "destinations"), "application/json", json)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer resp.Body.Close()
-	var id string
-	switch resp.StatusCode {
-	case http.StatusNotFound:
-		err = types.ErrServiceNotFound
-	case http.StatusConflict:
-		err = types.ErrDestinationConflict
-	case http.StatusCreated:
-		id = idFromLocation(resp)
-	default:
-		err = formatError(resp)
-	}
-	return id, err
+
+	return checkResponse(resp)
 }
 
 func (c *Client) DeleteDestination(serviceId, destinationId string) error {
@@ -155,15 +145,8 @@ func (c *Client) DeleteDestination(serviceId, destinationId string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusNotFound:
-		err = types.ErrDestinationNotFound
-	case http.StatusNoContent:
-	default:
-		err = formatError(resp)
-	}
-	return err
+
+	return checkResponse(resp)
 }
 
 func encode(obj interface{}) (io.Reader, error) {

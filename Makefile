@@ -10,7 +10,7 @@ docker:
 	docker build -t fusis .
 
 test:
-	sudo -E go test $$(go list ./... | grep -v /vendor)
+	sudo -E go test -race $$(go list ./... | grep -v /vendor)
 
 ci:
 	./covertests.sh

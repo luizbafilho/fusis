@@ -26,6 +26,7 @@ SOFTWARE.
 package mapset
 
 import (
+	"encoding/json"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -372,5 +373,78 @@ func Test_ToSlice(t *testing.T) {
 		if !s.Contains(i) {
 			t.Errorf("Set is missing element: %v", i)
 		}
+	}
+}
+
+// Test_ToSliceDeadlock - fixes issue: https://github.com/deckarep/golang-set/issues/36
+// This code reveals the deadlock however it doesn't happen consistently.
+func Test_ToSliceDeadlock(t *testing.T) {
+	runtime.GOMAXPROCS(2)
+
+	var wg sync.WaitGroup
+	set := NewSet()
+	workers := 10
+	wg.Add(workers)
+	for i := 1; i <= workers; i++ {
+		go func() {
+			for j := 0; j < 1000; j++ {
+				set.Add(1)
+				set.ToSlice()
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+func Test_UnmarshalJSON(t *testing.T) {
+	s := []byte(`["test", 1, 2, 3, ["4,5,6"]]`)
+	expected := NewSetFromSlice(
+		[]interface{}{
+			json.Number("1"),
+			json.Number("2"),
+			json.Number("3"),
+			"test",
+		},
+	)
+	actual := NewSet()
+	err := json.Unmarshal(s, actual)
+	if err != nil {
+		t.Errorf("Error should be nil: %v", err)
+	}
+
+	if !expected.Equal(actual) {
+		t.Errorf("Expected no difference, got: %v", expected.Difference(actual))
+	}
+}
+
+func Test_MarshalJSON(t *testing.T) {
+	expected := NewSetFromSlice(
+		[]interface{}{
+			json.Number("1"),
+			"test",
+		},
+	)
+
+	b, err := json.Marshal(
+		NewSetFromSlice(
+			[]interface{}{
+				1,
+				"test",
+			},
+		),
+	)
+	if err != nil {
+		t.Errorf("Error should be nil: %v", err)
+	}
+
+	actual := NewSet()
+	err = json.Unmarshal(b, actual)
+	if err != nil {
+		t.Errorf("Error should be nil: %v", err)
+	}
+
+	if !expected.Equal(actual) {
+		t.Errorf("Expected no difference, got: %v", expected.Difference(actual))
 	}
 }

@@ -12,14 +12,14 @@ import (
 
 func TestBasicAuth(t *testing.T) {
 	e := echo.New()
-	req, _ := http.NewRequest(echo.GET, "/", nil)
+	req := httptest.NewRequest(echo.GET, "/", nil)
 	res := httptest.NewRecorder()
 	c := e.NewContext(req, res)
-	f := func(u, p string) bool {
+	f := func(u, p string, c echo.Context) (bool, error) {
 		if u == "joe" && p == "secret" {
-			return true
+			return true, nil
 		}
-		return false
+		return false, nil
 	}
 	h := BasicAuth(f)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")
@@ -30,15 +30,15 @@ func TestBasicAuth(t *testing.T) {
 	req.Header.Set(echo.HeaderAuthorization, auth)
 	assert.NoError(t, h(c))
 
-	// Incorrect password
-	auth = basic + " " + base64.StdEncoding.EncodeToString([]byte("joe:password"))
+	// Invalid credentials
+	auth = basic + " " + base64.StdEncoding.EncodeToString([]byte("joe:invalid-password"))
 	req.Header.Set(echo.HeaderAuthorization, auth)
 	he := h(c).(*echo.HTTPError)
 	assert.Equal(t, http.StatusUnauthorized, he.Code)
 	assert.Equal(t, basic+" realm=Restricted", res.Header().Get(echo.HeaderWWWAuthenticate))
 
-	// Empty Authorization header
-	req.Header.Set(echo.HeaderAuthorization, "")
+	// Missing Authorization header
+	req.Header.Del(echo.HeaderAuthorization)
 	he = h(c).(*echo.HTTPError)
 	assert.Equal(t, http.StatusUnauthorized, he.Code)
 

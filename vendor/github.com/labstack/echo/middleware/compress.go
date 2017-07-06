@@ -29,10 +29,14 @@ type (
 	}
 )
 
+const (
+	gzipScheme = "gzip"
+)
+
 var (
 	// DefaultGzipConfig is the default Gzip middleware config.
 	DefaultGzipConfig = GzipConfig{
-		Skipper: defaultSkipper,
+		Skipper: DefaultSkipper,
 		Level:   -1,
 	}
 )
@@ -54,8 +58,6 @@ func GzipWithConfig(config GzipConfig) echo.MiddlewareFunc {
 		config.Level = DefaultGzipConfig.Level
 	}
 
-	scheme := "gzip"
-
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if config.Skipper(c) {
@@ -64,30 +66,39 @@ func GzipWithConfig(config GzipConfig) echo.MiddlewareFunc {
 
 			res := c.Response()
 			res.Header().Add(echo.HeaderVary, echo.HeaderAcceptEncoding)
-			if strings.Contains(c.Request().Header.Get(echo.HeaderAcceptEncoding), scheme) {
-				rw := res.Writer()
+			if strings.Contains(c.Request().Header.Get(echo.HeaderAcceptEncoding), gzipScheme) {
+				res.Header().Add(echo.HeaderContentEncoding, gzipScheme) // Issue #806
+				rw := res.Writer
 				w, err := gzip.NewWriterLevel(rw, config.Level)
 				if err != nil {
 					return err
 				}
 				defer func() {
 					if res.Size == 0 {
+						if res.Header().Get(echo.HeaderContentEncoding) == gzipScheme {
+							res.Header().Del(echo.HeaderContentEncoding)
+						}
 						// We have to reset response to it's pristine state when
 						// nothing is written to body or error is returned.
 						// See issue #424, #407.
-						res.SetWriter(rw)
-						res.Header().Del(echo.HeaderContentEncoding)
+						res.Writer = rw
 						w.Reset(ioutil.Discard)
 					}
 					w.Close()
 				}()
 				grw := &gzipResponseWriter{Writer: w, ResponseWriter: rw}
-				res.Header().Set(echo.HeaderContentEncoding, scheme)
-				res.SetWriter(grw)
+				res.Writer = grw
 			}
 			return next(c)
 		}
 	}
+}
+
+func (w *gzipResponseWriter) WriteHeader(code int) {
+	if code == http.StatusNoContent { // Issue #489
+		w.ResponseWriter.Header().Del(echo.HeaderContentEncoding)
+	}
+	w.ResponseWriter.WriteHeader(code)
 }
 
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
@@ -97,8 +108,8 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func (w *gzipResponseWriter) Flush() error {
-	return w.Writer.(*gzip.Writer).Flush()
+func (w *gzipResponseWriter) Flush() {
+	w.Writer.(*gzip.Writer).Flush()
 }
 
 func (w *gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {

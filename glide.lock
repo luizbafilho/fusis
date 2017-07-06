@@ -1,5 +1,5 @@
-hash: 611b3f4879fb94ad23008a447a6a9da7fe8cdaaf01f1f7a7ba7490b6e10d9715
-updated: 2016-12-12T22:42:20.097012633Z
+hash: f12d7500571a2a0f8c1a3aa49ecc2de5015645a4de0d303f4712f0f74328978c
+updated: 2017-07-06T16:00:39.154250074-03:00
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -16,7 +16,7 @@ imports:
   subpackages:
   - spew
 - name: github.com/deckarep/golang-set
-  version: 52ba7f28f319e9d560acbf47c7fcf9b9ee7aa7d3
+  version: fc8930a5e645572ee00bf66358ed3414f3c13b90
 - name: github.com/dgrijalva/jwt-go
   version: 9ed569b5d1ac936e6494082958d63a6aa4fff99a
 - name: github.com/docker/libkv
@@ -76,7 +76,7 @@ imports:
 - name: github.com/hashicorp/memberlist
   version: 56f5fd70afa73f13bbe529192aeb3dc7bc4bc960
 - name: github.com/hashicorp/serf
-  version: b9642a47e6139e50548b6f14588a1a3c0839660a
+  version: d6574a5bb1226678d7010325fb6c985db20ee458
   subpackages:
   - coordinate
   - serf
@@ -89,7 +89,7 @@ imports:
   - models
   - pkg/escape
 - name: github.com/labstack/echo
-  version: 8d504c1b699c757b267255c53b3e5219f9974abc
+  version: 935a60782cbbc55110e7bd4b33120e4567cbee43
   subpackages:
   - middleware
 - name: github.com/labstack/gommon
@@ -119,6 +119,8 @@ imports:
   version: 9ea9208ba287b3ccf2d3e357843ad453e8a4e2f7
 - name: github.com/mitchellh/mapstructure
   version: bfdb1a85537d60bc7e954e600c250219ea497417
+- name: github.com/mqliang/libipvs
+  version: b5ccc1e5bd005b75d533a255f9c0cb06758e31d5
 - name: github.com/osrg/gobgp
   version: 4ecf30f884ae7578ef3ce1a34510d9dd02c6e2bf
   subpackages:
@@ -143,7 +145,7 @@ imports:
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
 - name: github.com/Sirupsen/logrus
-  version: d26492970760ca5d33129d2d799e34be5c4782eb
+  version: ba1b36c82c5e05c4f912a88eab0dcd91a171688f
 - name: github.com/spf13/afero
   version: 2f30b2a92c0e5700bcfe4715891adb1f2a7a406d
   subpackages:
@@ -202,7 +204,7 @@ imports:
   - transform
   - unicode/norm
 - name: gopkg.in/go-playground/validator.v9
-  version: 49fccadad19338f93f46a5abdafc44cd731cf7a7
+  version: fb68f39656d7ebf8aa339ad4917aa0c260ecc237
 - name: gopkg.in/tomb.v2
   version: d5d1b5820637886def9eef33e03a27a9f166942c
 - name: gopkg.in/yaml.v2

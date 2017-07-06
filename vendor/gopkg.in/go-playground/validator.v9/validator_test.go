@@ -2951,11 +2951,11 @@ func TestMapDiveValidation(t *testing.T) {
 		return name
 	})
 
-	type MapDiveJsonTest struct {
+	type MapDiveJSONTest struct {
 		Map map[string]string `validate:"required,gte=1,dive,gte=1" json:"MyName"`
 	}
 
-	mdjt := &MapDiveJsonTest{
+	mdjt := &MapDiveJSONTest{
 		Map: map[string]string{
 			"Key1": "Value1",
 			"Key2": "",
@@ -2966,7 +2966,7 @@ func TestMapDiveValidation(t *testing.T) {
 	NotEqual(t, err, nil)
 
 	errs = err.(ValidationErrors)
-	fe := getError(errs, "MapDiveJsonTest.MyName[Key2]", "MapDiveJsonTest.Map[Key2]")
+	fe := getError(errs, "MapDiveJSONTest.MyName[Key2]", "MapDiveJSONTest.Map[Key2]")
 	NotEqual(t, fe, nil)
 	Equal(t, fe.Tag(), "gte")
 	Equal(t, fe.ActualTag(), "gte")
@@ -6607,7 +6607,7 @@ func TestTranslationErrors(t *testing.T) {
 		})
 
 	NotEqual(t, err, nil)
-	Equal(t, err.Error(), "error: conflicting key 'required' rule 'Unknown' with text '{0} is a required field', value being ignored")
+	Equal(t, err.Error(), "error: conflicting key 'required' rule 'Unknown' with text '{0} is a required field' for locale 'en', value being ignored")
 }
 
 func TestStructFiltered(t *testing.T) {
@@ -6635,11 +6635,7 @@ func TestStructFiltered(t *testing.T) {
 	}
 
 	p3 := func(ns []byte) bool {
-		if bytes.HasSuffix(ns, []byte("SubTest.Test")) {
-			return false
-		}
-
-		return true
+		return !bytes.HasSuffix(ns, []byte("SubTest.Test"))
 	}
 
 	// p4 := []string{
@@ -6955,4 +6951,131 @@ func TestAlphanumericUnicodeValidation(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestArrayStructNamespace(t *testing.T) {
+
+	validate := New()
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+
+		if name == "-" {
+			return ""
+		}
+
+		return name
+	})
+
+	type child struct {
+		Name string `json:"name" validate:"required"`
+	}
+	var input struct {
+		Children []child `json:"children" validate:"required,gt=0,dive"`
+	}
+	input.Children = []child{{"ok"}, {""}}
+
+	errs := validate.Struct(input)
+	NotEqual(t, errs, nil)
+
+	ve := errs.(ValidationErrors)
+	Equal(t, len(ve), 1)
+	AssertError(t, errs, "children[1].name", "Children[1].Name", "name", "Name", "required")
+}
+
+func TestMapStructNamespace(t *testing.T) {
+
+	validate := New()
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+
+		if name == "-" {
+			return ""
+		}
+
+		return name
+	})
+
+	type child struct {
+		Name string `json:"name" validate:"required"`
+	}
+	var input struct {
+		Children map[int]child `json:"children" validate:"required,gt=0,dive"`
+	}
+	input.Children = map[int]child{
+		0: {Name: "ok"},
+		1: {Name: ""},
+	}
+
+	errs := validate.Struct(input)
+	NotEqual(t, errs, nil)
+
+	ve := errs.(ValidationErrors)
+	Equal(t, len(ve), 1)
+	AssertError(t, errs, "children[1].name", "Children[1].Name", "name", "Name", "required")
+}
+
+func TestFieldLevelName(t *testing.T) {
+	type Test struct {
+		String string            `validate:"custom1"      json:"json1"`
+		Array  []string          `validate:"dive,custom2" json:"json2"`
+		Map    map[string]string `validate:"dive,custom3" json:"json3"`
+		Array2 []string          `validate:"custom4"      json:"json4"`
+		Map2   map[string]string `validate:"custom5"      json:"json5"`
+	}
+
+	var res1, res2, res3, res4, res5, alt1, alt2, alt3, alt4, alt5 string
+	validate := New()
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+
+		if name == "-" {
+			return ""
+		}
+
+		return name
+	})
+	validate.RegisterValidation("custom1", func(fl FieldLevel) bool {
+		res1 = fl.FieldName()
+		alt1 = fl.StructFieldName()
+		return true
+	})
+	validate.RegisterValidation("custom2", func(fl FieldLevel) bool {
+		res2 = fl.FieldName()
+		alt2 = fl.StructFieldName()
+		return true
+	})
+	validate.RegisterValidation("custom3", func(fl FieldLevel) bool {
+		res3 = fl.FieldName()
+		alt3 = fl.StructFieldName()
+		return true
+	})
+	validate.RegisterValidation("custom4", func(fl FieldLevel) bool {
+		res4 = fl.FieldName()
+		alt4 = fl.StructFieldName()
+		return true
+	})
+	validate.RegisterValidation("custom5", func(fl FieldLevel) bool {
+		res5 = fl.FieldName()
+		alt5 = fl.StructFieldName()
+		return true
+	})
+
+	test := Test{
+		String: "test",
+		Array:  []string{"1"},
+		Map:    map[string]string{"test": "test"},
+	}
+
+	errs := validate.Struct(test)
+	Equal(t, errs, nil)
+	Equal(t, res1, "json1")
+	Equal(t, alt1, "String")
+	Equal(t, res2, "json2[0]")
+	Equal(t, alt2, "Array[0]")
+	Equal(t, res3, "json3[test]")
+	Equal(t, alt3, "Map[test]")
+	Equal(t, res4, "json4")
+	Equal(t, alt4, "Array2")
+	Equal(t, res5, "json5")
+	Equal(t, alt5, "Map2")
 }

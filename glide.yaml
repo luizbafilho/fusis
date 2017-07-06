@@ -48,6 +48,7 @@ import:
 - package: gopkg.in/go-playground/validator.v9
   version: ^9.3.0
 - package: github.com/hashicorp/go-memdb
+- package: github.com/mqliang/libipvs
 testImport:
 - package: github.com/appleboy/gofight
   version: ^2.0.0

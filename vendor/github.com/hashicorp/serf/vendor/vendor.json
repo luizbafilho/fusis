@@ -81,10 +81,10 @@
 			"revisionTime": "2015-12-06T04:24:12Z"
 		},
 		{
-			"checksumSHA1": "8ytOx52G+38QMK4G194Kl6g6YGY=",
+			"checksumSHA1": "+i4GBvhxBpAfDnvTdfumEn7JL5A=",
 			"path": "github.com/hashicorp/memberlist",
-			"revision": "b2053e314b4a87e5f0d2d47aeafd3e03be13da90",
-			"revisionTime": "2016-06-21T23:59:43Z"
+			"revision": "9800c50ab79c002353852a9b1095e9591b161513",
+			"revisionTime": "2016-12-13T23:44:46Z"
 		},
 		{
 			"checksumSHA1": "xZuhljnmBysJPta/lMyYmJdujCg=",

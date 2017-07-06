@@ -49,6 +49,7 @@ import:
   version: ^9.3.0
 - package: github.com/hashicorp/go-memdb
 - package: github.com/mqliang/libipvs
+- package: github.com/hkwi/nlgo
 testImport:
 - package: github.com/appleboy/gofight
   version: ^2.0.0

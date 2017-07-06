@@ -1,5 +1,5 @@
-hash: f12d7500571a2a0f8c1a3aa49ecc2de5015645a4de0d303f4712f0f74328978c
-updated: 2017-07-06T16:00:39.154250074-03:00
+hash: 16b57573c8487aeeec4d51e8f53cbf4befe0938a27da0caba42981cc75ba15d3
+updated: 2017-07-06T16:22:08.629783174-03:00
 imports:
 - name: github.com/armon/go-metrics
   version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
@@ -80,6 +80,8 @@ imports:
   subpackages:
   - coordinate
   - serf
+- name: github.com/hkwi/nlgo
+  version: dbae43f4fc47bf868bca3cc3c1ea2954c2059842
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/influxdata/influxdb
@@ -169,8 +171,6 @@ imports:
   - mock
   - require
   - suite
-- name: github.com/tylerb/graceful
-  version: 4df1190835320af7076dfcf27b3d071fd3612caf
 - name: github.com/ugorji/go
   version: 9c7f9b7a2bc3a520f7c7b30b34b7f85f47fe27b6
   subpackages:

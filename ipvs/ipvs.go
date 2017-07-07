@@ -7,13 +7,14 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
-	gipvs "github.com/google/seesaw/ipvs"
-	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/state"
+	"github.com/luizbafilho/fusis/types"
+	"github.com/mqliang/libipvs"
 )
 
 type Ipvs struct {
 	sync.Mutex
+	handler libipvs.IPVSHandle
 }
 
 type Syncer interface {
@@ -26,20 +27,18 @@ func loadIpvsModule() error {
 
 //New creates a new ipvs struct and flushes the IPVS Table
 func New() (*Ipvs, error) {
-	if err := loadIpvsModule(); err != nil {
-		return nil, err
-	}
-
-	if err := gipvs.Init(); err != nil {
+	handler, err := libipvs.New()
+	if err != nil {
 		return nil, fmt.Errorf("[ipvs] Initialisation failed: %v", err)
 	}
 
-	ipvs := &Ipvs{}
-	if err := ipvs.Flush(); err != nil {
+	if err := handler.Flush(); err != nil {
 		return nil, fmt.Errorf("[ipvs] Flushing table failed: %v", err)
 	}
 
-	return ipvs, nil
+	return &Ipvs{
+		handler: handler,
+	}, nil
 }
 
 // Sync syncs all ipvs rules present in state to kernel
@@ -71,7 +70,7 @@ func (ipvs *Ipvs) Sync(state state.State) error {
 	// Cleaning rules
 	for r := range rulesToRemove.Iter() {
 		service := r.(types.Service)
-		err := gipvs.DeleteService(*ToIpvsService(&service))
+		err := ipvs.handler.DelService(ToIpvsService(&service))
 		if err != nil {
 			return err
 		}
@@ -100,14 +99,14 @@ func (ipvs *Ipvs) syncDestinations(state state.State, svc types.Service) error {
 
 	for r := range rulesToAdd.Iter() {
 		destination := r.(types.Destination)
-		if err := gipvs.AddDestination(*ToIpvsService(&svc), *ToIpvsDestination(&destination)); err != nil {
+		if err := ipvs.handler.NewDestination(ToIpvsService(&svc), ToIpvsDestination(&destination)); err != nil {
 			return err
 		}
 	}
 
 	for r := range rulesToRemove.Iter() {
 		destination := r.(types.Destination)
-		err := gipvs.DeleteDestination(*ToIpvsService(&svc), *ToIpvsDestination(&destination))
+		err := ipvs.handler.DelDestination(ToIpvsService(&svc), ToIpvsDestination(&destination))
 		if err != nil {
 			return err
 		}
@@ -117,14 +116,14 @@ func (ipvs *Ipvs) syncDestinations(state state.State, svc types.Service) error {
 }
 
 func (ipvs *Ipvs) addServiceAndDestinations(svc types.Service, dsts []types.Destination) error {
-	ipvsService := *ToIpvsService(&svc)
-	err := gipvs.AddService(ipvsService)
+	ipvsService := ToIpvsService(&svc)
+	err := ipvs.handler.NewService(ipvsService)
 	if err != nil {
 		return err
 	}
 
 	for _, d := range dsts {
-		err := gipvs.AddDestination(ipvsService, *ToIpvsDestination(&d))
+		err := ipvs.handler.NewDestination(ipvsService, ToIpvsDestination(&d))
 		if err != nil {
 			return err
 		}
@@ -145,7 +144,7 @@ func (ipvs *Ipvs) getStateServicesSet(state state.State) mapset.Set {
 }
 
 func (ipvs *Ipvs) getCurrentServicesSet() (mapset.Set, error) {
-	svcs, err := gipvs.GetServices()
+	svcs, err := ipvs.handler.ListServices()
 	if err != nil {
 		return nil, err
 	}
@@ -183,12 +182,16 @@ func (ipvs *Ipvs) getStateDestinationsSet(state state.State, svc types.Service) 
 
 func (ipvs *Ipvs) getCurrentDestinationsSet(svc types.Service) (mapset.Set, error) {
 	currentSet := mapset.NewSet()
-	ipvsSvc, err := gipvs.GetService(ToIpvsService(&svc))
+	// ipvsSvc, err := ipvs.handler.ListServices(ToIpvsService(&svc))
+	// if err != nil {
+	// 	return nil, err
+	// }
+	dsts, err := ipvs.handler.ListDestinations(ToIpvsService(&svc))
 	if err != nil {
 		return nil, err
 	}
 
-	for _, d := range ipvsSvc.Destinations {
+	for _, d := range dsts {
 		currentSet.Add(fromDestination(d))
 	}
 
@@ -197,5 +200,5 @@ func (ipvs *Ipvs) getCurrentDestinationsSet(svc types.Service) (mapset.Set, erro
 
 // Flush flushes all services and destinations from the IPVS table.
 func (ipvs *Ipvs) Flush() error {
-	return gipvs.Flush()
+	return ipvs.handler.Flush()
 }

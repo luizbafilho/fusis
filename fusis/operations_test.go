@@ -56,6 +56,7 @@ func (s *OperationsTestSuite) SetupTest() {
 		Weight:    1,
 		ServiceId: "test",
 	}
+
 }
 
 func (s *OperationsTestSuite) TearDownTest() {
@@ -87,10 +88,9 @@ func WaitForResult(test testFn, error errorFn) {
 func (s *OperationsTestSuite) TestAddService() {
 	err := s.balancer.AddService(&s.service)
 	assert.Nil(s.T(), err)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	assert.Equal(s.T(), []types.Service{s.service}, s.balancer.GetServices())
-
 }
 
 func (s *OperationsTestSuite) TestAddService_VipAllocation() {
@@ -153,7 +153,7 @@ func (s *OperationsTestSuite) TestAddService_Uniqueness() {
 func (s *OperationsTestSuite) TestGetService() {
 	err := s.balancer.AddService(&s.service)
 	assert.Nil(s.T(), err)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	svc, err := s.balancer.GetService(s.service.Name)
 	assert.Nil(s.T(), err)
@@ -167,10 +167,10 @@ func (s *OperationsTestSuite) TestGetService() {
 func (s *OperationsTestSuite) TestDeleteService() {
 	err := s.balancer.AddService(&s.service)
 	assert.Nil(s.T(), err)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	err = s.balancer.DeleteService(s.service.Name)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 	assert.Nil(s.T(), err)
 	assert.Len(s.T(), s.balancer.GetServices(), 0)
 
@@ -185,7 +185,7 @@ func (s *OperationsTestSuite) TestAddDestination() {
 
 	err = s.balancer.AddDestination(&s.service, &s.destination)
 	assert.Nil(s.T(), err)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	assert.Equal(s.T(), []types.Destination{s.destination}, s.balancer.GetDestinations(&s.service))
 
@@ -259,14 +259,14 @@ func (s *OperationsTestSuite) TestAddDestination_Uniqueness() {
 func (s *OperationsTestSuite) TestDeleteDestination() {
 	err := s.balancer.AddService(&s.service)
 	assert.Nil(s.T(), err)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	err = s.balancer.AddDestination(&s.service, &s.destination)
 	assert.Nil(s.T(), err)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	err = s.balancer.DeleteDestination(&s.destination)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 	assert.Nil(s.T(), err)
 	assert.Len(s.T(), s.balancer.GetDestinations(&s.service), 0)
 

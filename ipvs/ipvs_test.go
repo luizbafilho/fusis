@@ -3,10 +3,10 @@ package ipvs_test
 import (
 	"testing"
 
-	gipvs "github.com/google/seesaw/ipvs"
-	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/ipvs"
 	"github.com/luizbafilho/fusis/state/mocks"
+	"github.com/luizbafilho/fusis/types"
+	"github.com/mqliang/libipvs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,16 +47,24 @@ func TestIpvsSync(t *testing.T) {
 	// Testing Services and destinations addition
 	ipvsMngr.Sync(state)
 
-	svcs, err := gipvs.GetServices()
+	h, err := libipvs.New()
+	if err != nil {
+		panic(err)
+	}
+
+	svcs, err := h.ListServices()
 	assert.Nil(t, err)
 
 	// Asserting Services
 	assert.Equal(t, svc.Address, svcs[0].Address.String())
 	assert.Equal(t, svc.Port, svcs[0].Port)
 
+	destinations, err := h.ListDestinations(svcs[0])
+	assert.Nil(t, err)
+
 	// Asserting Destinations
-	assert.Equal(t, dst.Address, svcs[0].Destinations[0].Address.String())
-	assert.Equal(t, dst.Port, svcs[0].Destinations[0].Port)
+	assert.Equal(t, dst.Address, destinations[0].Address.String())
+	assert.Equal(t, dst.Port, destinations[0].Port)
 
 	// Updating destinations
 	state = &mocks.State{}
@@ -64,11 +72,14 @@ func TestIpvsSync(t *testing.T) {
 	state.On("GetDestinations", &svc).Return([]types.Destination{dst2})
 	ipvsMngr.Sync(state)
 
-	svcs, err = gipvs.GetServices()
+	svcs, err = h.ListServices()
 	assert.Nil(t, err)
 
-	assert.Equal(t, dst2.Address, svcs[0].Destinations[0].Address.String())
-	assert.Equal(t, dst2.Port, svcs[0].Destinations[0].Port)
+	destinations, err = h.ListDestinations(svcs[0])
+	assert.Nil(t, err)
+
+	assert.Equal(t, dst2.Address, destinations[0].Address.String())
+	assert.Equal(t, dst2.Port, destinations[0].Port)
 
 	// Testing Services and Destinations deletion
 	state = &mocks.State{}
@@ -76,7 +87,7 @@ func TestIpvsSync(t *testing.T) {
 
 	ipvsMngr.Sync(state)
 
-	svcs, err = gipvs.GetServices()
+	svcs, err = h.ListServices()
 	assert.Nil(t, err)
 
 	assert.Len(t, svcs, 0)

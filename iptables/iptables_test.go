@@ -110,7 +110,7 @@ func TestIptablesSync(t *testing.T) {
 	rule1, err := iptablesMngr.serviceToSnatRule(s1)
 	assert.Nil(t, err)
 
-	assert.Equal(t, rules.Contains(rule2, *rule1), true)
+	assert.Equal(t, true, rules.Contains(rule2, *rule1))
 }
 
 func TestAddRule(t *testing.T) {

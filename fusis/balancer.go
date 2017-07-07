@@ -2,6 +2,8 @@ package fusis
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -198,6 +200,11 @@ func (b *FusisBalancer) watchState() {
 }
 
 func (b *FusisBalancer) handleStateChange() (error, string) {
+	start := time.Now()
+	defer func() {
+		log.Debugf("handleStateChange() took %v", time.Since(start))
+	}()
+
 	state := b.state
 
 	if b.config.EnableHealthChecks {
@@ -290,6 +297,12 @@ func (b *FusisBalancer) cleanup() error {
 
 	kv := b.store.GetKV()
 	kv.DeleteTree(b.config.StorePrefix)
+
+	b.flushVips()
+
+	if out, err := exec.Command("ipvsadm", "--clear").CombinedOutput(); err != nil {
+		log.Fatal(fmt.Errorf("Running ipvsadm --clear failed with message: `%s`, error: %v", strings.TrimSpace(string(out)), err))
+	}
 
 	return nil
 }

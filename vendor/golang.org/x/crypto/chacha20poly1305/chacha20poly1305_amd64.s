@@ -278,7 +278,7 @@ TEXT ·chacha20Poly1305Open(SB), 0, $288-97
 	MOVQ ad+72(FP), adp
 
 	// Check for AVX2 support
-	CMPB runtime·support_avx2(SB), $1
+	CMPB ·useAVX2(SB), $1
 	JE   chacha20Poly1305Open_AVX2
 
 	// Special optimization, for very short buffers
@@ -1484,8 +1484,7 @@ TEXT ·chacha20Poly1305Seal(SB), 0, $288-96
 	MOVQ src_len+56(FP), inl
 	MOVQ ad+72(FP), adp
 
-	// Check for AVX2 support
-	CMPB runtime·support_avx2(SB), $1
+	CMPB ·useAVX2(SB), $1
 	JE   chacha20Poly1305Seal_AVX2
 
 	// Special optimization, for very short buffers
@@ -1691,7 +1690,7 @@ sealSSETail64:
 	MOVO  D1, ctr0Store
 
 sealSSETail64LoopA:
-	// Perform ChaCha rounds, while hashing the prevsiosly encrpyted ciphertext
+	// Perform ChaCha rounds, while hashing the previously encrypted ciphertext
 	polyAdd(0(oup))
 	polyMul
 	LEAQ 16(oup), oup
@@ -1725,7 +1724,7 @@ sealSSETail128:
 	MOVO A0, A1; MOVO B0, B1; MOVO C0, C1; MOVO D0, D1; PADDL ·sseIncMask<>(SB), D1; MOVO D1, ctr1Store
 
 sealSSETail128LoopA:
-	// Perform ChaCha rounds, while hashing the prevsiosly encrpyted ciphertext
+	// Perform ChaCha rounds, while hashing the previously encrypted ciphertext
 	polyAdd(0(oup))
 	polyMul
 	LEAQ 16(oup), oup
@@ -1771,7 +1770,7 @@ sealSSETail192:
 	MOVO A1, A2; MOVO B1, B2; MOVO C1, C2; MOVO D1, D2; PADDL ·sseIncMask<>(SB), D2; MOVO D2, ctr2Store
 
 sealSSETail192LoopA:
-	// Perform ChaCha rounds, while hashing the prevsiosly encrpyted ciphertext
+	// Perform ChaCha rounds, while hashing the previously encrypted ciphertext
 	polyAdd(0(oup))
 	polyMul
 	LEAQ 16(oup), oup
@@ -2695,13 +2694,21 @@ sealAVX2Tail512LoopB:
 
 	JMP sealAVX2SealHash
 
-// func haveSSSE3() bool
-TEXT ·haveSSSE3(SB), NOSPLIT, $0
-	XORQ AX, AX
-	INCL AX
+// func cpuid(eaxArg, ecxArg uint32) (eax, ebx, ecx, edx uint32)
+TEXT ·cpuid(SB), NOSPLIT, $0-24
+	MOVL eaxArg+0(FP), AX
+	MOVL ecxArg+4(FP), CX
 	CPUID
-	SHRQ $9, CX
-	ANDQ $1, CX
-	MOVB CX, ret+0(FP)
+	MOVL AX, eax+8(FP)
+	MOVL BX, ebx+12(FP)
+	MOVL CX, ecx+16(FP)
+	MOVL DX, edx+20(FP)
 	RET
 
+// func xgetbv() (eax, edx uint32)
+TEXT ·xgetbv(SB),NOSPLIT,$0-8
+	MOVL $0, CX
+	XGETBV
+	MOVL AX, eax+0(FP)
+	MOVL DX, edx+4(FP)
+	RET

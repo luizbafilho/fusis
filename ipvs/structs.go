@@ -4,15 +4,8 @@ import (
 	"net"
 	"syscall"
 
-	gipvs "github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/mqliang/libipvs"
-)
-
-const (
-	NatMode    = gipvs.DFForwardMasq
-	TunnelMode = gipvs.DFForwardTunnel
-	RouteMode  = gipvs.DFForwardRoute
 )
 
 func stringToIPProto(s string) libipvs.Protocol {

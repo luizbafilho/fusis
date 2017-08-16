@@ -4,10 +4,9 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
-	"github.com/pkg/errors"
+	"github.com/mqliang/libipvs"
 )
 
 type Collector interface {
@@ -15,7 +14,7 @@ type Collector interface {
 }
 
 type Publisher interface {
-	PublishServiceStats(stats *ipvs.Service) error
+	PublishServiceStats(stats *libipvs.Service) error
 	Close() error
 }
 
@@ -71,16 +70,16 @@ func (m *Metrics) InitPublisher() error {
 }
 
 func (m Metrics) collect() error {
-	services, err := ipvs.GetServices()
-	if err != nil {
-		return errors.Wrap(err, "ipvs.GetServices() failed when collecting metrics")
-	}
+	// services, err := ipvs.GetServices()
+	// if err != nil {
+	// 	return errors.Wrap(err, "ipvs.GetServices() failed when collecting metrics")
+	// }
 
-	for _, s := range services {
-		if err := m.publisher.PublishServiceStats(s); err != nil {
-			return err
-		}
-	}
+	// for _, s := range services {
+	// 	if err := m.publisher.PublishServiceStats(s); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	return nil
 }

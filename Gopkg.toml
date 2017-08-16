@@ -1,0 +1,96 @@
+
+# Gopkg.toml example
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#  name = "github.com/x/y"
+#  version = "2.4.0"
+
+
+[[constraint]]
+  name = "github.com/Sirupsen/logrus"
+  version = "0.11.0"
+
+[[constraint]]
+  name = "github.com/appleboy/gofight"
+  version = "2.0.0"
+
+[[constraint]]
+  name = "github.com/deckarep/golang-set"
+  version = "1.5.0"
+
+[[constraint]]
+  name = "github.com/docker/libkv"
+  version = "0.2.1"
+
+[[constraint]]
+  name = "github.com/fatih/structs"
+
+[[constraint]]
+  name = "github.com/google/seesaw"
+
+[[constraint]]
+  name = "github.com/hashicorp/logutils"
+
+[[constraint]]
+  name = "github.com/hashicorp/serf"
+  version = "0.8.0"
+
+[[constraint]]
+  name = "github.com/labstack/echo"
+  version = "3.0.3"
+
+[[constraint]]
+  name = "github.com/luizbafilho/leadership"
+  revision = "d62f2888864f584c2f4f6e7a7887945c75d277e7"
+
+[[constraint]]
+  name = "github.com/mdlayher/arp"
+
+[[constraint]]
+  name = "github.com/mikioh/ipaddr"
+
+[[constraint]]
+  name = "github.com/mqliang/libipvs"
+
+[[constraint]]
+  name = "github.com/osrg/gobgp"
+  revision = "4ecf30f884ae7578ef3ce1a34510d9dd02c6e2bf"
+
+[[constraint]]
+  name = "github.com/pkg/errors"
+  version = "0.8.0"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+
+[[constraint]]
+  name = "github.com/spf13/viper"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "1.1.4"
+
+[[constraint]]
+  name = "github.com/vishvananda/netlink"
+
+[[constraint]]
+  name = "gopkg.in/check.v1"
+
+[[constraint]]
+  name = "gopkg.in/go-playground/validator.v9"
+  version = "9.3.0"

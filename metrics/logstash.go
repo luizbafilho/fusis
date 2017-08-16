@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"time"
 
-	"github.com/fatih/structs"
-	"github.com/google/seesaw/ipvs"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/mqliang/libipvs"
 	"github.com/pkg/errors"
 )
 
@@ -35,7 +33,7 @@ func (l Logstash) Close() error {
 	return l.conn.Close()
 }
 
-func (l Logstash) PublishServiceStats(svc *ipvs.Service) error {
+func (l Logstash) PublishServiceStats(svc *libipvs.Service) error {
 	data := map[string]interface{}{}
 	for k, v := range l.extras {
 		data[k] = v
@@ -45,33 +43,33 @@ func (l Logstash) PublishServiceStats(svc *ipvs.Service) error {
 	data["service_protocol"] = svc.Protocol.String()
 	data["service_port"] = svc.Port
 
-	for _, d := range svc.Destinations {
-		data["destination_address"] = d.Address.String()
-		data["destination_port"] = d.Port
-		data["@timestamp"] = time.Now().Unix()
-
-		stats := structs.New(d.Statistics)
-		for _, f := range stats.Fields() {
-			if f.IsEmbedded() {
-				for _, s := range f.Fields() {
-					data["name"] = s.Name()
-					data["value"] = s.Value()
-
-					if err := l.publish(data); err != nil {
-						return err
-					}
-				}
-				continue
-			}
-
-			data["name"] = f.Name()
-			data["value"] = f.Value()
-
-			if err := l.publish(data); err != nil {
-				return err
-			}
-		}
-	}
+	// for _, d := range libipvs.ListDestinations(svc) {
+	// 	data["destination_address"] = d.Address.String()
+	// 	data["destination_port"] = d.Port
+	// 	data["@timestamp"] = time.Now().Unix()
+	//
+	// 	stats := structs.New(d.Statistics)
+	// 	for _, f := range stats.Fields() {
+	// 		if f.IsEmbedded() {
+	// 			for _, s := range f.Fields() {
+	// 				data["name"] = s.Name()
+	// 				data["value"] = s.Value()
+	//
+	// 				if err := l.publish(data); err != nil {
+	// 					return err
+	// 				}
+	// 			}
+	// 			continue
+	// 		}
+	//
+	// 		data["name"] = f.Name()
+	// 		data["value"] = f.Value()
+	//
+	// 		if err := l.publish(data); err != nil {
+	// 			return err
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }

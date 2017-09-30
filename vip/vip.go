@@ -2,6 +2,7 @@ package vip
 
 import (
 	"fmt"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
@@ -25,6 +26,11 @@ func New(config *config.BalancerConfig) (Syncer, error) {
 }
 
 func (n VipMngr) Sync(state state.State) error {
+	start := time.Now()
+	defer func() {
+		log.Debugf("[vip] Sync took %v", time.Since(start))
+	}()
+
 	log.Debug("[vip] Syncing")
 	currentVips, err := n.getCurrentVips()
 	if err != nil {

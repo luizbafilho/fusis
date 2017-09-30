@@ -1,16 +1,16 @@
 default: build
 
 build:
-	go build -race -o bin/fusis
+	GOOS=linux go build -o bin/fusis
 
 run:
-	sudo bin/fusis balancer --log-level=debug
+	GOOS=linux sudo bin/fusis balancer --log-level=debug
 
 docker:
 	docker build -t fusis .
 
 test:
-	sudo -E go test -race $$(go list ./... | grep -v /vendor)
+	GOOS=linux sudo -E go test -race $$(go list ./... | grep -v /vendor)
 
 ci:
 	./covertests.sh

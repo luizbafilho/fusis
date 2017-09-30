@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
+	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
+	"github.com/docker/libnetwork/ipvs"
+	"github.com/labstack/gommon/log"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/types"
-	"github.com/mqliang/libipvs"
 )
 
 type Ipvs struct {
 	sync.Mutex
-	handler libipvs.IPVSHandle
+	handler *ipvs.Handle
 }
 
 type Syncer interface {
@@ -27,7 +28,7 @@ func loadIpvsModule() error {
 
 //New creates a new ipvs struct and flushes the IPVS Table
 func New() (*Ipvs, error) {
-	handler, err := libipvs.New()
+	handler, err := ipvs.New("")
 	if err != nil {
 		return nil, fmt.Errorf("[ipvs] Initialisation failed: %v", err)
 	}
@@ -43,6 +44,11 @@ func New() (*Ipvs, error) {
 
 // Sync syncs all ipvs rules present in state to kernel
 func (ipvs *Ipvs) Sync(state state.State) error {
+	start := time.Now()
+	defer func() {
+		log.Debugf("[ipvs] Sync took %v", time.Since(start))
+	}()
+
 	ipvs.Lock()
 	defer ipvs.Unlock()
 	log.Debug("[ipvs] Syncing")
@@ -143,8 +149,8 @@ func (ipvs *Ipvs) getStateServicesSet(state state.State) mapset.Set {
 	return stateSet
 }
 
-func (ipvs *Ipvs) getCurrentServicesSet() (mapset.Set, error) {
-	svcs, err := ipvs.handler.ListServices()
+func (i *Ipvs) getCurrentServicesSet() (mapset.Set, error) {
+	svcs, err := i.handler.GetServices()
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +192,7 @@ func (ipvs *Ipvs) getCurrentDestinationsSet(svc types.Service) (mapset.Set, erro
 	// if err != nil {
 	// 	return nil, err
 	// }
-	dsts, err := ipvs.handler.ListDestinations(ToIpvsService(&svc))
+	dsts, err := ipvs.handler.GetDestinations(ToIpvsService(&svc))
 	if err != nil {
 		return nil, err
 	}
@@ -199,6 +205,6 @@ func (ipvs *Ipvs) getCurrentDestinationsSet(svc types.Service) (mapset.Set, erro
 }
 
 // Flush flushes all services and destinations from the IPVS table.
-func (ipvs *Ipvs) Flush() error {
-	return ipvs.handler.Flush()
+func (i *Ipvs) Flush() error {
+	return i.handler.Flush()
 }

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
@@ -77,6 +78,11 @@ func New(config *config.BalancerConfig) (*IptablesMngr, error) {
 
 // Sync syncs all iptables rules
 func (i IptablesMngr) Sync(s state.State) error {
+	start := time.Now()
+	defer func() {
+		log.Debugf("[iptables ] Sync took %v", time.Since(start))
+	}()
+
 	i.Lock()
 	defer i.Unlock()
 	log.Debug("[iptables] Syncing")

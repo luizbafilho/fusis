@@ -4,12 +4,13 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/docker/libnetwork/ipvs"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/mqliang/libipvs"
 )
 
-func stringToIPProto(s string) libipvs.Protocol {
-	var value libipvs.Protocol
+func stringToIPProto(s string) uint16 {
+	var value uint16
 	if s == "udp" {
 		value = syscall.IPPROTO_UDP
 	} else {
@@ -20,7 +21,7 @@ func stringToIPProto(s string) libipvs.Protocol {
 }
 
 //MarshalJSON ...
-func ipProtoToString(proto libipvs.Protocol) string {
+func ipProtoToString(proto uint16) string {
 	var value string
 
 	if proto == syscall.IPPROTO_UDP {
@@ -32,14 +33,14 @@ func ipProtoToString(proto libipvs.Protocol) string {
 	return value
 }
 
-func stringToDestinationFlags(s string) libipvs.FwdMethod {
-	var flag libipvs.FwdMethod
+func stringToDestinationFlags(s string) uint32 {
+	var flag uint32
 
 	switch s {
 	case "nat":
-		flag = libipvs.IP_VS_CONN_F_MASQ
+		flag = ipvs.ConnectionFlagMasq
 	case "tunnel":
-		flag = libipvs.IP_VS_CONN_F_TUNNEL
+		flag = ipvs.ConnectionFlagTunnel
 	default:
 		// Default is Direct Routing
 		flag = libipvs.IP_VS_CONN_F_DROUTE
@@ -49,14 +50,14 @@ func stringToDestinationFlags(s string) libipvs.FwdMethod {
 }
 
 //MarshalJSON ...
-func destinationFlagsToString(fwdMethod libipvs.FwdMethod) string {
+func destinationFlagsToString(fwdMethod uint32) string {
 	var value string
 
 	switch fwdMethod {
-	case libipvs.IP_VS_CONN_F_MASQ:
+	case ipvs.ConnectionFlagMasq:
 		value = "nat"
 		// *flags =
-	case libipvs.IP_VS_CONN_F_TUNNEL:
+	case ipvs.ConnectionFlagTunnel:
 		value = "tunnel"
 	default:
 		// Default is Direct Routing
@@ -66,8 +67,8 @@ func destinationFlagsToString(fwdMethod libipvs.FwdMethod) string {
 	return value
 }
 
-func ToIpvsService(s *types.Service) *libipvs.Service {
-	service := &libipvs.Service{
+func ToIpvsService(s *types.Service) *ipvs.Service {
+	service := &ipvs.Service{
 		AddressFamily: syscall.AF_INET,
 		Address:       net.ParseIP(s.Address),
 		Protocol:      stringToIPProto(s.Protocol),
@@ -76,24 +77,25 @@ func ToIpvsService(s *types.Service) *libipvs.Service {
 	}
 
 	if s.Persistent > 0 {
-		service.Flags = libipvs.Flags{Flags: libipvs.IP_VS_SVC_F_PERSISTENT}
+		// defining the IP_VS_SVC_F_PERSISTENT flag
+		service.Flags = 1
 		service.Timeout = s.Persistent
 	}
 
 	return service
 }
 
-func ToIpvsDestination(d *types.Destination) *libipvs.Destination {
-	return &libipvs.Destination{
-		AddressFamily: syscall.AF_INET,
-		Address:       net.ParseIP(d.Address),
-		Port:          d.Port,
-		Weight:        uint32(d.Weight),
-		FwdMethod:     stringToDestinationFlags(d.Mode),
+func ToIpvsDestination(d *types.Destination) *ipvs.Destination {
+	return &ipvs.Destination{
+		AddressFamily:   syscall.AF_INET,
+		Address:         net.ParseIP(d.Address),
+		Port:            d.Port,
+		Weight:          int(d.Weight),
+		ConnectionFlags: stringToDestinationFlags(d.Mode),
 	}
 }
 
-func FromService(s *libipvs.Service) types.Service {
+func FromService(s *ipvs.Service) types.Service {
 	return types.Service{
 		Address:   s.Address.String(),
 		Port:      s.Port,
@@ -102,11 +104,11 @@ func FromService(s *libipvs.Service) types.Service {
 	}
 }
 
-func fromDestination(d *libipvs.Destination) types.Destination {
+func fromDestination(d *ipvs.Destination) types.Destination {
 	return types.Destination{
 		Address: d.Address.String(),
 		Port:    d.Port,
 		Weight:  int32(d.Weight),
-		Mode:    destinationFlagsToString(d.FwdMethod),
+		Mode:    destinationFlagsToString(d.ConnectionFlags),
 	}
 }

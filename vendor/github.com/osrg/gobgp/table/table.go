@@ -16,21 +16,50 @@
 package table
 
 import (
-	log "github.com/Sirupsen/logrus"
+	"fmt"
+	"net"
+	"sort"
+
 	"github.com/armon/go-radix"
 	"github.com/osrg/gobgp/packet/bgp"
-	"sort"
+	log "github.com/sirupsen/logrus"
 )
+
+type LookupOption uint8
+
+const (
+	LOOKUP_EXACT LookupOption = iota
+	LOOKUP_LONGER
+	LOOKUP_SHORTER
+)
+
+type LookupPrefix struct {
+	Prefix string
+	LookupOption
+}
+
+type TableSelectOption struct {
+	ID             string
+	LookupPrefixes []*LookupPrefix
+	VRF            *Vrf
+	adj            bool
+	Best           bool
+	MultiPath      bool
+}
 
 type Table struct {
 	routeFamily  bgp.RouteFamily
 	destinations map[string]*Destination
 }
 
-func NewTable(rf bgp.RouteFamily) *Table {
+func NewTable(rf bgp.RouteFamily, dsts ...*Destination) *Table {
+	destinations := make(map[string]*Destination)
+	for _, dst := range dsts {
+		destinations[dst.GetNlri().String()] = dst
+	}
 	return &Table{
 		routeFamily:  rf,
-		destinations: make(map[string]*Destination),
+		destinations: destinations,
 	}
 }
 
@@ -188,7 +217,7 @@ func (t *Table) getOrCreateDest(nlri bgp.AddrPrefixInterface) *Destination {
 			"Topic": "Table",
 			"Key":   tableKey,
 		}).Debugf("create Destination")
-		dest = NewDestination(nlri)
+		dest = NewDestination(nlri, 64)
 		t.setDestination(tableKey, dest)
 	}
 	return dest
@@ -206,15 +235,11 @@ func (t *Table) GetSortedDestinations() []*Destination {
 			results = append(results, v.(*Destination))
 			return false
 		})
-	case bgp.RF_FS_IPv4_UC, bgp.RF_FS_IPv6_UC, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN, bgp.RF_FS_L2_VPN:
-		for _, dst := range t.GetDestinations() {
-			results = append(results, dst)
-		}
-		sort.Sort(destinations(results))
 	default:
 		for _, dst := range t.GetDestinations() {
 			results = append(results, dst)
 		}
+		sort.Sort(destinations(results))
 	}
 	return results
 }
@@ -234,15 +259,20 @@ func (t *Table) GetDestination(key string) *Destination {
 	}
 }
 
-func (t *Table) GetLongerPrefixDestinations(key string) []*Destination {
+func (t *Table) GetLongerPrefixDestinations(key string) ([]*Destination, error) {
 	results := make([]*Destination, 0, len(t.GetDestinations()))
 	switch t.routeFamily {
-	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
+		_, prefix, err := net.ParseCIDR(key)
+		if err != nil {
+			return nil, err
+		}
+		k := CidrToRadixkey(prefix.String())
 		r := radix.New()
 		for _, dst := range t.GetDestinations() {
 			r.Insert(dst.RadixKey, dst)
 		}
-		r.WalkPrefix(key, func(s string, v interface{}) bool {
+		r.WalkPrefix(k, func(s string, v interface{}) bool {
 			results = append(results, v.(*Destination))
 			return false
 		})
@@ -251,7 +281,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) []*Destination {
 			results = append(results, dst)
 		}
 	}
-	return results
+	return results, nil
 }
 
 func (t *Table) setDestination(key string, dest *Destination) {
@@ -273,10 +303,136 @@ func (t *Table) Bests(id string) []*Path {
 	return paths
 }
 
+func (t *Table) MultiBests(id string) [][]*Path {
+	paths := make([][]*Path, 0, len(t.destinations))
+	for _, dst := range t.destinations {
+		path := dst.GetMultiBestPath(id)
+		if path != nil {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
 func (t *Table) GetKnownPathList(id string) []*Path {
 	paths := make([]*Path, 0, len(t.destinations))
 	for _, dst := range t.destinations {
 		paths = append(paths, dst.GetKnownPathList(id)...)
 	}
 	return paths
+}
+
+func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
+	id := GLOBAL_RIB_NAME
+	var vrf *Vrf
+	adj := false
+	prefixes := make([]*LookupPrefix, 0, len(option))
+	best := false
+	mp := false
+	for _, o := range option {
+		if o.ID != "" {
+			id = o.ID
+		}
+		if o.VRF != nil {
+			vrf = o.VRF
+		}
+		adj = o.adj
+		prefixes = append(prefixes, o.LookupPrefixes...)
+		best = o.Best
+		mp = o.MultiPath
+	}
+	dOption := DestinationSelectOption{ID: id, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
+	dsts := make(map[string]*Destination)
+
+	if len(prefixes) != 0 {
+		switch t.routeFamily {
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
+			f := func(key string) bool {
+				if dst := t.GetDestination(key); dst != nil {
+					if d := dst.Select(dOption); d != nil {
+						dsts[key] = d
+						return true
+					}
+				}
+				return false
+			}
+
+			for _, p := range prefixes {
+				key := p.Prefix
+				switch p.LookupOption {
+				case LOOKUP_LONGER:
+					ds, err := t.GetLongerPrefixDestinations(key)
+					if err != nil {
+						return nil, err
+					}
+					for _, dst := range ds {
+						if d := dst.Select(dOption); d != nil {
+							dsts[dst.GetNlri().String()] = d
+						}
+					}
+				case LOOKUP_SHORTER:
+					addr, prefix, err := net.ParseCIDR(key)
+					if err != nil {
+						return nil, err
+					}
+					ones, _ := prefix.Mask.Size()
+					for i := ones; i >= 0; i-- {
+						_, prefix, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", addr.String(), i))
+						f(prefix.String())
+					}
+				default:
+					if host := net.ParseIP(key); host != nil {
+						masklen := 32
+						if t.routeFamily == bgp.RF_IPv6_UC {
+							masklen = 128
+						}
+						for i := masklen; i >= 0; i-- {
+							_, prefix, err := net.ParseCIDR(fmt.Sprintf("%s/%d", key, i))
+							if err != nil {
+								return nil, err
+							}
+							if f(prefix.String()) {
+								break
+							}
+						}
+					} else {
+						f(key)
+					}
+				}
+			}
+		default:
+			return nil, fmt.Errorf("route filtering is only supported for IPv4/IPv6 unicast/mpls routes")
+		}
+	} else {
+		for k, dst := range t.GetDestinations() {
+			if d := dst.Select(dOption); d != nil {
+				dsts[k] = d
+			}
+		}
+	}
+	return &Table{
+		routeFamily:  t.routeFamily,
+		destinations: dsts,
+	}, nil
+}
+
+type TableInfo struct {
+	NumDestination int
+	NumPath        int
+	NumAccepted    int
+}
+
+func (t *Table) Info(id string) *TableInfo {
+	var numD, numP int
+	for _, d := range t.destinations {
+		ps := d.GetKnownPathList(id)
+		if len(ps) > 0 {
+			numD += 1
+			numP += len(ps)
+		}
+	}
+	return &TableInfo{
+		NumDestination: numD,
+		NumPath:        numP,
+	}
 }

@@ -9,7 +9,7 @@ import (
 
 	validator "gopkg.in/go-playground/validator.v9"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/docker/libkv"
 	kv "github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/consul"

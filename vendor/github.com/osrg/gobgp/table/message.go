@@ -17,8 +17,8 @@ package table
 
 import (
 	"bytes"
-	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
 	"hash/fnv"
 	"reflect"
 )
@@ -257,9 +257,13 @@ func UpdatePathAggregator4ByteAs(msg *bgp.BGPUpdate) error {
 }
 
 func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
-	rf := path.GetRouteFamily()
+	family := path.GetRouteFamily()
+	v4 := true
+	if family != bgp.RF_IPv4_UC || !path.IsWithdraw && path.GetNexthop().To4() == nil {
+		v4 = false
+	}
 
-	if rf == bgp.RF_IPv4_UC {
+	if v4 {
 		nlri := path.GetNlri().(*bgp.IPAddrPrefix)
 		if path.IsWithdraw {
 			if msg != nil {
@@ -274,8 +278,16 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				u := msg.Body.(*bgp.BGPUpdate)
 				u.NLRI = append(u.NLRI, nlri)
 			} else {
-				pathAttrs := path.GetPathAttrs()
-				return bgp.NewBGPUpdateMessage(nil, pathAttrs, []*bgp.IPAddrPrefix{nlri})
+				attrs := make([]bgp.PathAttributeInterface, 0, 8)
+				for _, p := range path.GetPathAttrs() {
+					switch p.GetType() {
+					case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
+					case bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI:
+					default:
+						attrs = append(attrs, p)
+					}
+				}
+				return bgp.NewBGPUpdateMessage(nil, attrs, []*bgp.IPAddrPrefix{nlri})
 			}
 		}
 	} else {
@@ -298,15 +310,7 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				} else {
 					nlris = []bgp.AddrPrefixInterface{path.GetNlri()}
 				}
-
-				clonedAttrs := path.GetPathAttrs()
-				for i, a := range clonedAttrs {
-					if a.GetType() == bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI || a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-						clonedAttrs[i] = bgp.NewPathAttributeMpUnreachNLRI(nlris)
-						break
-					}
-				}
-				return bgp.NewBGPUpdateMessage(nil, clonedAttrs, nil)
+				return bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{bgp.NewPathAttributeMpUnreachNLRI(nlris)}, nil)
 			}
 		} else {
 			if msg != nil {
@@ -319,11 +323,12 @@ func createUpdateMsgFromPath(path *Path, msg *bgp.BGPMessage) *bgp.BGPMessage {
 				}
 			} else {
 				attrs := make([]bgp.PathAttributeInterface, 0, 8)
-
 				for _, p := range path.GetPathAttrs() {
-					if p.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+					switch p.GetType() {
+					case bgp.BGP_ATTR_TYPE_MP_REACH_NLRI:
 						attrs = append(attrs, bgp.NewPathAttributeMpReachNLRI(path.GetNexthop().String(), []bgp.AddrPrefixInterface{path.GetNlri()}))
-					} else {
+					case bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI:
+					default:
 						attrs = append(attrs, p)
 					}
 				}

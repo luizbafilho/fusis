@@ -17,60 +17,73 @@
 package server
 
 import (
-	"fmt"
 	"net"
 	"os"
-	"strings"
 	"syscall"
-	"unsafe"
 )
 
 const (
-	TCP_MD5SIG = 0x10
+	TCP_MD5SIG       = 0x10 // TCP MD5 Signature (RFC2385)
+	IPV6_MINHOPCOUNT = 73   // Generalized TTL Security Mechanism (RFC5082)
 )
 
-func SetTcpMD5SigSockopts(l *net.TCPListener, address string, key string) error {
-	fi, err := l.File()
-	defer fi.Close()
+func setsockoptTcpMD5Sig(fd int, address string, key string) error {
+	// always enable and assumes that the configuration is done by setkey()
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, syscall.IPPROTO_TCP, TCP_MD5SIG, 1))
+}
 
+func setTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+	fi, _, err := extractFileAndFamilyFromTCPListener(l)
+	defer fi.Close()
 	if err != nil {
 		return err
 	}
-
-	if l, err := net.FileListener(fi); err == nil {
-		defer l.Close()
-	}
-
-	// always enable and assumes that the configuration is done by
-	// setkey()
-	t := int32(1)
-	_, _, e := syscall.Syscall6(syscall.SYS_SETSOCKOPT, fi.Fd(),
-		uintptr(syscall.IPPROTO_TCP), uintptr(TCP_MD5SIG),
-		uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
-	if e > 0 {
-		return e
-	}
-	return nil
+	return setsockoptTcpMD5Sig(int(fi.Fd()), address, key)
 }
 
-func SetTcpTTLSockopts(conn *net.TCPConn, ttl int) error {
+func setsockoptIpTtl(fd int, family int, value int) error {
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_TTL
-	if strings.Contains(conn.RemoteAddr().String(), "[") {
+	if family == syscall.AF_INET6 {
 		level = syscall.IPPROTO_IPV6
 		name = syscall.IPV6_UNICAST_HOPS
 	}
-	fi, err := conn.File()
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
+}
+
+func setListenTcpTTLSockopt(l *net.TCPListener, ttl int) error {
+	fi, family, err := extractFileAndFamilyFromTCPListener(l)
 	defer fi.Close()
 	if err != nil {
 		return err
 	}
-	if conn, err := net.FileConn(fi); err == nil {
-		defer conn.Close()
-	}
-	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(int(fi.Fd()), level, name, ttl))
+	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
 }
 
-func DialTCPTimeoutWithMD5Sig(host string, port int, localAddr, key string, msec int) (*net.TCPConn, error) {
-	return nil, fmt.Errorf("md5 active connection unsupported")
+func setTcpTTLSockopt(conn *net.TCPConn, ttl int) error {
+	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
+	defer fi.Close()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpTtl(int(fi.Fd()), family, ttl)
+}
+
+func setsockoptIpMinTtl(fd int, family int, value int) error {
+	level := syscall.IPPROTO_IP
+	name := syscall.IP_MINTTL
+	if family == syscall.AF_INET6 {
+		level = syscall.IPPROTO_IPV6
+		name = IPV6_MINHOPCOUNT
+	}
+	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, level, name, value))
+}
+
+func setTcpMinTTLSockopt(conn *net.TCPConn, ttl int) error {
+	fi, family, err := extractFileAndFamilyFromTCPConn(conn)
+	defer fi.Close()
+	if err != nil {
+		return err
+	}
+	return setsockoptIpMinTtl(int(fi.Fd()), family, ttl)
 }

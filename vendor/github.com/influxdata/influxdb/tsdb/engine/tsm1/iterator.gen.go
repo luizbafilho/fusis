@@ -8,11 +8,13 @@ package tsm1
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 type cursor interface {
@@ -114,6 +116,28 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 // copying the stats buffer to the iterator's stats field. This is used to
 // amortize the cost of using a mutex when updating stats.
 const statsBufferCopyIntervalN = 100
+
+type floatFinalizerIterator struct {
+	influxql.FloatIterator
+	logger zap.Logger
+}
+
+func newFloatFinalizerIterator(inner influxql.FloatIterator, logger zap.Logger) *floatFinalizerIterator {
+	itr := &floatFinalizerIterator{FloatIterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*floatFinalizerIterator).closeGC)
+	return itr
+}
+
+func (itr *floatFinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("FloatIterator finalized by GC")
+	itr.Close()
+}
+
+func (itr *floatFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.FloatIterator.Close()
+}
 
 type floatIterator struct {
 	cur   floatCursor
@@ -237,13 +261,9 @@ func (itr *floatIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *floatIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -271,24 +291,22 @@ func (itr *floatLimitIterator) Stats() influxql.IteratorStats { return itr.input
 func (itr *floatLimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *floatLimitIterator) Next() (*influxql.FloatPoint, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // floatCursor represents an object for iterating over a single float field.
@@ -558,6 +576,28 @@ func (c *floatNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EO
 func (c *floatNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*float64)(nil) }
 func (c *floatNilLiteralCursor) nextAt(seek int64) interface{}  { return (*float64)(nil) }
 
+type integerFinalizerIterator struct {
+	influxql.IntegerIterator
+	logger zap.Logger
+}
+
+func newIntegerFinalizerIterator(inner influxql.IntegerIterator, logger zap.Logger) *integerFinalizerIterator {
+	itr := &integerFinalizerIterator{IntegerIterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*integerFinalizerIterator).closeGC)
+	return itr
+}
+
+func (itr *integerFinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("IntegerIterator finalized by GC")
+	itr.Close()
+}
+
+func (itr *integerFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.IntegerIterator.Close()
+}
+
 type integerIterator struct {
 	cur   integerCursor
 	aux   []cursorAt
@@ -680,13 +720,9 @@ func (itr *integerIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *integerIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -714,24 +750,22 @@ func (itr *integerLimitIterator) Stats() influxql.IteratorStats { return itr.inp
 func (itr *integerLimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *integerLimitIterator) Next() (*influxql.IntegerPoint, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // integerCursor represents an object for iterating over a single integer field.
@@ -1001,6 +1035,28 @@ func (c *integerNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.
 func (c *integerNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*int64)(nil) }
 func (c *integerNilLiteralCursor) nextAt(seek int64) interface{}  { return (*int64)(nil) }
 
+type stringFinalizerIterator struct {
+	influxql.StringIterator
+	logger zap.Logger
+}
+
+func newStringFinalizerIterator(inner influxql.StringIterator, logger zap.Logger) *stringFinalizerIterator {
+	itr := &stringFinalizerIterator{StringIterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*stringFinalizerIterator).closeGC)
+	return itr
+}
+
+func (itr *stringFinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("StringIterator finalized by GC")
+	itr.Close()
+}
+
+func (itr *stringFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.StringIterator.Close()
+}
+
 type stringIterator struct {
 	cur   stringCursor
 	aux   []cursorAt
@@ -1123,13 +1179,9 @@ func (itr *stringIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *stringIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -1157,24 +1209,22 @@ func (itr *stringLimitIterator) Stats() influxql.IteratorStats { return itr.inpu
 func (itr *stringLimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *stringLimitIterator) Next() (*influxql.StringPoint, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // stringCursor represents an object for iterating over a single string field.
@@ -1444,6 +1494,28 @@ func (c *stringNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.E
 func (c *stringNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*string)(nil) }
 func (c *stringNilLiteralCursor) nextAt(seek int64) interface{}  { return (*string)(nil) }
 
+type booleanFinalizerIterator struct {
+	influxql.BooleanIterator
+	logger zap.Logger
+}
+
+func newBooleanFinalizerIterator(inner influxql.BooleanIterator, logger zap.Logger) *booleanFinalizerIterator {
+	itr := &booleanFinalizerIterator{BooleanIterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*booleanFinalizerIterator).closeGC)
+	return itr
+}
+
+func (itr *booleanFinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("BooleanIterator finalized by GC")
+	itr.Close()
+}
+
+func (itr *booleanFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.BooleanIterator.Close()
+}
+
 type booleanIterator struct {
 	cur   booleanCursor
 	aux   []cursorAt
@@ -1566,13 +1638,9 @@ func (itr *booleanIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *booleanIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -1600,24 +1668,22 @@ func (itr *booleanLimitIterator) Stats() influxql.IteratorStats { return itr.inp
 func (itr *booleanLimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *booleanLimitIterator) Next() (*influxql.BooleanPoint, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // booleanCursor represents an object for iterating over a single boolean field.

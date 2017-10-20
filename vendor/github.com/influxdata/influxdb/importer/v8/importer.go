@@ -1,3 +1,4 @@
+// Package v8 contains code for importing data from 0.8 instances of InfluxDB.
 package v8 // import "github.com/influxdata/influxdb/importer/v8"
 
 import (
@@ -122,6 +123,17 @@ func (i *Importer) Import() error {
 	// Check if we had any errors scanning the file
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("reading standard input: %s", err)
+	}
+
+	// If there were any failed inserts then return an error so that a non-zero
+	// exit code can be returned.
+	if i.failedInserts > 0 {
+		plural := " was"
+		if i.failedInserts > 1 {
+			plural = "s were"
+		}
+
+		return fmt.Errorf("%d point%s not inserted", i.failedInserts, plural)
 	}
 
 	return nil

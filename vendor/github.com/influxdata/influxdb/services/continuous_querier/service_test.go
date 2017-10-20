@@ -3,16 +3,14 @@ package continuous_querier
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -124,7 +122,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition)
+			min, max, err := influxql.TimeRange(s.Condition, s.Location)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
 			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
@@ -205,7 +203,7 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition)
+			min, max, err := influxql.TimeRange(s.Condition, s.Location)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
 			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
@@ -274,7 +272,7 @@ func TestContinuousQueryService_GroupByOffset(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition)
+			min, max, err := influxql.TimeRange(s.Condition, s.Location)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
 			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
@@ -342,23 +340,244 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	cqi := dbi.ContinuousQueries[0]
 
 	cqi.Query = `this is not a query`
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Valid query but invalid continuous query.
 	cqi.Query = `SELECT * FROM cpu`
-	err = s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Group by requires aggregate.
 	cqi.Query = `SELECT value INTO other_value FROM cpu WHERE time > now() - 1h GROUP BY time(1s)`
-	err = s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
+	}
+}
+
+// Test the time range for different CQ durations.
+func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
+	// Choose a start date that is not on an interval border for anyone.
+	now := mustParseTime(t, "2000-01-01T00:00:00Z")
+	for _, tt := range []struct {
+		d          string
+		start, end time.Time
+	}{
+		{
+			d:     "10s",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T00:00:10Z"),
+		},
+		{
+			d:     "1m",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T00:01:00Z"),
+		},
+		{
+			d:     "10m",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T00:10:00Z"),
+		},
+		{
+			d:     "30m",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T00:30:00Z"),
+		},
+		{
+			d:     "1h",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T01:00:00Z"),
+		},
+		{
+			d:     "2h",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T02:00:00Z"),
+		},
+		{
+			d:     "12h",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T12:00:00Z"),
+		},
+		{
+			d:     "1d",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-02T00:00:00Z"),
+		},
+		{
+			d:     "1w",
+			start: mustParseTime(t, "1999-12-30T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-06T00:00:00Z"),
+		},
+	} {
+		t.Run(tt.d, func(t *testing.T) {
+			d, err := influxql.ParseDuration(tt.d)
+			if err != nil {
+				t.Fatalf("unable to parse duration: %s", err)
+			}
+
+			s := NewTestService(t)
+			mc := NewMetaClient(t)
+			mc.CreateDatabase("db", "")
+			mc.CreateContinuousQuery("db", "cq",
+				fmt.Sprintf(`CREATE CONTINUOUS QUERY cq ON db BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(%s) END`, tt.d))
+			s.MetaClient = mc
+
+			// Set RunInterval high so we can trigger using Run method.
+			s.RunInterval = 10 * time.Minute
+			done := make(chan struct{})
+
+			// Set a callback for ExecuteStatement.
+			s.QueryExecutor.StatementExecutor = &StatementExecutor{
+				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+					s := stmt.(*influxql.SelectStatement)
+					min, max, err := influxql.TimeRange(s.Condition, s.Location)
+					max = max.Add(time.Nanosecond)
+					if err != nil {
+						t.Errorf("unexpected error parsing time range: %s", err)
+					} else if !tt.start.Equal(min) || !tt.end.Equal(max) {
+						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, tt.start, tt.end)
+					}
+					done <- struct{}{}
+					ctx.Results <- &influxql.Result{}
+					return nil
+				},
+			}
+
+			s.Open()
+			defer s.Close()
+
+			// Send an initial run request one nanosecond after the start to
+			// prime the last CQ map.
+			s.RunCh <- &RunRequest{Now: now.Add(time.Nanosecond)}
+			// Execute the real request after the time interval.
+			s.RunCh <- &RunRequest{Now: now.Add(d)}
+			if err := wait(done, 100*time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// Test the time range for different CQ durations.
+func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
+	type test struct {
+		now        time.Time
+		start, end time.Time
+	}
+
+	// Choose a start date that is not on an interval border for anyone.
+	for _, tt := range []struct {
+		name    string
+		d       string
+		options string
+		initial time.Time
+		tests   []test
+	}{
+		{
+			name:    "DaylightSavingsStart/1d",
+			d:       "1d",
+			initial: mustParseTime(t, "2000-04-02T00:00:00-05:00"),
+			tests: []test{
+				{
+					start: mustParseTime(t, "2000-04-02T00:00:00-05:00"),
+					end:   mustParseTime(t, "2000-04-03T00:00:00-04:00"),
+				},
+			},
+		},
+		{
+			name:    "DaylightSavingsStart/2h",
+			d:       "2h",
+			initial: mustParseTime(t, "2000-04-02T00:00:00-05:00"),
+			tests: []test{
+				{
+					start: mustParseTime(t, "2000-04-02T00:00:00-05:00"),
+					end:   mustParseTime(t, "2000-04-02T03:00:00-04:00"),
+				},
+				{
+					start: mustParseTime(t, "2000-04-02T03:00:00-04:00"),
+					end:   mustParseTime(t, "2000-04-02T04:00:00-04:00"),
+				},
+			},
+		},
+		{
+			name:    "DaylightSavingsEnd/1d",
+			d:       "1d",
+			initial: mustParseTime(t, "2000-10-29T00:00:00-04:00"),
+			tests: []test{
+				{
+					start: mustParseTime(t, "2000-10-29T00:00:00-04:00"),
+					end:   mustParseTime(t, "2000-10-30T00:00:00-05:00"),
+				},
+			},
+		},
+		{
+			name:    "DaylightSavingsEnd/2h",
+			d:       "2h",
+			initial: mustParseTime(t, "2000-10-29T00:00:00-04:00"),
+			tests: []test{
+				{
+					start: mustParseTime(t, "2000-10-29T00:00:00-04:00"),
+					end:   mustParseTime(t, "2000-10-29T02:00:00-05:00"),
+				},
+				{
+					start: mustParseTime(t, "2000-10-29T02:00:00-05:00"),
+					end:   mustParseTime(t, "2000-10-29T04:00:00-05:00"),
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewTestService(t)
+			mc := NewMetaClient(t)
+			mc.CreateDatabase("db", "")
+			mc.CreateContinuousQuery("db", "cq",
+				fmt.Sprintf(`CREATE CONTINUOUS QUERY cq ON db %s BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(%s) TZ('America/New_York') END`, tt.options, tt.d))
+			s.MetaClient = mc
+
+			// Set RunInterval high so we can trigger using Run method.
+			s.RunInterval = 10 * time.Minute
+			done := make(chan struct{})
+
+			// Set a callback for ExecuteStatement.
+			tests := make(chan test, 1)
+			s.QueryExecutor.StatementExecutor = &StatementExecutor{
+				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+					test := <-tests
+					s := stmt.(*influxql.SelectStatement)
+					min, max, err := influxql.TimeRange(s.Condition, s.Location)
+					max = max.Add(time.Nanosecond)
+					if err != nil {
+						t.Errorf("unexpected error parsing time range: %s", err)
+					} else if !test.start.Equal(min) || !test.end.Equal(max) {
+						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, test.start, test.end)
+					}
+					done <- struct{}{}
+					ctx.Results <- &influxql.Result{}
+					return nil
+				},
+			}
+
+			s.Open()
+			defer s.Close()
+
+			// Send an initial run request one nanosecond after the start to
+			// prime the last CQ map.
+			s.RunCh <- &RunRequest{Now: tt.initial.Add(time.Nanosecond)}
+			// Execute each of the tests and ensure the times are correct.
+			for i, test := range tt.tests {
+				tests <- test
+				now := test.now
+				if now.IsZero() {
+					now = test.end
+				}
+				s.RunCh <- &RunRequest{Now: now}
+				if err := wait(done, 100*time.Millisecond); err != nil {
+					t.Fatal(fmt.Errorf("%d. %s", i+1, err))
+				}
+			}
+		})
 	}
 }
 
@@ -376,8 +595,7 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	cqi := dbi.ContinuousQueries[0]
 
 	now := time.Now().Truncate(10 * time.Minute)
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, now)
-	if err != errExpected {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, now); err != errExpected {
 		t.Errorf("exp = %s, got = %v", errExpected, err)
 	}
 }
@@ -391,8 +609,11 @@ func NewTestService(t *testing.T) *Service {
 	s.RunInterval = time.Millisecond
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
-	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+	if testing.Verbose() {
+		s.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		))
 	}
 
 	// Add a couple test databases and CQs.
@@ -520,13 +741,6 @@ func (ms *MetaClient) CreateContinuousQuery(database, name, query string) error 
 	return nil
 }
 
-// QueryExecutor is a mock query executor.
-type QueryExecutor struct {
-	*influxql.QueryExecutor
-	Err error
-	t   *testing.T
-}
-
 // StatementExecutor is a mock statement executor.
 type StatementExecutor struct {
 	ExecuteStatementFn func(stmt influxql.Statement, ctx influxql.ExecutionContext) error
@@ -534,75 +748,6 @@ type StatementExecutor struct {
 
 func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 	return e.ExecuteStatementFn(stmt, ctx)
-}
-
-// NewQueryExecutor returns a *QueryExecutor.
-func NewQueryExecutor(t *testing.T) *QueryExecutor {
-	e := influxql.NewQueryExecutor()
-	e.StatementExecutor = &StatementExecutor{}
-	return &QueryExecutor{
-		QueryExecutor: e,
-		t:             t,
-	}
-}
-
-// PointsWriter is a mock points writer.
-type PointsWriter struct {
-	WritePointsFn   func(p *coordinator.WritePointsRequest) error
-	Err             error
-	PointsPerSecond int
-	t               *testing.T
-}
-
-// NewPointsWriter returns a new *PointsWriter.
-func NewPointsWriter(t *testing.T) *PointsWriter {
-	return &PointsWriter{
-		PointsPerSecond: 25000,
-		t:               t,
-	}
-}
-
-// WritePoints mocks writing points.
-func (pw *PointsWriter) WritePoints(p *coordinator.WritePointsRequest) error {
-	// If the test set a callback, call it.
-	if pw.WritePointsFn != nil {
-		if err := pw.WritePointsFn(p); err != nil {
-			return err
-		}
-	}
-
-	if pw.Err != nil {
-		return pw.Err
-	}
-	ns := time.Duration((1 / pw.PointsPerSecond) * 1000000000)
-	time.Sleep(ns)
-	return nil
-}
-
-// genResult generates a dummy query result.
-func genResult(rowCnt, valCnt int) *influxql.Result {
-	rows := make(models.Rows, 0, rowCnt)
-	now := time.Now()
-	for n := 0; n < rowCnt; n++ {
-		vals := make([][]interface{}, 0, valCnt)
-		for m := 0; m < valCnt; m++ {
-			vals = append(vals, []interface{}{now, float64(m)})
-			now.Add(time.Second)
-		}
-		row := &models.Row{
-			Name:    "cpu",
-			Tags:    map[string]string{"host": "server01"},
-			Columns: []string{"time", "value"},
-			Values:  vals,
-		}
-		if len(rows) > 0 {
-			row.Name = fmt.Sprintf("cpu%d", len(rows)+1)
-		}
-		rows = append(rows, row)
-	}
-	return &influxql.Result{
-		Series: rows,
-	}
 }
 
 func wait(c chan struct{}, d time.Duration) (err error) {
@@ -614,17 +759,10 @@ func wait(c chan struct{}, d time.Duration) (err error) {
 	return
 }
 
-func waitInt(c chan int, d time.Duration) (i int, err error) {
-	select {
-	case i = <-c:
-	case <-time.After(d):
-		err = errors.New("timed out")
-	}
-	return
-}
-
-func check(err error) {
+func mustParseTime(t *testing.T, value string) time.Time {
+	ts, err := time.Parse(time.RFC3339, value)
 	if err != nil {
-		panic(err)
+		t.Fatalf("unable to parse time: %s", err)
 	}
+	return ts
 }

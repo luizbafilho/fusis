@@ -3,10 +3,12 @@ package tsm1
 import (
 	"sort"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 type cursor interface {
@@ -110,6 +112,28 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 const statsBufferCopyIntervalN = 100
 
 {{range .}}
+
+type {{.name}}FinalizerIterator struct {
+	influxql.{{.Name}}Iterator
+	logger zap.Logger
+}
+
+func new{{.Name}}FinalizerIterator(inner influxql.{{.Name}}Iterator, logger zap.Logger) *{{.name}}FinalizerIterator {
+	itr := &{{.name}}FinalizerIterator{ {{.Name}}Iterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*{{.name}}FinalizerIterator).closeGC)
+	return itr
+}
+
+func (itr *{{.name}}FinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("{{.Name}}Iterator finalized by GC")
+	itr.Close()
+}
+
+func (itr *{{.name}}FinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.{{.Name}}Iterator.Close()
+}
 
 type {{.name}}Iterator struct {
 	cur   {{.name}}Cursor
@@ -233,13 +257,9 @@ func (itr *{{.name}}Iterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *{{.name}}Iterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-	    c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -267,24 +287,22 @@ func (itr *{{.name}}LimitIterator) Stats() influxql.IteratorStats { return itr.i
 func (itr *{{.name}}LimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *{{.name}}LimitIterator) Next() (*influxql.{{.Name}}Point, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n-itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n-itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // {{.name}}Cursor represents an object for iterating over a single {{.name}} field.

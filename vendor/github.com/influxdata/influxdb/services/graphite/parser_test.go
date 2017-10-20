@@ -222,14 +222,18 @@ func TestParse(t *testing.T) {
 			// If we erred out,it was intended and the following tests won't work
 			continue
 		}
-		if point.Name() != test.measurement {
-			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, point.Name())
+		if string(point.Name()) != test.measurement {
+			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, string(point.Name()))
 		}
 		if len(point.Tags()) != len(test.tags) {
 			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags()))
 		}
-		f := point.Fields()["value"].(float64)
-		if point.Fields()["value"] != f {
+		fields, err := point.Fields()
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := fields["value"].(float64)
+		if fields["value"] != f {
 			t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.value, f)
 		}
 		if point.Time().UnixNano()/1000000 != test.time.UnixNano()/1000000 {
@@ -679,6 +683,9 @@ func TestApplyTemplateField(t *testing.T) {
 	}
 
 	measurement, _, field, err := p.ApplyTemplate("current.users.logged_in")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if measurement != "current_users" {
 		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",

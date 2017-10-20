@@ -1,7 +1,6 @@
 package tsdb_test
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -19,10 +18,9 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
+	_ "github.com/influxdata/influxdb/tsdb/index"
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
 )
-
-// DefaultPrecision is the precision used by the MustWritePointsString() function.
-const DefaultPrecision = "s"
 
 func TestShardWriteAndIndex(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
@@ -30,11 +28,11 @@ func TestShardWriteAndIndex(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
 	// Calling WritePoints when the engine is not open will return
 	// ErrEngineClosed.
@@ -65,16 +63,9 @@ func TestShardWriteAndIndex(t *testing.T) {
 	}
 
 	validateIndex := func() {
-		if index.SeriesN() != 1 {
-			t.Fatalf("series wasn't in index")
-		}
-
-		seriesTags := index.Series(string(pt.Key())).Tags
-		if len(seriesTags) != len(pt.Tags()) || pt.Tags().GetString("host") != seriesTags.GetString("host") {
-			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), seriesTags)
-		}
-		if !reflect.DeepEqual(index.Measurement("cpu").TagKeys(), []string{"host"}) {
-			t.Fatalf("tag key wasn't saved to measurement index")
+		cnt := sh.SeriesN()
+		if got, exp := cnt, int64(1); got != exp {
+			t.Fatalf("got %v series, exp %v series in index", got, exp)
 		}
 	}
 
@@ -83,8 +74,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	// ensure the index gets loaded after closing and opening the shard
 	sh.Close()
 
-	index = tsdb.NewDatabaseIndex("db")
-	sh = tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh = tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -105,12 +95,12 @@ func TestMaxSeriesLimit(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "db", "rp", "1")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.Config.MaxSeriesPerDatabase = 1000
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
@@ -145,7 +135,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt})
 	if err == nil {
 		t.Fatal("expected error")
-	} else if exp, got := `max-series-per-database limit exceeded: db=db (1000/1000) dropped=1`, err.Error(); exp != got {
+	} else if exp, got := `partial write: max-series-per-database limit exceeded: (1000) dropped=1`, err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	}
 
@@ -158,12 +148,12 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "db", "rp", "1")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.Config.MaxValuesPerTag = 1000
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
@@ -198,7 +188,7 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt})
 	if err == nil {
 		t.Fatal("expected error")
-	} else if exp, got := `max-values-per-tag limit exceeded (1000/1000): measurement="cpu" tag="host" value="server9999" dropped=1`, err.Error(); exp != got {
+	} else if exp, got := `partial write: max-values-per-tag limit exceeded (1000/1000): measurement="cpu" tag="host" value="server9999" dropped=1`, err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	}
 
@@ -211,11 +201,11 @@ func TestWriteTimeTag(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -228,17 +218,8 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf := bytes.NewBuffer(nil)
-	sh.SetLogOutput(buf)
-	if err := sh.WritePoints([]models.Point{pt}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
-	}
-
-	m := index.Measurement("cpu")
-	if m != nil {
-		t.Fatal("unexpected cpu measurement")
+	if err := sh.WritePoints([]models.Point{pt}); err == nil {
+		t.Fatal("expected error: got nil")
 	}
 
 	pt = models.MustNewPoint(
@@ -248,20 +229,16 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf = bytes.NewBuffer(nil)
-	sh.SetLogOutput(buf)
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
 	}
 
-	m = index.Measurement("cpu")
-	if m == nil {
-		t.Fatal("expected cpu measurement")
+	mf := sh.MeasurementFields([]byte("cpu"))
+	if mf == nil {
+		t.Fatal("expected cpu measurement fields")
 	}
 
-	if got, exp := len(m.FieldNames()), 1; got != exp {
+	if got, exp := mf.FieldN(), 1; got != exp {
 		t.Fatalf("invalid number of field names: got=%v exp=%v", got, exp)
 	}
 }
@@ -272,11 +249,11 @@ func TestWriteTimeField(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -289,20 +266,13 @@ func TestWriteTimeField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf := bytes.NewBuffer(nil)
-	sh.SetLogOutput(buf)
-	if err := sh.WritePoints([]models.Point{pt}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping tag 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
+	if err := sh.WritePoints([]models.Point{pt}); err == nil {
+		t.Fatal("expected error: got nil")
 	}
 
 	key := models.MakeKey([]byte("cpu"), nil)
-	series := index.Series(string(key))
-	if series == nil {
-		t.Fatal("expected series")
-	} else if len(series.Tags) != 0 {
-		t.Fatalf("unexpected number of tags: got=%v exp=%v", len(series.Tags), 0)
+	if ok, err := sh.MeasurementExists(key); ok && err == nil {
+		t.Fatal("unexpected series")
 	}
 }
 
@@ -312,11 +282,11 @@ func TestShardWriteAddNewField(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -346,19 +316,8 @@ func TestShardWriteAddNewField(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	if index.SeriesN() != 1 {
-		t.Fatalf("series wasn't in index")
-	}
-	seriesTags := index.Series(string(pt.Key())).Tags
-	if len(seriesTags) != len(pt.Tags()) || pt.Tags().GetString("host") != seriesTags.GetString("host") {
-		t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), seriesTags)
-	}
-	if !reflect.DeepEqual(index.Measurement("cpu").TagKeys(), []string{"host"}) {
-		t.Fatalf("tag key wasn't saved to measurement index")
-	}
-
-	if len(index.Measurement("cpu").FieldNames()) != 2 {
-		t.Fatalf("field names wasn't saved to measurement index")
+	if got, exp := sh.SeriesN(), int64(1); got != exp {
+		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
 }
 
@@ -373,11 +332,11 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -404,11 +363,13 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+	errC := make(chan error)
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			if err := sh.DeleteMeasurement("cpu", []string{"cpu,host=server"}); err != nil {
-				t.Fatalf(err.Error())
+			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+				errC <- err
+				return
 			}
 
 			_ = sh.WritePoints(points[:500])
@@ -422,13 +383,169 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			if err := sh.DeleteMeasurement("cpu", []string{"cpu,host=server"}); err != nil {
-				t.Fatalf(err.Error())
+			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+				errC <- err
+				return
 			}
 
 			_ = sh.WritePoints(points[500:])
 			if f, err := sh.CreateSnapshot(); err == nil {
 				os.RemoveAll(f)
+			}
+		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
+
+	for err := range errC {
+		if err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "shard")
+	tmpWal := path.Join(tmpDir, "wal")
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
+
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+	defer sh.Close()
+
+	// Spin up two goroutines that write points with different field types in reverse
+	// order concurrently.  After writing them, query them back.
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+
+		// Write 250 floats and then ints to the same field
+		points := make([]models.Point, 0, 500)
+		for i := 0; i < cap(points); i++ {
+			if i < 250 {
+				points = append(points, models.MustNewPoint(
+					"cpu",
+					models.NewTags(map[string]string{"host": "server"}),
+					map[string]interface{}{"value": 1.0},
+					time.Unix(int64(i), 0),
+				))
+			} else {
+				points = append(points, models.MustNewPoint(
+					"cpu",
+					models.NewTags(map[string]string{"host": "server"}),
+					map[string]interface{}{"value": int64(1)},
+					time.Unix(int64(i), 0),
+				))
+			}
+		}
+
+		for i := 0; i < 500; i++ {
+			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			sh.WritePoints(points)
+
+			iter, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
+				Expr:       influxql.MustParseExpr(`value`),
+				Aux:        []influxql.VarRef{{Val: "value"}},
+				Dimensions: []string{},
+				Ascending:  true,
+				StartTime:  influxql.MinTime,
+				EndTime:    influxql.MaxTime,
+			})
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			switch itr := iter.(type) {
+			case influxql.IntegerIterator:
+				p, err := itr.Next()
+				for p != nil && err == nil {
+					p, err = itr.Next()
+				}
+				iter.Close()
+
+			case influxql.FloatIterator:
+				p, err := itr.Next()
+				for p != nil && err == nil {
+					p, err = itr.Next()
+				}
+				iter.Close()
+
+			}
+
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		// Write 250 ints and then floats to the same field
+		points := make([]models.Point, 0, 500)
+		for i := 0; i < cap(points); i++ {
+			if i < 250 {
+				points = append(points, models.MustNewPoint(
+					"cpu",
+					models.NewTags(map[string]string{"host": "server"}),
+					map[string]interface{}{"value": int64(1)},
+					time.Unix(int64(i), 0),
+				))
+			} else {
+				points = append(points, models.MustNewPoint(
+					"cpu",
+					models.NewTags(map[string]string{"host": "server"}),
+					map[string]interface{}{"value": 1.0},
+					time.Unix(int64(i), 0),
+				))
+			}
+		}
+		for i := 0; i < 500; i++ {
+			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			sh.WritePoints(points)
+
+			iter, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
+				Expr:       influxql.MustParseExpr(`value`),
+				Aux:        []influxql.VarRef{{Val: "value"}},
+				Dimensions: []string{},
+				Ascending:  true,
+				StartTime:  influxql.MinTime,
+				EndTime:    influxql.MaxTime,
+			})
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			switch itr := iter.(type) {
+			case influxql.IntegerIterator:
+				p, err := itr.Next()
+				for p != nil && err == nil {
+					p, err = itr.Next()
+				}
+				iter.Close()
+			case influxql.FloatIterator:
+				p, err := itr.Next()
+				for p != nil && err == nil {
+					p, err = itr.Next()
+				}
+				iter.Close()
 			}
 		}
 	}()
@@ -444,12 +561,11 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
-
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -466,15 +582,16 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	if got, exp := index.SeriesN(), 1; got != exp {
-		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
+	if got, exp := sh.SeriesN(), int64(1); got != exp {
+		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
 
 	// ensure the index gets loaded after closing and opening the shard
 	sh.Close()
+	sh.Open()
 
-	if got, exp := index.SeriesN(), 0; got != exp {
-		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
+	if got, exp := sh.SeriesN(), int64(1); got != exp {
+		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
 }
 
@@ -484,7 +601,7 @@ func TestShard_CreateIterator_Ascending(t *testing.T) {
 
 	// Calling CreateIterator when the engine is not open will return
 	// ErrEngineClosed.
-	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
 	if exp := tsdb.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
@@ -501,24 +618,19 @@ cpu,host=serverB,region=uswest value=25  0
 `)
 
 	// Create iterator.
-	itr, err := sh.CreateIterator(influxql.IteratorOptions{
+	itr, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
-		Sources: []influxql.Source{&influxql.Measurement{
-			Name:            "cpu",
-			Database:        "db0",
-			RetentionPolicy: "rp0",
-		}},
-		Ascending: true,
-		StartTime: influxql.MinTime,
-		EndTime:   influxql.MaxTime,
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer itr.Close()
 	fitr := itr.(influxql.FloatIterator)
+	defer itr.Close()
 
 	// Read values from iterator.
 	if p, err := fitr.Next(); err != nil {
@@ -564,7 +676,7 @@ func TestShard_CreateIterator_Descending(t *testing.T) {
 
 	// Calling CreateIterator when the engine is not open will return
 	// ErrEngineClosed.
-	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
 	if exp := tsdb.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
@@ -581,18 +693,13 @@ cpu,host=serverB,region=uswest value=25  0
 `)
 
 	// Create iterator.
-	itr, err := sh.CreateIterator(influxql.IteratorOptions{
+	itr, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
-		Sources: []influxql.Source{&influxql.Measurement{
-			Name:            "cpu",
-			Database:        "db0",
-			RetentionPolicy: "rp0",
-		}},
-		Ascending: false,
-		StartTime: influxql.MinTime,
-		EndTime:   influxql.MaxTime,
+		Ascending:  false,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -662,7 +769,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
 	if err == nil {
 		t.Fatalf("expected shard disabled error")
 	}
@@ -677,8 +784,100 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err = sh.CreateIterator(influxql.IteratorOptions{}); err != nil {
+	if _, err = sh.CreateIterator("cpu", influxql.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", got)
+	}
+}
+
+func TestShard_Closed_Functions(t *testing.T) {
+	sh := NewShard()
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	if err := sh.WritePoints([]models.Point{pt}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	sh.Close()
+
+	// Should not panic, but returns an error when shard is closed
+	if err := sh.ForEachMeasurementTagKey([]byte("cpu"), func(k []byte) error {
+		return nil
+	}); err == nil {
+		t.Fatal("expected error: got nil")
+	}
+
+	// Should not panic.
+	if exp, got := 0, sh.TagKeyCardinality([]byte("cpu"), []byte("host")); exp != got {
+		t.Fatalf("got %d, expected %d", got, exp)
+	}
+}
+
+func TestShard_FieldDimensions(t *testing.T) {
+	sh := NewShard()
+
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	sh.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+mem,host=serverA value=25i 0
+mem,host=serverB value=50i,val3=t 10
+`)
+
+	for i, tt := range []struct {
+		sources []string
+		f       map[string]influxql.DataType
+		d       map[string]struct{}
+	}{
+		{
+			sources: []string{"cpu"},
+			f: map[string]influxql.DataType{
+				"value": influxql.Float,
+				"val2":  influxql.Float,
+			},
+			d: map[string]struct{}{
+				"host":   struct{}{},
+				"region": struct{}{},
+			},
+		},
+		{
+			sources: []string{"cpu", "mem"},
+			f: map[string]influxql.DataType{
+				"value": influxql.Float,
+				"val2":  influxql.Float,
+				"val3":  influxql.Boolean,
+			},
+			d: map[string]struct{}{
+				"host":   struct{}{},
+				"region": struct{}{},
+			},
+		},
+	} {
+		f, d, err := sh.FieldDimensions(tt.sources)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !reflect.DeepEqual(f, tt.f) {
+			t.Errorf("%d. unexpected fields:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.f, f)
+		}
+		if !reflect.DeepEqual(d, tt.d) {
+			t.Errorf("%d. unexpected dimensions:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.d, d)
+		}
 	}
 }
 
@@ -821,13 +1020,11 @@ func BenchmarkWritePoints_ExistingSeries_1M(b *testing.B) {
 func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
-	// Create index for the shard to use.
-	index := tsdb.NewDatabaseIndex("db")
 	// Generate point data to write to the shard.
 	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -841,7 +1038,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 		tmpDir, _ := ioutil.TempDir("", "shard_test")
 		tmpShard := path.Join(tmpDir, "shard")
 		tmpWal := path.Join(tmpDir, "wal")
-		shard := tsdb.NewShard(1, index, tmpShard, tmpWal, tsdb.NewEngineOptions())
+		shard := tsdb.NewShard(1, tmpShard, tmpWal, tsdb.NewEngineOptions())
 		shard.Open()
 
 		b.StartTimer()
@@ -862,13 +1059,11 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
-	// Create index for the shard to use.
-	index := tsdb.NewDatabaseIndex("db")
 	// Generate point data to write to the shard.
 	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -877,7 +1072,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
-	shard := tsdb.NewShard(1, index, tmpShard, tmpWal, tsdb.NewEngineOptions())
+	shard := tsdb.NewShard(1, tmpShard, tmpWal, tsdb.NewEngineOptions())
 	shard.Open()
 	defer shard.Close()
 	chunkedWrite(shard, points)
@@ -927,33 +1122,24 @@ type Shard struct {
 // NewShard returns a new instance of Shard with temp paths.
 func NewShard() *Shard {
 	// Create temporary path for data and WAL.
-	path, err := ioutil.TempDir("", "influxdb-tsdb-")
+	dir, err := ioutil.TempDir("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
 	}
 
 	// Build engine options.
 	opt := tsdb.NewEngineOptions()
-	opt.Config.WALDir = filepath.Join(path, "wal")
+	opt.Config.WALDir = filepath.Join(dir, "wal")
+	opt.InmemIndex = inmem.NewIndex(path.Base(dir))
 
 	return &Shard{
 		Shard: tsdb.NewShard(0,
-			tsdb.NewDatabaseIndex("db"),
-			filepath.Join(path, "data", "db0", "rp0", "1"),
-			filepath.Join(path, "wal", "db0", "rp0", "1"),
+			filepath.Join(dir, "data", "db0", "rp0", "1"),
+			filepath.Join(dir, "wal", "db0", "rp0", "1"),
 			opt,
 		),
-		path: path,
+		path: dir,
 	}
-}
-
-// MustOpenShard returns a new open shard. Panic on error.
-func MustOpenShard() *Shard {
-	sh := NewShard()
-	if err := sh.Open(); err != nil {
-		panic(err)
-	}
-	return sh
 }
 
 // Close closes the shard and removes all underlying data.

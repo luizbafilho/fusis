@@ -17,8 +17,8 @@ package table
 
 import (
 	_ "fmt"
-	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"os"
@@ -29,15 +29,12 @@ import (
 // process BGPUpdate message
 // this function processes only BGPUpdate
 func (manager *TableManager) ProcessUpdate(fromPeer *PeerInfo, message *bgp.BGPMessage) ([]*Path, error) {
-	paths := ProcessMessage(message, fromPeer, time.Now())
-	best, _, _ := manager.ProcessPaths([]string{GLOBAL_RIB_NAME}, paths)
-	paths2 := make([]*Path, 0, len(paths))
-	for _, p := range best[GLOBAL_RIB_NAME] {
-		if p != nil {
-			paths2 = append(paths2, p)
-		}
+	pathList := make([]*Path, 0)
+	for _, d := range manager.ProcessPaths(ProcessMessage(message, fromPeer, time.Now())) {
+		b, _, _ := d.GetChanges(GLOBAL_RIB_NAME, false)
+		pathList = append(pathList, b)
 	}
-	return paths2, nil
+	return pathList, nil
 }
 
 func getLogger(lv log.Level) *log.Logger {
@@ -84,7 +81,7 @@ func peerR3() *PeerInfo {
 // test best path calculation and check the result path is from R1
 func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	bgpMessage := update_fromR1()
 	peer := peerR1()
@@ -134,7 +131,7 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 // test best path calculation and check the result path is from R1
 func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	bgpMessage := update_fromR1_ipv6()
 	peer := peerR1()
@@ -185,7 +182,7 @@ func TestProcessBGPUpdate_0_select_onlypath_ipv6(t *testing.T) {
 // test: compare localpref
 func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	// low localpref message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -265,7 +262,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
@@ -347,7 +344,7 @@ func TestProcessBGPUpdate_1_select_high_localpref_ipv6(t *testing.T) {
 // test: compare localOrigin
 func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	// low localpref message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -429,7 +426,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
@@ -514,7 +511,7 @@ func TestProcessBGPUpdate_2_select_local_origin_ipv6(t *testing.T) {
 // test: compare AS_PATH
 func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	bgpMessage1 := update_fromR2viaR1()
 	peer1 := peerR1()
@@ -569,7 +566,7 @@ func TestProcessBGPUpdate_3_select_aspath_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	bgpMessage1 := update_fromR2viaR1_ipv6()
 	peer1 := peerR1()
@@ -626,7 +623,7 @@ func TestProcessBGPUpdate_3_select_aspath_ipv6(t *testing.T) {
 // test: compare Origin
 func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(1)
@@ -706,7 +703,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(1)
 	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
@@ -788,7 +785,7 @@ func TestProcessBGPUpdate_4_select_low_origin_ipv6(t *testing.T) {
 // test: compare MED
 func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -868,7 +865,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65200, 65000})
@@ -950,7 +947,7 @@ func TestProcessBGPUpdate_5_select_low_med_ipv6(t *testing.T) {
 // test: compare AS_NUMBER(prefer eBGP path)
 func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	// low origin message
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1030,7 +1027,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
@@ -1114,7 +1111,7 @@ func TestProcessBGPUpdate_6_select_ebgp_path_ipv6(t *testing.T) {
 // test: compare Router ID
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 	SelectionOptions.ExternalCompareRouterId = true
 
 	// low origin message
@@ -1195,7 +1192,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65200})
@@ -1277,7 +1274,7 @@ func TestProcessBGPUpdate_7_select_low_routerid_path_ipv6(t *testing.T) {
 // test: withdraw and mpunreach path
 func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1380,7 +1377,7 @@ func TestProcessBGPUpdate_8_withdraw_path_ipv4(t *testing.T) {
 // TODO MP_UNREACH
 func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
@@ -1508,7 +1505,7 @@ func TestProcessBGPUpdate_8_mpunreach_path_ipv6(t *testing.T) {
 // handle bestpath lost
 func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1578,7 +1575,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000})
@@ -1649,7 +1646,7 @@ func TestProcessBGPUpdate_bestpath_lost_ipv6(t *testing.T) {
 // test: implicit withdrawal case
 func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	// path1
 	origin1 := bgp.NewPathAttributeOrigin(0)
@@ -1730,7 +1727,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv4(t *testing.T) {
 
 func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	origin1 := bgp.NewPathAttributeOrigin(0)
 	aspath1 := createAsPathAttribute([]uint32{65000, 65100, 65200})
@@ -1837,7 +1834,7 @@ func TestProcessBGPUpdate_implicit_withdrwal_ipv6(t *testing.T) {
 // check multiple paths
 func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv4_UC})
 
 	createPathAttr := func(aspaths []uint32, nh string) []bgp.PathAttributeInterface {
 		origin := bgp.NewPathAttributeOrigin(0)
@@ -1970,7 +1967,7 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 // check multiple paths
 func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 
-	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC}, 0, 0)
+	tm := NewTableManager([]bgp.RouteFamily{bgp.RF_IPv6_UC})
 
 	createPathAttr := func(aspaths []uint32) []bgp.PathAttributeInterface {
 		origin := bgp.NewPathAttributeOrigin(0)

@@ -18,8 +18,12 @@ package server
 
 import (
 	"bytes"
+	"fmt"
+	"net"
+	"os"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -32,9 +36,8 @@ func Test_buildTcpMD5Sig(t *testing.T) {
 
 	buf1 := make([]uint8, 216)
 	p := unsafe.Pointer(&s)
-	src := uintptr(p)
 	for i := uintptr(0); i < 216; i++ {
-		buf1[i] = *(*byte)(unsafe.Pointer(src + i))
+		buf1[i] = *(*byte)(unsafe.Pointer(uintptr(p) + i))
 	}
 
 	buf2 := []uint8{2, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 104, 101, 108, 108, 111, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -51,9 +54,8 @@ func Test_buildTcpMD5Sigv6(t *testing.T) {
 
 	buf1 := make([]uint8, 216)
 	p := unsafe.Pointer(&s)
-	src := uintptr(p)
 	for i := uintptr(0); i < 216; i++ {
-		buf1[i] = *(*byte)(unsafe.Pointer(src + i))
+		buf1[i] = *(*byte)(unsafe.Pointer(uintptr(p) + i))
 	}
 
 	buf2 := []uint8{10, 0, 0, 0, 0, 0, 0, 0, 254, 128, 0, 0, 0, 0, 0, 0, 72, 80, 49, 255, 254, 1, 252, 85, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 104, 101, 108, 108, 111, 119, 111, 114, 108, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -64,5 +66,41 @@ func Test_buildTcpMD5Sigv6(t *testing.T) {
 		t.Log("OK")
 	} else {
 		t.Error("Something wrong v6")
+	}
+}
+
+func Test_DialTCP_FDleak(t *testing.T) {
+	openFds := func() int {
+		pid := os.Getpid()
+		f, err := os.OpenFile(fmt.Sprintf("/proc/%d/fdinfo", pid), os.O_RDONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		names, err := f.Readdirnames(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(names)
+	}
+
+	before := openFds()
+
+	for i := 0; i < 10; i++ {
+		laddr, _ := net.ResolveTCPAddr("tcp", net.JoinHostPort("127.0.0.1", "0"))
+		d := TCPDialer{
+			Dialer: net.Dialer{
+				LocalAddr: laddr,
+				Timeout:   1 * time.Second,
+			},
+		}
+		if _, err := d.DialTCP("127.0.0.1", 1); err == nil {
+			t.Fatalf("should not succeed")
+		}
+
+	}
+
+	if after := openFds(); before != after {
+		t.Fatalf("could be fd leak, %d %d", before, after)
 	}
 }

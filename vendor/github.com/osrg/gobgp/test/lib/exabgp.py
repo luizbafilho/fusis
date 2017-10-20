@@ -13,8 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from base import *
+from __future__ import absolute_import
+
+import time
+
+from fabric import colors
+from fabric.api import local
 from itertools import chain
+
+from lib.base import (
+    BGPContainer,
+    CmdBuffer,
+    try_several_times,
+)
+
 
 class ExaBGPContainer(BGPContainer):
 
@@ -46,7 +58,7 @@ class ExaBGPContainer(BGPContainer):
         c << 'cp {0}/etc/exabgp/exabgp.env {1}'.format(remotepath, self.SHARED_VOLUME)
         c << 'sed -i -e \'s/all = false/all = true/g\' {0}/exabgp.env'.format(self.SHARED_VOLUME)
         c << 'cp -r {0}/exabgp {1}'.format(self.SHARED_VOLUME,
-                                           remotepath[:-1*len('exabgp')])
+                                           remotepath[:-1 * len('exabgp')])
         c << 'cp {0}/exabgp.env {1}/etc/exabgp/'.format(self.SHARED_VOLUME, remotepath)
         cmd = 'echo "{0:s}" > {1}/update.sh'.format(c, self.config_dir)
         local(cmd, capture=True)
@@ -81,7 +93,10 @@ class ExaBGPContainer(BGPContainer):
             if info['passive']:
                 cmd << '    passive;'
 
-            routes = [r for r in self.routes.values() if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
+            if info['addpath']:
+                cmd << '    add-path send/receive;'
+
+            routes = [r for r in chain.from_iterable(self.routes.itervalues()) if r['rf'] == 'ipv4' or r['rf'] == 'ipv6']
 
             if len(routes) > 0:
                 cmd << '    static {'
@@ -103,11 +118,13 @@ class ExaBGPContainer(BGPContainer):
                         r << 'extended-community [{0}]'.format(route['extended-community'])
                     if route['attr']:
                         r << 'attribute [ {0} ]'.format(route['attr'])
+                    if route['identifier']:
+                        r << 'path-information {0}'.format(route['identifier'])
 
                     cmd << '{0};'.format(str(r))
                 cmd << '    }'
 
-            routes = [r for r in self.routes.itervalues() if 'flowspec' in r['rf']]
+            routes = [r for r in chain.from_iterable(self.routes.itervalues()) if 'flowspec' in r['rf']]
             if len(routes) > 0:
                 cmd << '    flow {'
                 for route in routes:
@@ -140,7 +157,7 @@ class ExaBGPContainer(BGPContainer):
             cmd << '}'
 
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new exabgpd.conf]'.format(self.name))
             print colors.yellow(str(cmd))
             f.write(str(cmd))
 
@@ -188,6 +205,6 @@ class RawExaBGPContainer(ExaBGPContainer):
 
     def create_config(self):
         with open('{0}/exabgpd.conf'.format(self.config_dir), 'w') as f:
-            print colors.yellow('[{0}\'s new config]'.format(self.name))
+            print colors.yellow('[{0}\'s new exabgpd.conf]'.format(self.name))
             print colors.yellow(self.config)
             f.write(self.config)

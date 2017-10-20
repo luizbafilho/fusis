@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ var (
 // MakePipe creates a connection between two endpoints and returns the pair
 // as c1 and c2, such that anything written to c1 is read by c2 and vice-versa.
 // The stop function closes all resources, including c1, c2, and the underlying
-// net.Listener (if there is one).
+// net.Listener (if there is one), and should not be nil.
 type MakePipe func() (c1, c2 net.Conn, stop func(), err error)
 
 // TestConn tests that a net.Conn implementation properly satisfies the interface.
@@ -341,6 +342,9 @@ func testCloseTimeout(t *testing.T, c1, c2 net.Conn) {
 // testConcurrentMethods tests that the methods of net.Conn can safely
 // be called concurrently.
 func testConcurrentMethods(t *testing.T, c1, c2 net.Conn) {
+	if runtime.GOOS == "plan9" {
+		t.Skip("skipping on plan9; see https://golang.org/issue/20489")
+	}
 	go chunkedCopy(c2, c2)
 
 	// The results of the calls may be nonsensical, but this should
@@ -433,6 +437,7 @@ func resyncConn(t *testing.T, c net.Conn) {
 		}
 		if err != nil {
 			t.Errorf("unexpected Read error: %v", err)
+			break
 		}
 	}
 	if err := <-errCh; err != nil {

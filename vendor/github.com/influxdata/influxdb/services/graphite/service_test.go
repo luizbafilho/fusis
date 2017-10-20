@@ -3,8 +3,8 @@ package graphite
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -13,10 +13,13 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
+	"github.com/uber-go/zap"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
-	c := Config{BindAddress: ":35422"}
+	// Let the OS assign a random port since we are only opening and closing the service,
+	// not actually connecting to it.
+	c := Config{BindAddress: "127.0.0.1:0"}
 	service := NewTestService(&c)
 
 	// Closing a closed service is fine.
@@ -287,8 +290,11 @@ func NewTestService(c *Config) *TestService {
 		return nil, nil
 	}
 
-	if !testing.Verbose() {
-		service.Service.SetLogOutput(ioutil.Discard)
+	if testing.Verbose() {
+		service.Service.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		))
 	}
 
 	// Set the Meta Client and PointsWriter.
@@ -298,6 +304,6 @@ func NewTestService(c *Config) *TestService {
 	return service
 }
 
-func (s *TestService) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+func (s *TestService) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 	return s.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
 }

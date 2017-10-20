@@ -22,8 +22,7 @@
 
 
 [[constraint]]
-  name = "github.com/Sirupsen/logrus"
-  version = "0.11.0"
+  name = "github.com/sirupsen/logrus"
 
 [[constraint]]
   name = "github.com/appleboy/gofight"
@@ -69,7 +68,7 @@
 
 [[constraint]]
   name = "github.com/osrg/gobgp"
-  revision = "4ecf30f884ae7578ef3ce1a34510d9dd02c6e2bf"
+  version = "v1.24"
 
 [[constraint]]
   name = "github.com/pkg/errors"

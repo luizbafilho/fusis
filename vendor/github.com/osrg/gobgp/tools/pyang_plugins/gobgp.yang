@@ -46,7 +46,15 @@ module gobgp {
       }
       enum BOTH {
         value 2;
-        description "send both pre and post-policy routes";
+        description "!OBSOLETED! send both pre and post-policy routes";
+      }
+      enum LOCAL-RIB {
+        value 3;
+        description "send local rib routes";
+      }
+      enum ALL {
+        value 4;
+        description "send pre-policy, post-policy, and local rib routes";
       }
     }
   }
@@ -172,6 +180,18 @@ module gobgp {
         error condition has occurred exchanged.";
     }
 
+    leaf WITHDRAW-UPDATE {
+      type uint32;
+      description
+        "Number of updates subjected to treat-as-withdraw treatment.";
+    }
+
+    leaf WITHDRAW-PREFIX {
+      type uint32;
+      description
+        "Number of prefixes subjected to treat-as-withdraw treatment.";
+    }
+
     leaf DISCARDED {
       type uint64;
       description
@@ -187,10 +207,13 @@ module gobgp {
     }
   }
 
-
   grouping gobgp-adjacent-table {
     container adj-table {
       leaf ADVERTISED {
+        type uint32;
+      }
+
+      leaf FILTERED {
         type uint32;
       }
 
@@ -536,19 +559,30 @@ module gobgp {
         "Reference to the address of the BMP server used as
          a key in the BMP server list";
     }
+
     leaf port {
       type uint32;
       description
         "Reference to the port of the BMP server";
     }
+
     leaf route-monitoring-policy {
       type bmp-route-monitoring-policy-type;
       default PRE-POLICY;
     }
-  }
 
-  grouping gobgp-bmp-server-state {
-    description "additional BMP state";
+    leaf statistics-timeout {
+      type uint16;
+      description
+        "Interval seconds of statistics messages sent to BMP server";
+    }
+
+    leaf route-mirroring-enabled {
+      type boolean;
+      description
+        "Enable feature for mirroring of received BGP messages
+         mainly for debugging purpose";
+    }
   }
 
   grouping gobgp-bmp-server-set {
@@ -563,7 +597,7 @@ module gobgp {
     container state {
       description
         "Configuration parameters relating to BMP server";
-      uses gobgp-bmp-server-state;
+      uses gobgp-bmp-server-config;
     }
   }
 
@@ -585,6 +619,77 @@ module gobgp {
     }
   }
 
+  grouping long-lived-graceful-restart {
+      container long-lived-graceful-restart {
+	  container config {
+	      leaf enabled {
+		  type boolean;
+	      }
+	      leaf restart-time {
+		  type uint32;
+	      }
+	  }
+	  container state {
+	      leaf enabled {
+		  type boolean;
+	      }
+	      leaf received {
+		  type boolean;
+	      }
+	      leaf advertised {
+		  type boolean;
+	      }
+	      leaf peer-restart-time {
+		  type uint32;
+	      }
+	      leaf peer-restart-timer-expired {
+		  type boolean;
+	      }
+	  }
+      }
+  }
+
+  grouping gobgp-ttl-security-config {
+    description
+      "Configuration parameters for TTL Security";
+
+    leaf enabled {
+      type boolean;
+      default "false";
+      description
+        "Enable features for TTL Security";
+    }
+
+    leaf ttl-min {
+      type uint8;
+      description
+        "Reference to the port of the BMP server";
+    }
+  }
+
+  grouping gobgp-ttl-security-config-set {
+    description
+      "set of configurations for Generalized TTL Security Mechanism (GTSM)";
+
+    container ttl-security {
+      description
+        "Configure TTL Security feature";
+
+      container config {
+        description
+          "Configuration parameters for TTL Security";
+        uses gobgp-ttl-security-config;
+      }
+
+      container state {
+        config false;
+        description
+          "State information for TTL Security";
+        uses gobgp-ttl-security-config;
+      }
+    }
+  }
+
   // augment statements
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state/bgp:messages/bgp:sent" {
     description "additional counters";
@@ -601,19 +706,24 @@ module gobgp {
     uses gobgp-adjacent-table;
   }
 
+  typedef bgp-capability {
+      type uint8;
+  }
+
+  typedef bgp-open-message {
+      type uint8;
+  }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
-    container Capabilities {
-      leaf-list remote {
-        type binary;
-      }
-      leaf-list local {
-        type binary;
-      }
+    leaf-list remote-capability {
+      type bgp-capability;
+    }
+    leaf-list local-capability {
+      type bgp-capability;
     }
 
     leaf received-open-message {
-      type binary;
+      type bgp-open-message;
     }
   }
 
@@ -637,7 +747,17 @@ module gobgp {
     }
 
     leaf admin-state {
-      type string;
+      type enumeration {
+        enum UP {
+          description "admin state is up";
+        }
+        enum DOWN {
+          description "admin state is down";
+        }
+        enum PFX_CT {
+          description "prefix counter over limit";
+        }
+      }
     }
 
     leaf established-count {
@@ -659,17 +779,34 @@ module gobgp {
     leaf neighbor-interface {
       type string;
     }
+    leaf vrf {
+      type string;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
     leaf neighbor-interface {
       type string;
     }
+    leaf vrf {
+      type string;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    leaf remote-router-id {
+        type string;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:transport/bgp:config" {
     leaf remote-port {
       type inet:port-number;
+    }
+
+    leaf ttl {
+      description "TTL value for BGP packets";
+      type uint8;
     }
   }
 
@@ -699,12 +836,24 @@ module gobgp {
     leaf deferral-time {
       type uint16;
     }
+    leaf notification-enabled {
+      type boolean;
+    }
+    leaf long-lived-enabled {
+      type boolean;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:graceful-restart/bgp:state" {
     description "additional graceful-restart status";
     leaf deferral-time {
       type uint16;
+    }
+    leaf notification-enabled {
+      type boolean;
+    }
+    leaf long-lived-enabled {
+      type boolean;
     }
   }
 
@@ -717,6 +866,16 @@ module gobgp {
     description "route server configuration for neighbor";
     uses gobgp-route-server-config-set;
   }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+    description "TTL Security configuration for peer-group";
+    uses gobgp-ttl-security-config-set;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+    description "TTL Security configuration for neighbor";
+    uses gobgp-ttl-security-config-set;
+   }
 
   augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:config" {
     description "addtional policy";
@@ -781,6 +940,24 @@ module gobgp {
   }
 
   augment "/rpol:routing-policy/rpol:defined-sets/" +
+    "bgp-pol:bgp-defined-sets" {
+    container large-community-sets {
+      list large-community-set {
+        key "large-community-set-name";
+
+        leaf large-community-set-name {
+          type string;
+        }
+        leaf-list large-community {
+          type string;
+          description
+            "extended community set member";
+        }
+      }
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:defined-sets/" +
     "bgp-pol:bgp-defined-sets/bgp-pol:as-path-sets/bgp-pol:as-path-set" {
     description "alternative for the existing as-path-set-member";
 
@@ -818,6 +995,32 @@ module gobgp {
           }
         }
 
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+      "rpol:policy-definition/rpol:statements/rpol:statement/" +
+      "rpol:conditions/bgp-pol:bgp-conditions" {
+    container match-large-community-set {
+      leaf large-community-set {
+        type string;
+      }
+      uses rpol:match-set-options-group;
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:actions/bgp-pol:bgp-actions" {
+    container set-large-community {
+      container set-large-community-method {
+        leaf-list communities {
+          type string;
+        }
+      }
+      leaf options {
+        type bgp-pol:bgp-set-community-option-type;
+      }
     }
   }
 
@@ -903,6 +1106,17 @@ module gobgp {
         base ptypes:install-protocol-type;
       }
     }
+    leaf version {
+      type uint8;
+      description
+        "Configure version of zebra protocol.  Default is 2. Supported up to 3.";
+    }
+    leaf nexthop-trigger-enable {
+      type boolean;
+    }
+    leaf nexthop-trigger-delay {
+      type uint8;
+    }
   }
 
   grouping zebra-set {
@@ -947,19 +1161,6 @@ module gobgp {
     uses collector-set;
   }
 
-  augment "/bgp:bgp/bgp:global" {
-    container mpls-label-range {
-      description "mpls labal range";
-
-      leaf min-label {
-          type uint32;
-      }
-      leaf max-label {
-          type uint32;
-      }
-    }
-  }
-
   grouping listen-config {
     leaf port {
         type int32;
@@ -977,6 +1178,45 @@ module gobgp {
       uses listen-config;
   }
 
+  grouping dynamic-neighbors {
+    container dynamic-neighbors {
+      list dynamic-neighbor {
+        key "prefix";
+
+        leaf prefix {
+          type leafref {
+            path "../config/prefix";
+          }
+        }
+
+        container config {
+          uses bgp-global-dynamic-neighbor-config;
+        }
+
+        container state {
+          config false;
+          uses bgp-global-dynamic-neighbor-config;
+        }
+      }
+    }
+  }
+
+  grouping bgp-global-dynamic-neighbor-config {
+    description "A dynamic neighbor belongs to a peer group.
+     This configuration structure was taken from the latest openconfig.";
+
+    leaf prefix {
+      type string;
+    }
+    leaf peer-group {
+      type string;
+    }
+  }
+
+  augment "/bgp:bgp" {
+    uses dynamic-neighbors;
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
       uses bgp-mp:all-afi-safi-common;
   }
@@ -985,6 +1225,18 @@ module gobgp {
       leaf deferral-time {
         type uint16;
       }
+  }
+
+  grouping afi-safi-state {
+    leaf family {
+      description
+        "Address family value of AFI-SAFI pair translated from afi-safi-name.";
+      type route-family;
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi/bgp:state" {
+      uses afi-safi-state;
   }
 
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
@@ -996,5 +1248,7 @@ module gobgp {
           uses route-target-membership-config;
       }
     }
+    
+    uses long-lived-graceful-restart;
   }
 }

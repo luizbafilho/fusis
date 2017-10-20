@@ -13,16 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.exabgp import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
-from noseplugin import OptionParser, parser_option
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
+from lib.exabgp import ExaBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -39,7 +44,8 @@ class GoBGPTestBase(unittest.TestCase):
                             ctn_image_name=gobgp_ctn_image_name,
                             log_level=parser_option.gobgp_log_level)
 
-        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2')
+        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2',
+                            ctn_image_name=gobgp_ctn_image_name)
         e1 = ExaBGPContainer(name='e1', asn=65002, router_id='192.168.0.3')
         ctns = [g1, g2, e1]
 
@@ -84,16 +90,13 @@ class GoBGPTestBase(unittest.TestCase):
     def test_04_withdraw_path(self):
         self.clients['g2'].local('gobgp global rib del 10.0.0.0/24')
         time.sleep(1)
-        info = self.gobgp.get_neighbor(self.clients['g2'])['info']
+        info = self.gobgp.get_neighbor(self.clients['g2'])['state']['adj-table']
         self.assertTrue(info['advertised'] == 1)
-        self.assertTrue('accepted' not in info) # means info['accepted'] == 0
-        self.assertTrue('received' not in info) # means info['received'] == 0
+        self.assertTrue('accepted' not in info)  # means info['accepted'] == 0
+        self.assertTrue('received' not in info)  # means info['received'] == 0
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

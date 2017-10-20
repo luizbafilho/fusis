@@ -1,8 +1,27 @@
+// +build linux
+
 package netlink
 
 import (
 	"testing"
 )
+
+func SafeQdiscList(link Link) ([]Qdisc, error) {
+	qdiscs, err := QdiscList(link)
+	if err != nil {
+		return nil, err
+	}
+	result := []Qdisc{}
+	for _, qdisc := range qdiscs {
+		// filter out pfifo_fast qdiscs because
+		// older kernels don't return them
+		_, pfifo := qdisc.(*PfifoFast)
+		if !pfifo {
+			result = append(result, qdisc)
+		}
+	}
+	return result, nil
+}
 
 func TestClassAddDel(t *testing.T) {
 	tearDown := setUpNetlinkTest(t)
@@ -29,7 +48,7 @@ func TestClassAddDel(t *testing.T) {
 	if err := QdiscAdd(qdisc); err != nil {
 		t.Fatal(err)
 	}
-	qdiscs, err := QdiscList(link)
+	qdiscs, err := SafeQdiscList(link)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +120,7 @@ func TestClassAddDel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qdiscs, err = QdiscList(link)
+	qdiscs, err = SafeQdiscList(link)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +170,7 @@ func TestClassAddDel(t *testing.T) {
 	if err := QdiscDel(qdisc); err != nil {
 		t.Fatal(err)
 	}
-	qdiscs, err = QdiscList(link)
+	qdiscs, err = SafeQdiscList(link)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +211,7 @@ func TestHtbClassAddHtbClassChangeDel(t *testing.T) {
 	if err := QdiscAdd(qdisc); err != nil {
 		t.Fatal(err)
 	}
-	qdiscs, err := QdiscList(link)
+	qdiscs, err := SafeQdiscList(link)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +271,7 @@ func TestHtbClassAddHtbClassChangeDel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qdiscs, err = QdiscList(link)
+	qdiscs, err = SafeQdiscList(link)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +323,7 @@ func TestHtbClassAddHtbClassChangeDel(t *testing.T) {
 	}
 
 	// Check that we still have the netem child qdisc
-	qdiscs, err = QdiscList(link)
+	qdiscs, err = SafeQdiscList(link)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +415,7 @@ func TestHtbClassAddHtbClassChangeDel(t *testing.T) {
 	if err := QdiscDel(qdisc); err != nil {
 		t.Fatal(err)
 	}
-	qdiscs, err = QdiscList(link)
+	qdiscs, err = SafeQdiscList(link)
 	if err != nil {
 		t.Fatal(err)
 	}

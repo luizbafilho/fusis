@@ -3,6 +3,7 @@ package opentsdb
 import (
 	"time"
 
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -19,10 +20,10 @@ const (
 	// DefaultConsistencyLevel is the default write consistency level.
 	DefaultConsistencyLevel = "one"
 
-	// DefaultBatchSize is the default Graphite batch size.
+	// DefaultBatchSize is the default OpenTSDB batch size.
 	DefaultBatchSize = 1000
 
-	// DefaultBatchTimeout is the default Graphite batch timeout.
+	// DefaultBatchTimeout is the default OpenTSDB batch timeout.
 	DefaultBatchTimeout = time.Second
 
 	// DefaultBatchPending is the default number of batches that can be in the queue.
@@ -93,4 +94,36 @@ func (c *Config) WithDefaults() *Config {
 	}
 
 	return &d
+}
+
+// Configs wraps a slice of Config to aggregate diagnostics.
+type Configs []Config
+
+// Diagnostics returns one set of diagnostics for all of the Configs.
+func (c Configs) Diagnostics() (*diagnostics.Diagnostics, error) {
+	d := &diagnostics.Diagnostics{
+		Columns: []string{"enabled", "bind-address", "database", "retention-policy", "batch-size", "batch-pending", "batch-timeout"},
+	}
+
+	for _, cc := range c {
+		if !cc.Enabled {
+			d.AddRow([]interface{}{false})
+			continue
+		}
+
+		r := []interface{}{true, cc.BindAddress, cc.Database, cc.RetentionPolicy, cc.BatchSize, cc.BatchPending, cc.BatchTimeout}
+		d.AddRow(r)
+	}
+
+	return d, nil
+}
+
+// Enabled returns true if any underlying Config is Enabled.
+func (c Configs) Enabled() bool {
+	for _, cc := range c {
+		if cc.Enabled {
+			return true
+		}
+	}
+	return false
 }

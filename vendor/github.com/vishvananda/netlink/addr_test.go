@@ -1,3 +1,5 @@
+// +build linux
+
 package netlink
 
 import (
@@ -5,9 +7,18 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 )
 
-func TestAddr(t *testing.T) {
+func TestAddrAdd(t *testing.T) {
+	DoTestAddr(t, AddrAdd)
+}
+
+func TestAddrReplace(t *testing.T) {
+	DoTestAddr(t, AddrReplace)
+}
+
+func DoTestAddr(t *testing.T, FunctionUndertest func(Link, *Addr) error) {
 	if os.Getenv("TRAVIS_BUILD_DIR") != "" {
 		t.Skipf("Fails in travis with: addr_test.go:68: Address flags not set properly, got=0, expected=128")
 	}
@@ -53,7 +64,7 @@ func TestAddr(t *testing.T) {
 	}
 
 	for _, tt := range addrTests {
-		if err = AddrAdd(link, tt.addr); err != nil {
+		if err = FunctionUndertest(link, tt.addr); err != nil {
 			t.Fatal(err)
 		}
 
@@ -119,5 +130,117 @@ func TestAddr(t *testing.T) {
 		if len(addrs) != 0 {
 			t.Fatal("Address not removed properly")
 		}
+	}
+
+}
+
+func TestAddrAddReplace(t *testing.T) {
+	tearDown := setUpNetlinkTest(t)
+	defer tearDown()
+
+	var address = &net.IPNet{IP: net.IPv4(127, 0, 0, 2), Mask: net.CIDRMask(24, 32)}
+	var addr = &Addr{IPNet: address}
+
+	link, err := LinkByName("lo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = AddrAdd(link, addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addrs, err := AddrList(link, FAMILY_ALL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(addrs) != 1 {
+		t.Fatal("Address not added properly")
+	}
+
+	err = AddrAdd(link, addr)
+	if err == nil {
+		t.Fatal("Re-adding address should fail (but succeeded unexpectedly).")
+	}
+
+	err = AddrReplace(link, addr)
+	if err != nil {
+		t.Fatal("Replacing address failed.")
+	}
+
+	addrs, err = AddrList(link, FAMILY_ALL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(addrs) != 1 {
+		t.Fatal("Address not added properly")
+	}
+
+	if err = AddrDel(link, addr); err != nil {
+		t.Fatal(err)
+	}
+
+	addrs, err = AddrList(link, FAMILY_ALL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(addrs) != 0 {
+		t.Fatal("Address not removed properly")
+	}
+}
+
+func expectAddrUpdate(ch <-chan AddrUpdate, add bool, dst net.IP) bool {
+	for {
+		timeout := time.After(time.Minute)
+		select {
+		case update := <-ch:
+			if update.NewAddr == add && update.LinkAddress.IP.Equal(dst) {
+				return true
+			}
+		case <-timeout:
+			return false
+		}
+	}
+}
+
+func TestAddrSubscribeWithOptions(t *testing.T) {
+	tearDown := setUpNetlinkTest(t)
+	defer tearDown()
+
+	ch := make(chan AddrUpdate)
+	done := make(chan struct{})
+	defer close(done)
+	var lastError error
+	defer func() {
+		if lastError != nil {
+			t.Fatalf("Fatal error received during subscription: %v", lastError)
+		}
+	}()
+	if err := AddrSubscribeWithOptions(ch, done, AddrSubscribeOptions{
+		ErrorCallback: func(err error) {
+			lastError = err
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// get loopback interface
+	link, err := LinkByName("lo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// bring the interface up
+	if err = LinkSetUp(link); err != nil {
+		t.Fatal(err)
+	}
+
+	ip := net.IPv4(127, 0, 0, 1)
+	if !expectAddrUpdate(ch, true, ip) {
+		t.Fatal("Add update not received as expected")
 	}
 }

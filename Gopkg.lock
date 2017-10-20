@@ -2,12 +2,6 @@
 
 
 [[projects]]
-  name = "github.com/Sirupsen/logrus"
-  packages = ["."]
-  revision = "ba1b36c82c5e05c4f912a88eab0dcd91a171688f"
-  version = "v0.11.5"
-
-[[projects]]
   name = "github.com/appleboy/gofight"
   packages = ["."]
   revision = "beadc315fb676177c07a89c34159b9ca4e1aafd9"
@@ -19,9 +13,10 @@
   revision = "97c69685293dce4c0a2d0b19535179bbc976e4d2"
 
 [[projects]]
+  branch = "master"
   name = "github.com/armon/go-radix"
   packages = ["."]
-  revision = "4239b77079c7b5d1243b7b4736304ce8ddb6f0f2"
+  revision = "1fca145dffbcaa8fe914309b1ec0cfc67500fe61"
 
 [[projects]]
   name = "github.com/coreos/etcd"
@@ -52,6 +47,12 @@
   version = "v0.2.1"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/docker/libnetwork"
+  packages = ["ipvs"]
+  revision = "0caae82b7895e2ff8dfec42b3666bd5c305bddce"
+
+[[projects]]
   name = "github.com/eapache/channels"
   packages = ["."]
   revision = "47238d5aae8c0fefd518ef2bee46290909cf8263"
@@ -62,11 +63,6 @@
   name = "github.com/eapache/queue"
   packages = ["."]
   revision = "44cc805cf13205b55f69e14bcb69867d1ae92f98"
-
-[[projects]]
-  name = "github.com/fatih/structs"
-  packages = ["."]
-  revision = "dc3312cb1a4513a366c4c9e622ad55c32df12ed3"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -83,11 +79,6 @@
   name = "github.com/go-playground/universal-translator"
   packages = ["."]
   revision = "8bf00f2bdf7faea5c3583d41f57bf1eb15b743d7"
-
-[[projects]]
-  name = "github.com/google/seesaw"
-  packages = ["ipvs","netlink"]
-  revision = "f11734aa58f0f45d1715844228955a05cdc06f67"
 
 [[projects]]
   name = "github.com/hashicorp/consul"
@@ -153,7 +144,8 @@
 [[projects]]
   name = "github.com/influxdata/influxdb"
   packages = ["client/v2","models","pkg/escape"]
-  revision = "855c567c67d7fff1e2f91617c292ea20cf26e53c"
+  revision = "a7c3d3c0f7b74f71919047adbc4933460967a576"
+  version = "v1.3.6"
 
 [[projects]]
   name = "github.com/labstack/echo"
@@ -227,7 +219,8 @@
 [[projects]]
   name = "github.com/osrg/gobgp"
   packages = ["config","packet/bgp","packet/bmp","packet/mrt","packet/rtr","server","table","zebra"]
-  revision = "4ecf30f884ae7578ef3ce1a34510d9dd02c6e2bf"
+  revision = "9c03026c4c1129f5eb895f64f3923bbfbe1f111f"
+  version = "v1.24"
 
 [[projects]]
   name = "github.com/pelletier/go-buffruneio"
@@ -254,7 +247,14 @@
 [[projects]]
   name = "github.com/satori/go.uuid"
   packages = ["."]
-  revision = "b061729afc07e77a8aa4fad0a2fd840958f1942a"
+  revision = "879c5887cd475cd7864858769793b2ceb0d44feb"
+  version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
+  version = "v1.0.3"
 
 [[projects]]
   name = "github.com/spf13/afero"
@@ -282,9 +282,10 @@
   revision = "5ccb023bc27df288a957c5e994cd44fd19619465"
 
 [[projects]]
+  branch = "master"
   name = "github.com/spf13/viper"
   packages = ["."]
-  revision = "651d9d916abc3c3d6a91a12549495caba5edffd2"
+  revision = "d9cca5ef33035202efb1586825bdbb15ff9ec3ba"
 
 [[projects]]
   name = "github.com/stretchr/objx"
@@ -315,9 +316,10 @@
   revision = "dcecefd839c4193db0d35b88ec65b4c12d360ab0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/vishvananda/netlink"
   packages = [".","nl"]
-  revision = "7a823e360eee9619b585d41579dfd445a8f788cb"
+  revision = "177f1ceba557262b3f1c3aba4df93a29199fb4eb"
 
 [[projects]]
   name = "github.com/vishvananda/netns"
@@ -327,17 +329,18 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["acme","acme/autocert"]
+  packages = ["acme","acme/autocert","ssh/terminal"]
   revision = "b176d7def5d71bdd214203491f89843ed217f420"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/net"
   packages = ["bpf","context"]
-  revision = "6cdc0daab091c43fc46193327e0047b4f883c613"
+  revision = "aabf50738bcdd9b207582cbe796b59ed65d56680"
 
 [[projects]]
   name = "golang.org/x/sys"
-  packages = ["unix"]
+  packages = ["unix","windows"]
   revision = "478fcf54317e52ab69f40bb4c7a1520288d7f7ea"
 
 [[projects]]
@@ -371,6 +374,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3bfc314b976b6bc3e02d11529dba0ad1c5750a3d82584a871036a2df3efde268"
+  inputs-digest = "c45aa9bed28a32bb5b58769083be559b67772637c6b5ec6a1a9d4a78a0971c94"
   solver-name = "gps-cdcl"
   solver-version = 1

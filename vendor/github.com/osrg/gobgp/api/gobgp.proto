@@ -1,17 +1,23 @@
-// Copyright (C) 2015 Nippon Telegraph and Telephone Corporation.
+// Copyright (C) 2015-2017 Nippon Telegraph and Telephone Corporation.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// Permission is hereby granted, free of charge, to any person
+// obtaining a copy of this software and associated documentation files
+// (the "Software"), to deal in the Software without restriction,
+// including without limitation the rights to use, copy, modify, merge,
+// publish, distribute, sublicense, and/or sell copies of the Software,
+// and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
 //
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-// implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 syntax = "proto3";
 
@@ -32,10 +38,11 @@ service GobgpApi {
   rpc EnableNeighbor(EnableNeighborRequest) returns (EnableNeighborResponse) {}
   rpc DisableNeighbor(DisableNeighborRequest) returns (DisableNeighborResponse) {}
   rpc GetRib(GetRibRequest) returns (GetRibResponse) {}
+  rpc GetPath(GetPathRequest) returns (stream Path) {}
   rpc ValidateRib(ValidateRibRequest) returns (ValidateRibResponse) {}
   rpc AddPath(AddPathRequest) returns (AddPathResponse) {}
   rpc DeletePath(DeletePathRequest) returns (DeletePathResponse) {}
-  rpc MonitorRib(Table) returns (stream Destination) {}
+  rpc MonitorRib(MonitorRibRequest) returns (stream Destination) {}
   rpc MonitorPeerState(Arguments) returns (stream Peer) {}
   rpc EnableMrt(EnableMrtRequest) returns (EnableMrtResponse) {}
   rpc DisableMrt(DisableMrtRequest) returns (DisableMrtResponse) {}
@@ -50,6 +57,7 @@ service GobgpApi {
   rpc ResetRpki(ResetRpkiRequest) returns (ResetRpkiResponse) {}
   rpc SoftResetRpki(SoftResetRpkiRequest) returns (SoftResetRpkiResponse) {}
   rpc GetRoa(GetRoaRequest) returns (GetRoaResponse) {}
+  rpc EnableZebra(EnableZebraRequest) returns (EnableZebraResponse) {}
   rpc AddVrf(AddVrfRequest) returns (AddVrfResponse) {}
   rpc DeleteVrf(DeleteVrfRequest) returns (DeleteVrfResponse) {}
   rpc GetVrf(GetVrfRequest) returns (GetVrfResponse) {}
@@ -69,9 +77,12 @@ service GobgpApi {
   rpc AddPolicyAssignment(AddPolicyAssignmentRequest) returns (AddPolicyAssignmentResponse) {}
   rpc DeletePolicyAssignment(DeletePolicyAssignmentRequest) returns (DeletePolicyAssignmentResponse) {}
   rpc ReplacePolicyAssignment(ReplacePolicyAssignmentRequest) returns (ReplacePolicyAssignmentResponse) {}
+  rpc GetRibInfo(GetRibInfoRequest) returns (GetRibInfoResponse) {}
 }
 
 message GetNeighborRequest {
+  bool enableAdvertised = 1;
+  string address        = 2;
 }
 
 message GetNeighborResponse {
@@ -121,6 +132,7 @@ message DeleteNeighborResponse {
 
 message ResetNeighborRequest {
   string address = 1;
+  string communication = 2;
 }
 
 message ResetNeighborResponse {
@@ -141,6 +153,7 @@ message SoftResetNeighborResponse {
 
 message ShutdownNeighborRequest {
   string address = 1;
+  string communication = 2;
 }
 
 message ShutdownNeighborResponse {
@@ -155,6 +168,7 @@ message EnableNeighborResponse {
 
 message DisableNeighborRequest {
   string address = 1;
+  string communication = 2;
 }
 
 message DisableNeighborResponse {
@@ -191,6 +205,8 @@ message AddBmpRequest {
     PRE = 0;
     POST = 1;
     BOTH = 2;
+    LOCAL = 3;
+    ALL = 4;
   }
   MonitoringPolicy type = 3;
 }
@@ -204,6 +220,11 @@ message DeleteBmpRequest {
 }
 
 message DeleteBmpResponse {
+}
+
+message MonitorRibRequest {
+    Table table = 1;
+    bool current = 2;
 }
 
 message RPKIConf {
@@ -289,6 +310,17 @@ message SoftResetRpkiRequest {
 message SoftResetRpkiResponse {
 }
 
+message EnableZebraRequest {
+  string url = 1;
+  repeated string route_types = 2;
+  uint32 version = 3;
+  bool nexthop_trigger_enable = 4;
+  uint32 nexthop_trigger_delay = 5;
+}
+
+message EnableZebraResponse {
+}
+
 message GetVrfRequest {
 }
 
@@ -312,6 +344,7 @@ message DeleteVrfResponse {
 
 message GetDefinedSetRequest {
   DefinedType type = 1;
+  string name = 2;
 }
 
 message GetDefinedSetResponse {
@@ -468,21 +501,47 @@ enum Resource {
   VRF = 4;
 }
 
+message RPKIValidation{
+  enum State {
+    STATE_NONE = 0;
+    STATE_NOT_FOUND = 1;
+    STATE_VALID = 2;
+    STATE_INVALID = 3;
+  }
+
+  enum Reason {
+    REASOT_NONE = 0;
+    REASON_AS = 1;
+    REASON_LENGTH = 2;
+  }
+
+  State state = 1;
+  Reason reason = 2;
+  repeated Roa matched = 3;
+  repeated Roa unmatched_as = 4;
+  repeated Roa unmatched_length = 5;
+}
+
 message Path {
   bytes nlri = 1;
   repeated bytes pattrs = 2;
   int64 age = 3;
   bool best = 4;
   bool is_withdraw = 5;
-  int32 validation = 6;
-  bool no_implicit_withdraw = 7;
-  uint32 family = 8;
-  uint32 source_asn = 9;
-  string source_id = 10;
-  bool filtered = 11;
-  bool stale = 12;
-  bool is_from_external = 13;
-  string neighbor_ip = 14;
+  int32 validation = 6; // remains for backword compatibility
+  RPKIValidation validation_detail = 7;
+  bool no_implicit_withdraw = 8;
+  uint32 family = 9;
+  uint32 source_asn = 10;
+  string source_id = 11;
+  bool filtered = 12;
+  bool stale = 13;
+  bool is_from_external = 14;
+  string neighbor_ip = 15;
+  bytes uuid = 16; // only paths installed by AddPath API have this
+  bool is_nexthop_invalid = 17;
+  uint32 identifier = 18;
+  uint32 local_identifier = 19;
 }
 
 message Destination {
@@ -508,6 +567,26 @@ message GetRibResponse {
   Table table = 1;
 }
 
+// API representation of table.LookupOption
+enum TableLookupOption {
+  LOOKUP_EXACT = 0;
+  LOOKUP_LONGER = 1;
+  LOOKUP_SHORTER = 2;
+}
+
+// API representation of table.LookupPrefix
+message TableLookupPrefix {
+  string prefix = 1;
+  TableLookupOption lookup_option = 2;
+}
+
+message GetPathRequest {
+  Resource type = 1;
+  string name = 2;
+  uint32 family = 3;
+  repeated TableLookupPrefix prefixes = 4;
+}
+
 message ValidateRibRequest {
   Resource type = 1;
   uint32 family = 2;
@@ -527,6 +606,8 @@ message Peer {
   Timers timers = 7;
   Transport transport = 8;
   RouteServer route_server = 9;
+  GracefulRestart graceful_restart = 10;
+  repeated AfiSafi afi_safis = 11;
 }
 
 message ApplyPolicy {
@@ -549,15 +630,26 @@ message PeerConf {
   uint32 peer_as = 5;
   string peer_group = 6;
   uint32 peer_type = 7;
-  uint32 remove_private_as = 8;
+  enum RemovePrivateAs {
+      NONE = 0;
+      ALL = 1;
+      REPLACE = 2;
+  }
+  RemovePrivateAs remove_private_as = 8;
   bool route_flap_damping = 9;
   uint32 send_community = 10;
   repeated bytes remote_cap = 11;
   repeated bytes local_cap = 12;
   string id = 13;
+  // Note: Regarding to the consistency with OpenConfig mode, list of
+  // PrefixLimit should be removed from here, and list of PrefixLimit in
+  // AfiSafi should be used instead.
   repeated PrefixLimit prefix_limits = 14;
   string local_address = 15;
   string neighbor_interface = 16;
+  string vrf = 17;
+  uint32 allow_own_as = 18;
+  bool replace_peer_as = 19;
 }
 
 message EbgpMultihop {
@@ -586,7 +678,12 @@ message PeerState {
   uint32 session_state = 13;
   repeated string supported_capabilities = 14;
   string bgp_state = 15;
-  string admin_state = 16;
+  enum AdminState {
+      UP = 0;
+      DOWN = 1;
+      PFX_CT = 2; // prefix counter over limit
+  }
+  AdminState admin_state = 16;
   uint32 received = 17;
   uint32 accepted = 18;
   uint32 advertised = 19;
@@ -650,6 +747,163 @@ message RouteServer {
   bool route_server_client = 1;
 }
 
+message GracefulRestart {
+  bool enabled = 1;
+  uint32 restart_time = 2;
+  bool helper_only = 3;
+  uint32 deferral_time = 4;
+  bool notification_enabled = 5;
+  bool longlived_enabled = 6;
+}
+
+message MpGracefulRestartConfig {
+  bool enabled = 1;
+}
+
+message MpGracefulRestartState {
+  bool enabled = 1;
+  bool received = 2;
+  bool advertised = 3;
+  bool end_of_rib_received = 4;
+  bool end_of_rib_sent = 5;
+}
+message MpGracefulRestart {
+  MpGracefulRestartConfig config = 1;
+  MpGracefulRestartState state = 2;
+}
+
+message AfiSafiConfig {
+  uint32 family = 1;
+  bool enabled = 2;
+}
+
+message AfiSafiState {
+  uint32 family = 1;
+  bool enabled = 2;
+  uint32 total_paths = 3;
+  uint32 total_prefixes = 4;
+}
+
+message RouteSelectionOptionsConfig {
+  bool always_compare_med = 1;
+  bool ignore_as_path_length = 2;
+  bool external_compare_router_id = 3;
+  bool advertise_inactive_routes = 4;
+  bool enable_aigp = 5;
+  bool ignore_next_hop_igp_metric = 6;
+}
+
+message RouteSelectionOptionsState {
+  bool always_compare_med = 1;
+  bool ignore_as_path_length = 2;
+  bool external_compare_router_id = 3;
+  bool advertise_inactive_routes = 4;
+  bool enable_aigp = 5;
+  bool ignore_next_hop_igp_metric = 6;
+}
+
+message RouteSelectionOptions {
+  RouteSelectionOptionsConfig config = 1;
+  RouteSelectionOptionsState state = 2;
+}
+
+message UseMultiplePathsConfig {
+  bool enabled = 1;
+}
+
+message UseMultiplePathsState {
+  bool enabled = 1;
+}
+
+message EbgpConfig {
+  bool allow_multiple_as = 1;
+  uint32 maximum_paths = 2;
+}
+
+message EbgpState {
+  bool allow_multiple_as = 1;
+  uint32 maximum_paths = 2;
+}
+
+message Ebgp {
+  EbgpConfig config = 1;
+  EbgpState state = 2;
+}
+
+message IbgpConfig {
+  uint32 maximum_paths = 1;
+}
+
+message IbgpState {
+  uint32 maximum_paths = 1;
+}
+
+message Ibgp {
+  IbgpConfig config = 1;
+  IbgpState state = 2;
+}
+
+message UseMultiplePaths {
+  UseMultiplePathsConfig config = 1;
+  UseMultiplePathsState state = 2;
+  Ebgp ebgp = 3;
+  Ibgp ibgp = 4;
+}
+
+message RouteTargetMembershipConfig {
+  uint32 deferral_time = 1;
+}
+
+message RouteTargetMembershipState {
+  uint32 deferral_time = 1;
+}
+
+message RouteTargetMembership {
+  RouteTargetMembershipConfig config = 1;
+  RouteTargetMembershipState state = 2;
+}
+
+message LongLivedGracefulRestartConfig {
+  bool enabled = 1;
+  uint32 restart_time = 2;
+}
+
+message LongLivedGracefulRestartState {
+  bool enabled = 1;
+  bool received = 2;
+  bool advertised = 3;
+  uint32 peer_restart_time = 4;
+  bool peer_restart_timer_expired = 5;
+}
+
+message LongLivedGracefulRestart {
+  LongLivedGracefulRestartConfig config = 1;
+  LongLivedGracefulRestartState state = 2;
+}
+
+message AfiSafi {
+  MpGracefulRestart mp_graceful_restart = 1;
+  AfiSafiConfig config = 2;
+  ApplyPolicy apply_policy = 3;
+  // TODO:
+  // Support the following structures:
+  // - Ipv4Unicast
+  // - Ipv6Unicast
+  // - Ipv4LabelledUnicast
+  // - Ipv6LabelledUnicast
+  // - L3vpnIpv4Unicast
+  // - L3vpnIpv6Unicast
+  // - L3vpnIpv4Multicast
+  // - L3vpnIpv6Multicast
+  // - L2vpnVpls
+  // - L2vpnEvpn
+  RouteSelectionOptions route_selection_options = 4;
+  UseMultiplePaths use_multiple_paths = 5;
+  PrefixLimit prefix_limits = 6;
+  RouteTargetMembership route_target_membership = 7;
+  LongLivedGracefulRestart long_lived_graceful_restart = 8;
+}
+
 message Prefix {
   string ip_prefix  = 1;
   uint32 mask_length_min = 2;
@@ -663,6 +917,7 @@ enum DefinedType {
   AS_PATH = 3;
   COMMUNITY = 4;
   EXT_COMMUNITY = 5;
+  LARGE_COMMUNITY = 6;
 }
 
 message DefinedSet {
@@ -709,6 +964,7 @@ message Conditions {
     ROUTE_TYPE_LOCAL = 3;
   }
   RouteType route_type = 8;
+  MatchSet large_community_set = 9;
 }
 
 enum RouteAction {
@@ -761,6 +1017,7 @@ message Actions {
   CommunityAction ext_community = 5;
   NexthopAction nexthop = 6;
   LocalPrefAction local_pref = 7;
+  CommunityAction large_community = 8;
 }
 
 message Statement {
@@ -809,6 +1066,7 @@ message Vrf {
   bytes rd = 2;
   repeated bytes import_rt = 3;
   repeated bytes export_rt = 4;
+  uint32 id = 5;
 }
 
 message Global {
@@ -817,6 +1075,22 @@ message Global {
   int32 listen_port = 3;
   repeated string listen_addresses = 4;
   repeated uint32 families = 5;
-  uint32 mpls_label_min = 6;
-  uint32 mpls_label_max = 7;
+  bool use_multiple_paths = 6;
+}
+
+message TableInfo {
+  Resource type = 1;
+  string name = 2;
+  uint32 family = 3;
+  uint64 num_destination = 4;
+  uint64 num_path = 5;
+  uint64 num_accepted = 6; // only meaningful when type == ADJ_IN
+}
+
+message GetRibInfoRequest {
+    TableInfo info  = 1;
+}
+
+message GetRibInfoResponse {
+    TableInfo info = 1;
 }

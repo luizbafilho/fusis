@@ -3,15 +3,13 @@ package influxql
 import (
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -47,9 +45,6 @@ const (
 // ErrDatabaseNotFound returns a database not found error for the given database name.
 func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
-// ErrMeasurementNotFound returns a measurement not found error for the given measurement name.
-func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
-
 // ErrMaxSelectPointsLimitExceeded is an error when a query hits the maximum number of points.
 func ErrMaxSelectPointsLimitExceeded(n, limit int) error {
 	return fmt.Errorf("max-select-point limit exceeed: (%d/%d)", n, limit)
@@ -61,10 +56,48 @@ func ErrMaxConcurrentQueriesLimitExceeded(n, limit int) error {
 	return fmt.Errorf("max-concurrent-queries limit exceeded(%d, %d)", n, limit)
 }
 
+// Authorizer reports whether certain operations are authorized.
+type Authorizer interface {
+	// AuthorizeDatabase indicates whether the given Privilege is authorized on the database with the given name.
+	AuthorizeDatabase(p Privilege, name string) bool
+
+	// AuthorizeQuery returns an error if the query cannot be executed
+	AuthorizeQuery(database string, query *Query) error
+
+	// AuthorizeSeriesRead determines if a series is authorized for reading
+	AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool
+
+	// AuthorizeSeriesWrite determines if a series is authorized for writing
+	AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool
+}
+
+// OpenAuthorizer is the Authorizer used when authorization is disabled.
+// It allows all operations.
+type OpenAuthorizer struct{}
+
+var _ Authorizer = OpenAuthorizer{}
+
+// AuthorizeDatabase returns true to allow any operation on a database.
+func (_ OpenAuthorizer) AuthorizeDatabase(Privilege, string) bool { return true }
+
+func (_ OpenAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
+	return true
+}
+
+func (_ OpenAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
+	return true
+}
+
+func (_ OpenAuthorizer) AuthorizeQuery(_ string, _ *Query) error { return nil }
+
 // ExecutionOptions contains the options for executing a query.
 type ExecutionOptions struct {
 	// The database the query is running against.
 	Database string
+
+	// How to determine whether the query is allowed to execute,
+	// what resources can be returned in SHOW queries, etc.
+	Authorizer Authorizer
 
 	// The requested maximum number of points to return in each result.
 	ChunkSize int
@@ -97,7 +130,7 @@ type ExecutionContext struct {
 	Results chan *Result
 
 	// Hold the query executor's logger.
-	Log *log.Logger
+	Log zap.Logger
 
 	// A channel that is closed when the query is interrupted.
 	InterruptCh <-chan struct{}
@@ -154,7 +187,7 @@ type QueryExecutor struct {
 
 	// Logger to use for all logging.
 	// Defaults to discarding all log output.
-	Logger *log.Logger
+	Logger zap.Logger
 
 	// expvar-based stats.
 	stats *QueryStatistics
@@ -164,7 +197,7 @@ type QueryExecutor struct {
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
 		TaskManager: NewTaskManager(),
-		Logger:      log.New(ioutil.Discard, "[query] ", log.LstdFlags),
+		Logger:      zap.New(zap.NullEncoder()),
 		stats:       &QueryStatistics{},
 	}
 }
@@ -198,8 +231,8 @@ func (e *QueryExecutor) Close() error {
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
-func (e *QueryExecutor) SetLogOutput(w io.Writer) {
-	e.Logger = log.New(w, "[query] ", log.LstdFlags)
+func (e *QueryExecutor) WithLogger(log zap.Logger) {
+	e.Logger = log.With(zap.String("service", "query"))
 	e.TaskManager.Logger = e.Logger
 }
 
@@ -307,7 +340,7 @@ LOOP:
 
 		// Log each normalized statement.
 		if !ctx.Quiet {
-			e.Logger.Println(stmt.String())
+			e.Logger.Info(stmt.String())
 		}
 
 		// Send any other statements to the underlying statement executor.
@@ -361,7 +394,7 @@ LOOP:
 
 func (e *QueryExecutor) recover(query *Query, results chan *Result) {
 	if err := recover(); err != nil {
-		e.Logger.Printf("%s [panic:%s] %s", query.String(), err, debug.Stack())
+		e.Logger.Error(fmt.Sprintf("%s [panic:%s] %s", query.String(), err, debug.Stack()))
 		results <- &Result{
 			StatementID: -1,
 			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),

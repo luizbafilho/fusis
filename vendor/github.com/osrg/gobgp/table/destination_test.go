@@ -17,23 +17,25 @@ package table
 
 import (
 	//"fmt"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/stretchr/testify/assert"
+	"fmt"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDestinationNewIPv4(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri())
+	ipv4d := NewDestination(pathD[0].GetNlri(), 0)
 	assert.NotNil(t, ipv4d)
 }
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv6d := NewDestination(pathD[0].GetNlri())
+	ipv6d := NewDestination(pathD[0].GetNlri(), 0)
 	assert.NotNil(t, ipv6d)
 }
 
@@ -86,11 +88,11 @@ func TestCalculate(t *testing.T) {
 	path1.Filter("2", POLICY_DIRECTION_IMPORT)
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 
-	d := NewDestination(nlri)
+	d := NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	d.Calculate([]string{"1", "2"})
+	d.Calculate()
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0)
 	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
@@ -98,7 +100,7 @@ func TestCalculate(t *testing.T) {
 
 	d.AddWithdraw(path1.Clone(true))
 
-	d.Calculate([]string{"1", "2"})
+	d.Calculate()
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0)
 	assert.Equal(t, len(d.GetKnownPathList("2")), 0)
@@ -120,9 +122,9 @@ func TestCalculate2(t *testing.T) {
 	peer1 := &PeerInfo{AS: 1, Address: net.IP{1, 1, 1, 1}}
 	path1 := ProcessMessage(update1, peer1, time.Now())[0]
 
-	d := NewDestination(nlri)
+	d := NewDestination(nlri, 0)
 	d.AddNewPath(path1)
-	d.Calculate(nil)
+	d.Calculate()
 
 	// suppose peer2 sends grammaatically correct but semantically flawed update message
 	// which has a withdrawal nlri not advertised before
@@ -132,7 +134,7 @@ func TestCalculate2(t *testing.T) {
 	assert.Equal(t, path2.IsWithdraw, true)
 
 	d.AddWithdraw(path2)
-	d.Calculate(nil)
+	d.Calculate()
 
 	// we have a path from peer1 here
 	assert.Equal(t, len(d.knownPathList), 1)
@@ -143,7 +145,7 @@ func TestCalculate2(t *testing.T) {
 	assert.Equal(t, path3.IsWithdraw, false)
 
 	d.AddNewPath(path3)
-	d.Calculate(nil)
+	d.Calculate()
 
 	// this time, we have paths from peer1 and peer2
 	assert.Equal(t, len(d.knownPathList), 2)
@@ -154,7 +156,7 @@ func TestCalculate2(t *testing.T) {
 	path4 := ProcessMessage(update4, peer3, time.Now())[0]
 
 	d.AddNewPath(path4)
-	d.Calculate(nil)
+	d.Calculate()
 
 	// we must have paths from peer1, peer2 and peer3
 	assert.Equal(t, len(d.knownPathList), 3)
@@ -184,11 +186,11 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	path2.Filter("1", POLICY_DIRECTION_IMPORT)
 	path2.Filter("3", POLICY_DIRECTION_IMPORT)
 
-	d := NewDestination(nlri)
+	d := NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	d.Calculate(nil)
+	d.Calculate()
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0) // peer "1" is the originator
 	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
@@ -207,7 +209,7 @@ func TestImplicitWithdrawCalculate(t *testing.T) {
 	path3.Filter("1", POLICY_DIRECTION_IMPORT)
 
 	d.AddNewPath(path3)
-	d.Calculate(nil)
+	d.Calculate()
 
 	assert.Equal(t, len(d.GetKnownPathList("1")), 0) // peer "1" is the originator
 	assert.Equal(t, len(d.GetKnownPathList("2")), 1)
@@ -288,22 +290,22 @@ func TestTimeTieBreaker(t *testing.T) {
 	peer2 := &PeerInfo{AS: 2, LocalAS: 1, Address: net.IP{2, 2, 2, 2}, ID: net.IP{2, 2, 2, 2}} // weaker router-id
 	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour))[0]                 // older than path1
 
-	d := NewDestination(nlri)
+	d := NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	d.Calculate(nil)
+	d.Calculate()
 
 	assert.Equal(t, len(d.knownPathList), 2)
 	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{2, 2, 2, 2})) // path from peer2 win
 
 	// this option disables tie breaking by age
 	SelectionOptions.ExternalCompareRouterId = true
-	d = NewDestination(nlri)
+	d = NewDestination(nlri, 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	d.Calculate(nil)
+	d.Calculate()
 
 	assert.Equal(t, len(d.knownPathList), 2)
 	assert.Equal(t, true, d.GetBestPath("").GetSource().ID.Equal(net.IP{1, 1, 1, 1})) // path from peer1 win
@@ -399,6 +401,29 @@ func TestRadixkey(t *testing.T) {
 	assert.Equal(t, "000010100000001100100000", CidrToRadixkey("10.3.32.0/24"))
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
 	assert.Equal(t, "000010100000001100100000", IpToRadixkey(net.ParseIP("10.3.32.0").To4(), 24))
+	assert.Equal(t, CidrToRadixkey("::ffff:0.0.0.0/96")+"000010100000001100100000", CidrToRadixkey("::ffff:10.3.32.0/120"))
+}
+
+func TestIpToRadixkey(t *testing.T) {
+	for i := byte(0); i < 255; i += 3 {
+		for y := byte(1); y < 128; y *= 2 {
+			ip := net.IPv4(i, i+2, i+3, i-y)
+			for n := uint8(16); n <= 32; n += 2 {
+				exp := CidrToRadixkey(fmt.Sprintf("%v/%d", ip.To4(), n))
+				got := IpToRadixkey(ip.To4(), n)
+				if exp != got {
+					t.Fatalf(`exp %v; got %v`, exp, got)
+				}
+			}
+			for n := uint8(116); n <= 128; n += 2 {
+				exp := CidrToRadixkey(fmt.Sprintf("::ffff:%v/%d", ip.To16(), n))
+				got := IpToRadixkey(ip.To16(), n)
+				if exp != got {
+					t.Fatalf(`exp %v; got %v`, exp, got)
+				}
+			}
+		}
+	}
 }
 
 func TestMultipath(t *testing.T) {
@@ -433,21 +458,22 @@ func TestMultipath(t *testing.T) {
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, nlri)
 	path2 := ProcessMessage(updateMsg, peer2, time.Now())[0]
 
-	d := NewDestination(nlri[0])
+	d := NewDestination(nlri[0], 0)
 	d.AddNewPath(path1)
 	d.AddNewPath(path2)
 
-	best, w, multi := d.Calculate([]string{GLOBAL_RIB_NAME})
-	assert.Equal(t, len(best), 1)
-	assert.Equal(t, len(w), 0)
+	best, old, multi := d.Calculate().GetChanges(GLOBAL_RIB_NAME, false)
+	assert.NotNil(t, best)
+	assert.Equal(t, old, (*Path)(nil))
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
 
 	path3 := path2.Clone(true)
 	d.AddWithdraw(path3)
-	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
-	assert.Equal(t, len(best), 1)
-	assert.Equal(t, len(w), 1)
+	dd := d.Calculate()
+	best, old, multi = dd.GetChanges(GLOBAL_RIB_NAME, false)
+	assert.Nil(t, best)
+	assert.Equal(t, old, path1)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 1)
 
@@ -464,9 +490,8 @@ func TestMultipath(t *testing.T) {
 	path4 := ProcessMessage(updateMsg, peer3, time.Now())[0]
 	d.AddNewPath(path4)
 
-	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
-	assert.Equal(t, len(best), 1)
-	assert.Equal(t, len(w), 0)
+	best, _, multi = d.Calculate().GetChanges(GLOBAL_RIB_NAME, false)
+	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 1)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 2)
 
@@ -481,11 +506,29 @@ func TestMultipath(t *testing.T) {
 	path5 := ProcessMessage(updateMsg, peer2, time.Now())[0]
 	d.AddNewPath(path5)
 
-	best, w, multi = d.Calculate([]string{GLOBAL_RIB_NAME})
-	assert.Equal(t, len(best), 1)
-	assert.Equal(t, len(w), 0)
+	best, _, multi = d.Calculate().GetChanges(GLOBAL_RIB_NAME, false)
+	assert.NotNil(t, best)
 	assert.Equal(t, len(multi), 2)
 	assert.Equal(t, len(d.GetKnownPathList(GLOBAL_RIB_NAME)), 3)
 
 	UseMultiplePaths.Enabled = false
+}
+
+func TestIdMap(t *testing.T) {
+	d := NewDestination(bgp.NewIPAddrPrefix(24, "10.10.0.101"), 64)
+	for i := 0; ; i++ {
+		if id, err := d.localIdMap.FindandSetZeroBit(); err == nil {
+			assert.Equal(t, uint(i+1), id)
+		} else {
+			assert.Equal(t, i, 63)
+			break
+		}
+	}
+	d.localIdMap.Expand()
+	for i := 0; i < 64; i++ {
+		id, _ := d.localIdMap.FindandSetZeroBit()
+		assert.Equal(t, id, uint(64+i))
+	}
+	_, err := d.localIdMap.FindandSetZeroBit()
+	assert.NotNil(t, err)
 }

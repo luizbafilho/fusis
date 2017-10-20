@@ -7,13 +7,19 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/toml"
 )
 
 const (
-	DefaultHTTPTimeout      = 30 * time.Second
+	// DefaultHTTPTimeout is the default HTTP timeout for a Config.
+	DefaultHTTPTimeout = 30 * time.Second
+
+	// DefaultWriteConcurrency is the default write concurrency for a Config.
 	DefaultWriteConcurrency = 40
-	DefaultWriteBufferSize  = 1000
+
+	// DefaultWriteBufferSize is the default write buffer size for a Config.
+	DefaultWriteBufferSize = 1000
 )
 
 // Config represents a configuration of the subscriber service.
@@ -50,6 +56,7 @@ func NewConfig() Config {
 	}
 }
 
+// Validate returns an error if the config is invalid.
 func (c Config) Validate() error {
 	if c.HTTPTimeout <= 0 {
 		return errors.New("http-timeout must be greater than 0")
@@ -77,4 +84,20 @@ func (c Config) Validate() error {
 func fileExists(fileName string) bool {
 	info, err := os.Stat(fileName)
 	return err == nil && !info.IsDir()
+}
+
+// Diagnostics returns a diagnostics representation of a subset of the Config.
+func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
+	if !c.Enabled {
+		return diagnostics.RowFromMap(map[string]interface{}{
+			"enabled": false,
+		}), nil
+	}
+
+	return diagnostics.RowFromMap(map[string]interface{}{
+		"enabled":           true,
+		"http-timeout":      c.HTTPTimeout,
+		"write-concurrency": c.WriteConcurrency,
+		"write-buffer-size": c.WriteBufferSize,
+	}), nil
 }

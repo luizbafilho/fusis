@@ -5,7 +5,7 @@ package tsm1
 // as well as falling back to no compression if needed.
 //
 // Timestamp values to be encoded should be sorted before encoding.  When encoded, the values are
-// first delta-encoded.  The first value is the starting timestamp, subsequent values are the difference.
+// first delta-encoded.  The first value is the starting timestamp, subsequent values are the difference
 // from the prior value.
 //
 // Timestamp resolution can also be in the nanosecond.  Many timestamps are monotonically increasing
@@ -16,11 +16,11 @@ package tsm1
 //
 // Using these adjusted values, if all the deltas are the same, the time range is stored using run
 // length encoding.  If run length encoding is not possible and all values are less than 1 << 60 - 1
-//  (~36.5 yrs in nanosecond resolution), then the timestamps are encoded using simple8b encoding.  If
+// (~36.5 yrs in nanosecond resolution), then the timestamps are encoded using simple8b encoding.  If
 // any value exceeds the maximum values, the deltas are stored uncompressed using 8b each.
 //
 // Each compressed byte slice has a 1 byte header indicating the compression type.  The 4 high bits
-// indicated the encoding type.  The 4 low bits are used by the encoding type.
+// indicate the encoding type.  The 4 low bits are used by the encoding type.
 //
 // For run-length encoding, the 4 low bits store the log10 of the scaling factor.  The next 8 bytes are
 // the starting timestamp, next 1-10 bytes is the delta value using variable-length encoding, finally the
@@ -62,7 +62,7 @@ type encoder struct {
 	enc   *simple8b.Encoder
 }
 
-// NewTimeEncoder returns a TimeEncoder
+// NewTimeEncoder returns a TimeEncoder with an initial buffer ready to hold sz bytes.
 func NewTimeEncoder(sz int) TimeEncoder {
 	return &encoder{
 		ts:  make([]uint64, 0, sz),
@@ -70,13 +70,14 @@ func NewTimeEncoder(sz int) TimeEncoder {
 	}
 }
 
+// Reset sets the encoder back to its initial state.
 func (e *encoder) Reset() {
 	e.ts = e.ts[:0]
 	e.bytes = e.bytes[:0]
 	e.enc.Reset()
 }
 
-// Write adds a time.Time to the compressed stream.
+// Write adds a timestamp to the compressed stream.
 func (e *encoder) Write(t int64) {
 	e.ts = append(e.ts, uint64(t))
 }
@@ -103,11 +104,8 @@ func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
 			max = v
 		}
 
-		for {
-			// If our value is divisible by 10, break.  Otherwise, try the next smallest divisor.
-			if v%divisor == 0 {
-				break
-			}
+		// If our value is divisible by 10, break.  Otherwise, try the next smallest divisor.
+		for divisor > 1 && v%divisor != 0 {
 			divisor /= 10
 		}
 
@@ -141,8 +139,19 @@ func (e *encoder) Bytes() ([]byte, error) {
 }
 
 func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
-	for _, v := range dts[1:] {
-		e.enc.Write(uint64(v) / div)
+	// Only apply the divisor if it's greater than 1 since division is expensive.
+	if div > 1 {
+		for _, v := range dts[1:] {
+			if err := e.enc.Write(v / div); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		for _, v := range dts[1:] {
+			if err := e.enc.Write(v); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// The compressed deltas
@@ -206,6 +215,7 @@ func (e *encoder) encodeRLE(first, delta, div uint64, n int) ([]byte, error) {
 	return b[:i], nil
 }
 
+// TimeDecoder decodes a byte slice into timestamps.
 type TimeDecoder struct {
 	v    int64
 	i, n int
@@ -219,6 +229,7 @@ type TimeDecoder struct {
 	encoding byte
 }
 
+// Init initializes the decoder with bytes to read from.
 func (d *TimeDecoder) Init(b []byte) {
 	d.v = 0
 	d.i = 0
@@ -231,6 +242,7 @@ func (d *TimeDecoder) Init(b []byte) {
 	d.decode(b)
 }
 
+// Next returns true if there are any timestamps remaining to be decoded.
 func (d *TimeDecoder) Next() bool {
 	if d.err != nil {
 		return false
@@ -253,10 +265,12 @@ func (d *TimeDecoder) Next() bool {
 	return true
 }
 
+// Read returns the next timestamp from the decoder.
 func (d *TimeDecoder) Read() int64 {
 	return d.v
 }
 
+// Error returns the last error encountered by the decoder.
 func (d *TimeDecoder) Error() error {
 	return d.err
 }
@@ -291,14 +305,24 @@ func (d *TimeDecoder) decodePacked(b []byte) {
 	d.i = 0
 	deltas := d.ts[:0]
 	deltas = append(deltas, first)
+
 	for d.dec.Next() {
 		deltas = append(deltas, d.dec.Read())
 	}
 
 	// Compute the prefix sum and scale the deltas back up
-	for i := 1; i < len(deltas); i++ {
-		dgap := deltas[i] * div
-		deltas[i] = deltas[i-1] + dgap
+	last := deltas[0]
+	if div > 1 {
+		for i := 1; i < len(deltas); i++ {
+			dgap := deltas[i] * div
+			deltas[i] = last + dgap
+			last = deltas[i]
+		}
+	} else {
+		for i := 1; i < len(deltas); i++ {
+			deltas[i] += last
+			last = deltas[i]
+		}
 	}
 
 	d.i = 0
@@ -382,13 +406,8 @@ func CountTimestamps(b []byte) int {
 		return int(count)
 	case timeCompressedPackedSimple:
 		// First 9 bytes are the starting timestamp and scaling factor, skip over them
-		dec := simple8b.NewDecoder(b[9:])
-		count := 1
-		// Count the deltas
-		for dec.Next() {
-			count++
-		}
-		return count
+		count, _ := simple8b.CountBytes(b[9:])
+		return count + 1 // +1 is for the first uncompressed timestamp, starting timestamep in b[1:9]
 	default:
 		return 0
 	}

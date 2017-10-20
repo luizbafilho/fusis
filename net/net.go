@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
 

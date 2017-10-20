@@ -17,8 +17,28 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"path/filepath"
+	"regexp"
+	"strconv"
+
 	"github.com/osrg/gobgp/packet/bgp"
 )
+
+// Returns config file type by retrieving extension from the given path.
+// If no corresponding type found, returns the given def as the default value.
+func detectConfigFileType(path, def string) string {
+	switch ext := filepath.Ext(path); ext {
+	case ".toml":
+		return "toml"
+	case ".yaml", ".yml":
+		return "yaml"
+	case ".json":
+		return "json"
+	default:
+		return def
+	}
+}
 
 func IsConfederationMember(g *Global, p *Neighbor) bool {
 	if p.Config.PeerAs != g.Config.As {
@@ -39,21 +59,24 @@ type AfiSafis []AfiSafi
 
 func (c AfiSafis) ToRfList() ([]bgp.RouteFamily, error) {
 	rfs := make([]bgp.RouteFamily, 0, len(c))
-	for _, rf := range c {
-		k, err := bgp.GetRouteFamily(string(rf.Config.AfiSafiName))
-		if err != nil {
-			return nil, fmt.Errorf("invalid address family: %s", rf.Config.AfiSafiName)
-		}
-		rfs = append(rfs, k)
+	for _, af := range c {
+		rfs = append(rfs, af.State.Family)
 	}
 	return rfs, nil
 }
 
-func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bool {
+func CreateRfMap(p *Neighbor) map[bgp.RouteFamily]bgp.BGPAddPathMode {
 	rfs, _ := AfiSafis(p.AfiSafis).ToRfList()
-	rfMap := make(map[bgp.RouteFamily]bool)
+	mode := bgp.BGP_ADD_PATH_NONE
+	if p.AddPaths.Config.Receive {
+		mode |= bgp.BGP_ADD_PATH_RECEIVE
+	}
+	if p.AddPaths.Config.SendMax > 0 {
+		mode |= bgp.BGP_ADD_PATH_SEND
+	}
+	rfMap := make(map[bgp.RouteFamily]bgp.BGPAddPathMode)
 	for _, rf := range rfs {
-		rfMap[rf] = true
+		rfMap[rf] = mode
 	}
 	return rfMap
 }
@@ -81,4 +104,53 @@ func CheckAfiSafisChange(x, y []AfiSafi) bool {
 		}
 	}
 	return false
+}
+
+func ParseMaskLength(prefix, mask string) (int, int, error) {
+	_, ipNet, err := net.ParseCIDR(prefix)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid prefix: %s", prefix)
+	}
+	if mask == "" {
+		l, _ := ipNet.Mask.Size()
+		return l, l, nil
+	}
+	exp := regexp.MustCompile("(\\d+)\\.\\.(\\d+)")
+	elems := exp.FindStringSubmatch(mask)
+	if len(elems) != 3 {
+		return 0, 0, fmt.Errorf("invalid mask length range: %s", mask)
+	}
+	// we've already checked the range is sane by regexp
+	min, _ := strconv.Atoi(elems[1])
+	max, _ := strconv.Atoi(elems[2])
+	if min > max {
+		return 0, 0, fmt.Errorf("invalid mask length range: %s", mask)
+	}
+	if ipv4 := ipNet.IP.To4(); ipv4 != nil {
+		f := func(i int) bool {
+			return i >= 0 && i <= 32
+		}
+		if !f(min) || !f(max) {
+			return 0, 0, fmt.Errorf("ipv4 mask length range outside scope :%s", mask)
+		}
+	} else {
+		f := func(i int) bool {
+			return i >= 0 && i <= 128
+		}
+		if !f(min) || !f(max) {
+			return 0, 0, fmt.Errorf("ipv6 mask length range outside scope :%s", mask)
+		}
+	}
+	return min, max, nil
+}
+
+func ExtractNeighborAddress(c *Neighbor) (string, error) {
+	addr := c.State.NeighborAddress
+	if addr == "" {
+		addr = c.Config.NeighborAddress
+		if addr == "" {
+			return "", fmt.Errorf("NeighborAddress is not configured")
+		}
+	}
+	return addr, nil
 }

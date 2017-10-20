@@ -13,16 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
-from noseplugin import OptionParser, parser_option
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import (
+    BGP_FSM_IDLE,
+    BGP_FSM_ACTIVE,
+    BGP_FSM_ESTABLISHED,
+)
+from lib.gobgp import GoBGPContainer
+
 
 class GoBGPTestBase(unittest.TestCase):
 
@@ -82,11 +91,11 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertTrue(len(g2.get_global_rib('10.10.10.0/24')) == 0)
         for d in g2.get_global_rib():
             for p in d['paths']:
-                self.assertFalse(p['stale'])
+                self.assertFalse(p.get('stale', False))
 
     def test_04_add_non_graceful_restart_enabled_peer(self):
         g1 = self.bgpds['g1']
-        g2 = self.bgpds['g2']
+        # g2 = self.bgpds['g2']
         gobgp_ctn_image_name = parser_option.gobgp_image
         g3 = GoBGPContainer(name='g3', asn=65002, router_id='192.168.0.3',
                             ctn_image_name=gobgp_ctn_image_name,
@@ -120,11 +129,49 @@ class GoBGPTestBase(unittest.TestCase):
         g2 = self.bgpds['g2']
         self.assertTrue(len(g2.get_global_rib()) == 0)
 
+    def test_07_multineighbor_established(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        g3 = self.bgpds['g3']
+
+        g1._start_gobgp()
+
+        g1.del_peer(g2)
+        g1.del_peer(g3)
+        g2.del_peer(g1)
+        g3.del_peer(g1)
+        g1.add_peer(g2, graceful_restart=True, llgr=True)
+        g1.add_peer(g3, graceful_restart=True, llgr=True)
+        g2.add_peer(g1, graceful_restart=True, llgr=True)
+        g3.add_peer(g1, graceful_restart=True, llgr=True)
+
+        g2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
+        g3.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g1)
+
+    def test_08_multineighbor_graceful_restart(self):
+        g1 = self.bgpds['g1']
+        g2 = self.bgpds['g2']
+        g3 = self.bgpds['g3']
+
+        g1.graceful_restart()
+        g2.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
+        g3.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g1)
+
+        g1._start_gobgp(graceful_restart=True)
+
+        count = 0
+        while ((g1.get_neighbor_state(g2) != BGP_FSM_ESTABLISHED)
+                or (g1.get_neighbor_state(g3) != BGP_FSM_ESTABLISHED)):
+            count += 1
+            # assert connections are not refused
+            self.assertTrue(g1.get_neighbor_state(g2) != BGP_FSM_IDLE)
+            self.assertTrue(g1.get_neighbor_state(g3) != BGP_FSM_IDLE)
+            if count > 120:
+                raise Exception('timeout')
+            time.sleep(1)
+
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

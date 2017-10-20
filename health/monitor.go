@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/store"

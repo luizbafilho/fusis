@@ -1,56 +1,157 @@
 language: go
 
-sudo: required
-dist: trusty
-services:
-  - docker
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1; fi
+install: test/scenario_test/ci-scripts/travis-install-script.sh
+script: test/scenario_test/ci-scripts/travis-build-script.sh
 
-go:
- - 1.5
- - 1.6
- - 1.7
- - tip
+_simple_install: &_simple_install
+  before_install: go get -u github.com/golang/dep/cmd/dep
+  install: $GOPATH/bin/dep ensure
 
-os:
- - linux
- - osx
+_unittest: &_unittest
+  <<: *_simple_install
+  script: go test $(go list ./... | grep -v '/vendor/')
+
+_cross_compile: &_cross_compile
+  go: 1.8
+  <<: *_simple_install
+  script: cd gobgpd && go build
+
+_no_install: &_no_install
+  go: 1.8
+  before_install: true
+  install: true
+
+_docker: &_docker
+  sudo: required
+  services:
+    - docker
 
 env:
- - SCENARIO=false
- - SCENARIO=true
-
-before_install:
- - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo sh -c 'echo "deb http://apt.dockerproject.org/repo ubuntu-trusty main" > /etc/apt/sources.list.d/docker.list'; fi
- - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D; fi
- - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update; fi
- - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get remove --purge -y --force-yes docker-engine; fi
- - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -y --force-yes install docker-engine=1.8.3-0~trusty; fi
- - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo docker -v; fi
+  global:
+    - DOCKER_IMAGE=gobgp
+    - FROM_IMAGE=osrg/quagga
 
 matrix:
   allow_failures:
     - go: tip
-  exclude:
-    - go: 1.5
-      env: SCENARIO=true
-    - go: tip
-      env: SCENARIO=true
-    - go: 1.7
-      env: SCENARIO=true
-    - os: osx
-      go: 1.5
-    - os: osx
-      go: 1.6
-      env: SCENARIO=true
-    - os: osx
-      go: 1.7
-    - os: osx
+  include:
+    - <<: *_unittest
       go: tip
+    - <<: *_unittest
+      go: 1.8
+    - <<: *_unittest
+      go: 1.9
+      after_success:
+        - test -n "$TRAVIS_TAG" && curl -sL https://git.io/goreleaser | bash
+#
+# cross-compiile
+#
+    - <<: *_cross_compile
+      env:
+        - GOOS=windows
+    - <<: *_cross_compile
+      env:
+        - GOOS=freebsd
+    - <<: *_cross_compile
+      env:
+        - GOOS=darwin
+#
+# Misc
+#
+    - <<: *_no_install
+      script: test -z "$(go fmt ./...)"
+    - <<: *_no_install
+      script: test -z "$(go vet ./...)"
+    - <<: *_simple_install
+      go: 1.8
+      script: python test/scenario_test/ci-scripts/build_embeded_go.py docs/sources/lib.md
+#
+# Docker
+#
+    - <<: *_docker
+      env:
+        - TEST=bgp_router_test.py
+    - <<: *_docker
+      env:
+        - TEST=bgp_zebra_test.py
+    - <<: *_docker
+      env:
+        - TEST=bgp_zebra_nht_test.py FROM_IMAGE=osrg/quagga:v1.0
+    - <<: *_docker
+      env:
+        - TEST=evpn_test.py
+    - <<: *_docker
+      env:
+        - TEST=flow_spec_test.py
+    - <<: *_docker
+      env:
+        - TEST=global_policy_test.py
+    - <<: *_docker
+      env:
+        - TEST=graceful_restart_test.py
+    - <<: *_docker
+      env:
+        - TEST=ibgp_router_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_reflector_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_server_as2_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_server_ipv4_v6_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_server_malformed_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_server_policy_grpc_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_server_policy_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_server_softreset_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_server_test.py
+    - <<: *_docker
+      env:
+        - TEST=route_server_test2.py
+    - <<: *_docker
+      env:
+        - TEST=zapi_v3_test.py FROM_IMAGE=osrg/quagga:v1.0
+    - <<: *_docker
+      env:
+        - TEST=long_lived_graceful_restart_test.py
+    - <<: *_docker
+      env:
+        - TEST=vrf_neighbor_test.py
+    - <<: *_docker
+      env:
+        - TEST=vrf_neighbor_test2.py
+    - <<: *_docker
+      env:
+        - TEST=bgp_unnumbered_test.py
+    - <<: *_docker
+      env:
+        - TEST=aspath_test.py
+    - <<: *_docker
+      env:
+        - TEST=addpath_test.py
+    - <<: *_docker
+      env:
+        - TEST=bgp_malformed_msg_handling_test.py
+
+cache:
+  pip: true
 
 go_import_path: github.com/osrg/gobgp
-
-script:
- - if [[ "$TRAVIS_GO_VERSION" == "1.5" ]]; then test -z "$(go fmt ./...)"; fi && bash test/scenario_test/ci-scripts/travis-build-script.sh $SCENARIO
 
 notifications:
  slack:

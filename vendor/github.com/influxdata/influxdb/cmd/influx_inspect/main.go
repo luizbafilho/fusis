@@ -1,3 +1,4 @@
+// The influx_inspect command displays detailed information about InfluxDB data files.
 package main
 
 import (
@@ -7,6 +8,7 @@ import (
 	"os"
 
 	"github.com/influxdata/influxdb/cmd"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsm"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/help"
@@ -16,7 +18,6 @@ import (
 )
 
 func main() {
-
 	m := NewMain()
 	if err := m.Run(os.Args[1:]...); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -33,7 +34,7 @@ type Main struct {
 	Stderr io.Writer
 }
 
-// NewMain return a new instance of Main.
+// NewMain returns a new instance of Main.
 func NewMain() *Main {
 	return &Main{
 		Logger: log.New(os.Stderr, "[influx_inspect] ", log.LstdFlags),
@@ -52,6 +53,11 @@ func (m *Main) Run(args ...string) error {
 	case "", "help":
 		if err := help.NewCommand().Run(args...); err != nil {
 			return fmt.Errorf("help: %s", err)
+		}
+	case "dumptsi":
+		name := dumptsi.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("dumptsi: %s", err)
 		}
 	case "dumptsmdev":
 		fmt.Fprintf(m.Stderr, "warning: dumptsmdev is deprecated, use dumptsm instead.\n")

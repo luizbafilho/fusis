@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
-	"github.com/influxdata/influxdb/services/admin"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -31,8 +30,11 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
-	// Initialize the engine packages
+	"github.com/uber-go/zap"
+
+	// Initialize the engine & index packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
+	_ "github.com/influxdata/influxdb/tsdb/index"
 )
 
 var startTime time.Time
@@ -61,7 +63,7 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
-	Logger *log.Logger
+	Logger zap.Logger
 
 	MetaClient *meta.Client
 
@@ -94,10 +96,6 @@ type Server struct {
 	tcpAddr string
 
 	config *Config
-
-	// logOutput is the writer to which all services should be configured to
-	// write logs to after appension.
-	logOutput io.Writer
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -143,7 +141,10 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
-		Logger: log.New(os.Stderr, "", log.LstdFlags),
+		Logger: zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		),
 
 		MetaClient: meta.NewClient(c.Meta),
 
@@ -153,10 +154,10 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
 		tcpAddr:     bind,
 
-		config:    c,
-		logOutput: os.Stderr,
+		config: c,
 	}
 	s.Monitor = monitor.New(s, c.Monitor)
+	s.config.registerDiagnostics(s.Monitor)
 
 	if err := s.MetaClient.Open(); err != nil {
 		return nil, err
@@ -167,6 +168,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 	// Copy TSDB configuration.
 	s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
+	s.TSDBStore.EngineOptions.IndexVersion = c.Data.Index
 
 	// Create the Subscriber service
 	s.Subscriber = subscriber.NewService(c.Subscriber)
@@ -180,9 +182,13 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// Initialize query executor.
 	s.QueryExecutor = influxql.NewQueryExecutor()
 	s.QueryExecutor.StatementExecutor = &coordinator.StatementExecutor{
-		MetaClient:        s.MetaClient,
-		TaskManager:       s.QueryExecutor.TaskManager,
-		TSDBStore:         coordinator.LocalTSDBStore{Store: s.TSDBStore},
+		MetaClient:  s.MetaClient,
+		TaskManager: s.QueryExecutor.TaskManager,
+		TSDBStore:   coordinator.LocalTSDBStore{Store: s.TSDBStore},
+		ShardMapper: &coordinator.LocalShardMapper{
+			MetaClient: s.MetaClient,
+			TSDBStore:  coordinator.LocalTSDBStore{Store: s.TSDBStore},
+		},
 		Monitor:           s.Monitor,
 		PointsWriter:      s.PointsWriter,
 		MaxSelectPointN:   c.Coordinator.MaxSelectPointN,
@@ -202,6 +208,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	return s, nil
 }
 
+// Statistics returns statistics for the services running in the Server.
 func (s *Server) Statistics(tags map[string]string) []models.Statistic {
 	var statistics []models.Statistic
 	statistics = append(statistics, s.QueryExecutor.Statistics(tags)...)
@@ -227,8 +234,7 @@ func (s *Server) appendSnapshotterService() {
 // SetLogOutput sets the logger used for all messages. It must not be called
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(os.Stderr, "", log.LstdFlags)
-	s.logOutput = w
+	s.Logger = zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(w)))
 }
 
 func (s *Server) appendMonitorService() {
@@ -242,15 +248,6 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	srv := retention.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.TSDBStore = s.TSDBStore
-	s.Services = append(s.Services, srv)
-}
-
-func (s *Server) appendAdminService(c admin.Config) {
-	if !c.Enabled {
-		return
-	}
-	c.Version = s.buildInfo.Version
-	srv := admin.NewService(c)
 	s.Services = append(s.Services, srv)
 }
 
@@ -367,7 +364,6 @@ func (s *Server) Open() error {
 	s.appendMonitorService()
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
-	s.appendAdminService(s.config.Admin)
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
 	s.appendRetentionPolicyService(s.config.Retention)
@@ -396,21 +392,20 @@ func (s *Server) Open() error {
 	s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 
 	// Configure logging for all services and clients.
-	w := s.logOutput
 	if s.config.Meta.LoggingEnabled {
-		s.MetaClient.SetLogOutput(w)
+		s.MetaClient.WithLogger(s.Logger)
 	}
-	s.TSDBStore.SetLogOutput(w)
+	s.TSDBStore.WithLogger(s.Logger)
 	if s.config.Data.QueryLogEnabled {
-		s.QueryExecutor.SetLogOutput(w)
+		s.QueryExecutor.WithLogger(s.Logger)
 	}
-	s.PointsWriter.SetLogOutput(w)
-	s.Subscriber.SetLogOutput(w)
+	s.PointsWriter.WithLogger(s.Logger)
+	s.Subscriber.WithLogger(s.Logger)
 	for _, svc := range s.Services {
-		svc.SetLogOutput(w)
+		svc.WithLogger(s.Logger)
 	}
-	s.SnapshotterService.SetLogOutput(w)
-	s.Monitor.SetLogOutput(w)
+	s.SnapshotterService.WithLogger(s.Logger)
+	s.Monitor.WithLogger(s.Logger)
 
 	// Open TSDB store.
 	if err := s.TSDBStore.Open(); err != nil {
@@ -456,6 +451,8 @@ func (s *Server) Close() error {
 		service.Close()
 	}
 
+	s.config.deregisterDiagnostics(s.Monitor)
+
 	if s.PointsWriter != nil {
 		s.PointsWriter.Close()
 	}
@@ -499,23 +496,28 @@ func (s *Server) startServerReporting() {
 
 // reportServer reports usage statistics about the system.
 func (s *Server) reportServer() {
-	dis := s.MetaClient.Databases()
-	numDatabases := len(dis)
+	dbs := s.MetaClient.Databases()
+	numDatabases := len(dbs)
 
-	numMeasurements := 0
-	numSeries := 0
+	var (
+		numMeasurements int64
+		numSeries       int64
+	)
 
-	// Only needed in the case of a data node
-	if s.TSDBStore != nil {
-		for _, di := range dis {
-			d := s.TSDBStore.DatabaseIndex(di.Name)
-			if d == nil {
-				// No data in this store for this database.
-				continue
-			}
-			m, s := d.MeasurementSeriesCounts()
-			numMeasurements += m
-			numSeries += s
+	for _, db := range dbs {
+		name := db.Name
+		n, err := s.TSDBStore.SeriesCardinality(name)
+		if err != nil {
+			s.Logger.Error(fmt.Sprintf("Unable to get series cardinality for database %s: %v", name, err))
+		} else {
+			numSeries += n
+		}
+
+		n, err = s.TSDBStore.MeasurementsCardinality(name)
+		if err != nil {
+			s.Logger.Error(fmt.Sprintf("Unable to get measurement cardinality for database %s: %v", name, err))
+		} else {
+			numMeasurements += n
 		}
 	}
 
@@ -539,29 +541,14 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	s.Logger.Printf("Sending usage statistics to usage.influxdata.com")
+	s.Logger.Info("Sending usage statistics to usage.influxdata.com")
 
 	go cl.Save(usage)
 }
 
-// monitorErrorChan reads an error channel and resends it through the server.
-func (s *Server) monitorErrorChan(ch <-chan error) {
-	for {
-		select {
-		case err, ok := <-ch:
-			if !ok {
-				return
-			}
-			s.err <- err
-		case <-s.closing:
-			return
-		}
-	}
-}
-
 // Service represents a service attached to the server.
 type Service interface {
-	SetLogOutput(w io.Writer)
+	WithLogger(log zap.Logger)
 	Open() error
 	Close() error
 }
@@ -610,17 +597,12 @@ func stopProfile() {
 	}
 }
 
-type tcpaddr struct{ host string }
-
-func (a *tcpaddr) Network() string { return "tcp" }
-func (a *tcpaddr) String() string  { return a.host }
-
 // monitorPointsWriter is a wrapper around `coordinator.PointsWriter` that helps
 // to prevent a circular dependency between the `cluster` and `monitor` packages.
 type monitorPointsWriter coordinator.PointsWriter
 
 func (pw *monitorPointsWriter) WritePoints(database, retentionPolicy string, points models.Points) error {
-	return (*coordinator.PointsWriter)(pw).WritePoints(database, retentionPolicy, models.ConsistencyLevelAny, points)
+	return (*coordinator.PointsWriter)(pw).WritePointsPrivileged(database, retentionPolicy, models.ConsistencyLevelAny, points)
 }
 
 func raftDBExists(dir string) error {

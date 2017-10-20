@@ -1,9 +1,12 @@
+// Package coordinator contains abstractions for writing points, executing statements,
+// and accessing meta data.
 package coordinator
 
 import (
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -24,7 +27,7 @@ const (
 	DefaultMaxSelectSeriesN = 0
 )
 
-// Config represents the configuration for the clustering service.
+// Config represents the configuration for the coordinator service.
 type Config struct {
 	WriteTimeout         toml.Duration `toml:"write-timeout"`
 	MaxConcurrentQueries int           `toml:"max-concurrent-queries"`
@@ -44,4 +47,17 @@ func NewConfig() Config {
 		MaxSelectPointN:      DefaultMaxSelectPointN,
 		MaxSelectSeriesN:     DefaultMaxSelectSeriesN,
 	}
+}
+
+// Diagnostics returns a diagnostics representation of a subset of the Config.
+func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
+	return diagnostics.RowFromMap(map[string]interface{}{
+		"write-timeout":          c.WriteTimeout,
+		"max-concurrent-queries": c.MaxConcurrentQueries,
+		"query-timeout":          c.QueryTimeout,
+		"log-queries-after":      c.LogQueriesAfter,
+		"max-select-point":       c.MaxSelectPointN,
+		"max-select-series":      c.MaxSelectSeriesN,
+		"max-select-buckets":     c.MaxSelectBucketsN,
+	}), nil
 }

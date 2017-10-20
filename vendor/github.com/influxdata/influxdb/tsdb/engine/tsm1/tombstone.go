@@ -3,6 +3,7 @@ package tsm1
 import (
 	"bufio"
 	"encoding/binary"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -16,6 +17,7 @@ const (
 	v2headerSize = 4
 )
 
+// Tombstoner records tombstones when entries are deleted.
 type Tombstoner struct {
 	mu sync.RWMutex
 
@@ -30,16 +32,17 @@ type Tombstoner struct {
 	statsLoaded bool
 }
 
+// Tombstone represents an individual deletion.
 type Tombstone struct {
-	// Key is the tombstoned series key
+	// Key is the tombstoned series key.
 	Key string
 
 	// Min and Max are the min and max unix nanosecond time ranges of Key that are deleted.  If
-	// the full range is deleted, both values are -1
+	// the full range is deleted, both values are -1.
 	Min, Max int64
 }
 
-// Add add the all keys to the tombstone
+// Add adds the all keys, across all timestamps, to the tombstone.
 func (t *Tombstoner) Add(keys []string) error {
 	return t.AddRange(keys, math.MinInt64, math.MaxInt64)
 }
@@ -66,6 +69,12 @@ func (t *Tombstoner) AddRange(keys []string, min, max int64) error {
 		return nil
 	}
 
+	if cap(tombstones) < len(tombstones)+len(keys) {
+		ts := make([]Tombstone, len(tombstones), len(tombstones)+len(keys))
+		copy(ts, tombstones)
+		tombstones = ts
+	}
+
 	for _, k := range keys {
 		tombstones = append(tombstones, Tombstone{
 			Key: k,
@@ -77,10 +86,12 @@ func (t *Tombstoner) AddRange(keys []string, min, max int64) error {
 	return t.writeTombstone(tombstones)
 }
 
+// ReadAll returns all the tombstones in the Tombstoner's directory.
 func (t *Tombstoner) ReadAll() ([]Tombstone, error) {
 	return t.readTombstone()
 }
 
+// Delete removes all the tombstone files from disk.
 func (t *Tombstoner) Delete() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -97,7 +108,7 @@ func (t *Tombstoner) HasTombstones() bool {
 	return len(files) > 0 && files[0].Size > 0
 }
 
-// TombstoneFiles returns any tombstone files associated with this TSM file.
+// TombstoneFiles returns any tombstone files associated with Tombstoner's TSM file.
 func (t *Tombstoner) TombstoneFiles() []FileStat {
 	t.mu.RLock()
 	if t.statsLoaded {
@@ -131,6 +142,7 @@ func (t *Tombstoner) TombstoneFiles() []FileStat {
 	return stats
 }
 
+// Walk calls fn for every Tombstone under the Tombstoner.
 func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 	f, err := os.Open(t.tombstonePath())
 	if os.IsNotExist(err) {
@@ -148,7 +160,7 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 		return t.readTombstoneV1(f, fn)
 	}
 
-	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
 
@@ -167,28 +179,34 @@ func (t *Tombstoner) writeTombstone(tombstones []Tombstone) error {
 
 	var b [8]byte
 
+	bw := bufio.NewWriterSize(tmp, 1024*1024)
+
 	binary.BigEndian.PutUint32(b[:4], v2header)
-	if _, err := tmp.Write(b[:4]); err != nil {
+	if _, err := bw.Write(b[:4]); err != nil {
 		return err
 	}
 
 	for _, t := range tombstones {
 		binary.BigEndian.PutUint32(b[:4], uint32(len(t.Key)))
-		if _, err := tmp.Write(b[:4]); err != nil {
+		if _, err := bw.Write(b[:4]); err != nil {
 			return err
 		}
-		if _, err := tmp.Write([]byte(t.Key)); err != nil {
+		if _, err := bw.WriteString(t.Key); err != nil {
 			return err
 		}
 		binary.BigEndian.PutUint64(b[:], uint64(t.Min))
-		if _, err := tmp.Write(b[:]); err != nil {
+		if _, err := bw.Write(b[:]); err != nil {
 			return err
 		}
 
 		binary.BigEndian.PutUint64(b[:], uint64(t.Max))
-		if _, err := tmp.Write(b[:]); err != nil {
+		if _, err := bw.Write(b[:]); err != nil {
 			return err
 		}
+	}
+
+	if err := bw.Flush(); err != nil {
+		return err
 	}
 
 	// fsync the file to flush the write
@@ -245,7 +263,7 @@ func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) err
 // format is binary.
 func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) error {
 	// Skip header, already checked earlier
-	if _, err := f.Seek(v2headerSize, os.SEEK_SET); err != nil {
+	if _, err := f.Seek(v2headerSize, io.SeekStart); err != nil {
 		return err
 	}
 	n := int64(4)

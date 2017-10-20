@@ -17,24 +17,20 @@ package table
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/config"
-	"github.com/osrg/gobgp/packet/bgp"
-	"github.com/stretchr/testify/assert"
 	"math"
 	"net"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/osrg/gobgp/config"
+	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
-func init() {
-	log.SetLevel(log.DebugLevel)
-}
-
 func TestPrefixCalcurateNoRange(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
 	origin := bgp.NewPathAttributeOrigin(0)
@@ -125,7 +121,6 @@ func TestPrefixCalcurateLengthRange(t *testing.T) {
 }
 
 func TestPrefixCalcurateNoRangeIPv6(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("2001::192:168:50:1")}
 	origin := bgp.NewPathAttributeOrigin(0)
@@ -1415,8 +1410,6 @@ func TestAs4PathConditionEvaluateMixedWith2byteAS(t *testing.T) {
 
 func TestCommunityConditionEvaluate(t *testing.T) {
 
-	log.SetLevel(log.DebugLevel)
-
 	// setup
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
@@ -1681,7 +1674,6 @@ func TestPolicyMatchAndAddCommunities(t *testing.T) {
 	pType, newPath := p.Apply(path, nil)
 	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
 	assert.NotEqual(t, nil, newPath)
-	log.Debug(newPath)
 	assert.Equal(t, []uint32{stringToCommunityValue(community)}, newPath.GetCommunities())
 }
 
@@ -1914,8 +1906,6 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 
 func TestExtCommunityConditionEvaluate(t *testing.T) {
 
-	log.SetLevel(log.DebugLevel)
-
 	// setup
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: net.ParseIP("10.0.0.1")}
@@ -2096,8 +2086,6 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 }
 
 func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
-
-	log.SetLevel(log.DebugLevel)
 
 	// setup
 	// create path
@@ -2335,7 +2323,7 @@ func TestPolicyMatchAndAddingMedOverFlow(t *testing.T) {
 	ds.PrefixSets = []config.PrefixSet{ps}
 	ds.NeighborSets = []config.NeighborSet{ns}
 
-	m := fmt.Sprintf("+%d", math.MaxUint32)
+	m := fmt.Sprintf("+%d", uint32(math.MaxUint32))
 	ma := "1"
 
 	s := createStatement("statement1", "ps1", "ns1", true)
@@ -2623,7 +2611,8 @@ func TestPolicyAs4PathPrepend(t *testing.T) {
 	//test
 	r := NewRoutingPolicy()
 	r.reload(pl)
-	p, _ := NewPolicy(pl.PolicyDefinitions[0])
+	p, err := NewPolicy(pl.PolicyDefinitions[0])
+	assert.Nil(err)
 	addPolicy(r, p)
 
 	pType, newPath := p.Apply(path, nil)
@@ -2740,11 +2729,12 @@ func createStatement(name, psname, nsname string, accept bool) config.Statement 
 			NeighborSet: nsname,
 		},
 	}
+	rd := config.ROUTE_DISPOSITION_REJECT_ROUTE
+	if accept {
+		rd = config.ROUTE_DISPOSITION_ACCEPT_ROUTE
+	}
 	a := config.Actions{
-		RouteDisposition: config.RouteDisposition{
-			AcceptRoute: accept,
-			RejectRoute: !accept,
-		},
+		RouteDisposition: rd,
 	}
 	s := config.Statement{
 		Name:       name,
@@ -2813,4 +2803,237 @@ func createAs4Value(s string) uint32 {
 	upper, _ := strconv.Atoi(v[0])
 	lower, _ := strconv.Atoi(v[1])
 	return uint32(upper)<<16 + uint32(lower)
+}
+
+func TestPrefixSetOperation(t *testing.T) {
+	// tryp to create prefixset with multiple families
+	p1 := config.Prefix{
+		IpPrefix:        "0.0.0.0/0",
+		MasklengthRange: "0..7",
+	}
+	p2 := config.Prefix{
+		IpPrefix:        "0::/25",
+		MasklengthRange: "25..128",
+	}
+	_, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1, p2},
+	})
+	assert.NotNil(t, err)
+	m1, _ := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1},
+	})
+	m2, err := NewPrefixSet(config.PrefixSet{PrefixSetName: "ps2"})
+	assert.Nil(t, err)
+	err = m1.Append(m2)
+	assert.Nil(t, err)
+	err = m2.Append(m1)
+	assert.Nil(t, err)
+	assert.Equal(t, bgp.RF_IPv4_UC, m2.family)
+	p3, _ := NewPrefix(config.Prefix{IpPrefix: "10.10.0.0/24", MasklengthRange: ""})
+	p4, _ := NewPrefix(config.Prefix{IpPrefix: "0::/25", MasklengthRange: ""})
+	_, err = NewPrefixSetFromApiStruct("ps3", []*Prefix{p3, p4})
+	assert.NotNil(t, err)
+}
+
+func TestPrefixSetMatch(t *testing.T) {
+	p1 := config.Prefix{
+		IpPrefix:        "0.0.0.0/0",
+		MasklengthRange: "0..7",
+	}
+	p2 := config.Prefix{
+		IpPrefix:        "0.0.0.0/0",
+		MasklengthRange: "25..32",
+	}
+	ps, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1, p2},
+	})
+	assert.Nil(t, err)
+	m := &PrefixCondition{
+		set: ps,
+	}
+
+	path := NewPath(nil, bgp.NewIPAddrPrefix(6, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.True(t, m.Evaluate(path, nil))
+
+	path = NewPath(nil, bgp.NewIPAddrPrefix(10, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+
+	path = NewPath(nil, bgp.NewIPAddrPrefix(25, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.True(t, m.Evaluate(path, nil))
+
+	path = NewPath(nil, bgp.NewIPAddrPrefix(30, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.True(t, m.Evaluate(path, nil))
+
+	p3 := config.Prefix{
+		IpPrefix:        "0.0.0.0/0",
+		MasklengthRange: "9..10",
+	}
+	ps2, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps2",
+		PrefixList:    []config.Prefix{p3},
+	})
+	assert.Nil(t, err)
+	err = ps.Append(ps2)
+	assert.Nil(t, err)
+
+	path = NewPath(nil, bgp.NewIPAddrPrefix(10, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.True(t, m.Evaluate(path, nil))
+
+	ps3, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps3",
+		PrefixList:    []config.Prefix{p1},
+	})
+	assert.Nil(t, err)
+	err = ps.Remove(ps3)
+	assert.Nil(t, err)
+
+	path = NewPath(nil, bgp.NewIPAddrPrefix(6, "0.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+}
+
+func TestPrefixSetMatchV4withV6Prefix(t *testing.T) {
+	p1 := config.Prefix{
+		IpPrefix:        "c000::/3",
+		MasklengthRange: "3..128",
+	}
+	ps, err := NewPrefixSet(config.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []config.Prefix{p1},
+	})
+	assert.Nil(t, err)
+	m := &PrefixCondition{
+		set: ps,
+	}
+
+	path := NewPath(nil, bgp.NewIPAddrPrefix(6, "192.0.0.0"), false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, m.Evaluate(path, nil))
+}
+
+func TestLargeCommunityMatchAction(t *testing.T) {
+	coms := []*bgp.LargeCommunity{
+		&bgp.LargeCommunity{ASN: 100, LocalData1: 100, LocalData2: 100},
+		&bgp.LargeCommunity{ASN: 100, LocalData1: 200, LocalData2: 200},
+	}
+	p := NewPath(nil, nil, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeLargeCommunities(coms)}, time.Time{}, false)
+
+	c := config.LargeCommunitySet{
+		LargeCommunitySetName: "l0",
+		LargeCommunityList: []string{
+			"100:100:100",
+			"100:300:100",
+		},
+	}
+
+	set, err := NewLargeCommunitySet(c)
+	assert.Equal(t, err, nil)
+
+	m, err := NewLargeCommunityCondition(config.MatchLargeCommunitySet{
+		LargeCommunitySet: "l0",
+	})
+	assert.Equal(t, err, nil)
+	m.set = set
+
+	assert.Equal(t, m.Evaluate(p, nil), true)
+
+	a, err := NewLargeCommunityAction(config.SetLargeCommunity{
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+			CommunitiesList: []string{"100:100:100"},
+		},
+		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+	})
+	assert.Equal(t, err, nil)
+	p = a.Apply(p, nil)
+
+	assert.Equal(t, m.Evaluate(p, nil), false)
+
+	a, err = NewLargeCommunityAction(config.SetLargeCommunity{
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+			CommunitiesList: []string{
+				"100:300:100",
+				"200:100:100",
+			},
+		},
+		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD,
+	})
+	assert.Equal(t, err, nil)
+	p = a.Apply(p, nil)
+
+	assert.Equal(t, m.Evaluate(p, nil), true)
+
+	a, err = NewLargeCommunityAction(config.SetLargeCommunity{
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{
+			CommunitiesList: []string{"^100:"},
+		},
+		Options: config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE,
+	})
+	assert.Equal(t, err, nil)
+	p = a.Apply(p, nil)
+
+	assert.Equal(t, m.Evaluate(p, nil), false)
+
+	c = config.LargeCommunitySet{
+		LargeCommunitySetName: "l1",
+		LargeCommunityList: []string{
+			"200:",
+		},
+	}
+
+	set, err = NewLargeCommunitySet(c)
+	assert.Equal(t, err, nil)
+
+	m, err = NewLargeCommunityCondition(config.MatchLargeCommunitySet{
+		LargeCommunitySet: "l1",
+	})
+	assert.Equal(t, err, nil)
+	m.set = set
+
+	assert.Equal(t, m.Evaluate(p, nil), true)
+}
+
+func TestMultipleStatementPolicy(t *testing.T) {
+	r := NewRoutingPolicy()
+	rp := config.RoutingPolicy{
+		PolicyDefinitions: []config.PolicyDefinition{config.PolicyDefinition{
+			Name: "p1",
+			Statements: []config.Statement{
+				config.Statement{
+					Actions: config.Actions{
+						BgpActions: config.BgpActions{
+							SetMed: "+100",
+						},
+					},
+				},
+				config.Statement{
+					Actions: config.Actions{
+						BgpActions: config.BgpActions{
+							SetLocalPref: 100,
+						},
+					},
+				},
+			},
+		},
+		},
+	}
+	err := r.reload(rp)
+	assert.Nil(t, err)
+
+	nlri := bgp.NewIPAddrPrefix(24, "10.10.0.0")
+
+	origin := bgp.NewPathAttributeOrigin(0)
+	aspathParam := []bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{65001})}
+	aspath := bgp.NewPathAttributeAsPath(aspathParam)
+	nexthop := bgp.NewPathAttributeNextHop("10.0.0.1")
+	pattrs := []bgp.PathAttributeInterface{origin, aspath, nexthop}
+
+	path := NewPath(nil, nlri, false, pattrs, time.Now(), false)
+
+	pType, newPath := r.policyMap["p1"].Apply(path, nil)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType)
+	med, _ := newPath.GetMed()
+	assert.Equal(t, med, uint32(100))
+	localPref, _ := newPath.GetLocalPref()
+	assert.Equal(t, localPref, uint32(100))
 }

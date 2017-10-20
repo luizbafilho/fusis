@@ -1,11 +1,9 @@
+// Package continuous_querier provides the continuous query service.
 package continuous_querier // import "github.com/influxdata/influxdb/services/continuous_querier"
 
 import (
 	"errors"
 	"fmt"
-	"io"
-	"log"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -76,7 +75,7 @@ type Service struct {
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
 	RunCh          chan *RunRequest
-	Logger         *log.Logger
+	Logger         zap.Logger
 	loggingEnabled bool
 	stats          *Statistics
 	// lastRuns maps CQ name to last time it was run.
@@ -93,7 +92,7 @@ func NewService(c Config) *Service {
 		RunInterval:    time.Duration(c.RunInterval),
 		RunCh:          make(chan *RunRequest),
 		loggingEnabled: c.LogEnabled,
-		Logger:         log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
+		Logger:         zap.New(zap.NullEncoder()),
 		stats:          &Statistics{},
 		lastRuns:       map[string]time.Time{},
 	}
@@ -103,7 +102,7 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-	s.Logger.Println("Starting continuous query service")
+	s.Logger.Info("Starting continuous query service")
 
 	if s.stop != nil {
 		return nil
@@ -131,10 +130,9 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[continuous_querier] ", log.LstdFlags)
+// WithLogger sets the logger on the service.
+func (s *Service) WithLogger(log zap.Logger) {
+	s.Logger = log.With(zap.String("service", "continuous_querier"))
 }
 
 // Statistics maintains the statistics for the continuous query service.
@@ -202,14 +200,14 @@ func (s *Service) backgroundLoop() {
 	for {
 		select {
 		case <-s.stop:
-			s.Logger.Println("continuous query service terminating")
+			s.Logger.Info("continuous query service terminating")
 			return
 		case req := <-s.RunCh:
 			if !s.hasContinuousQueries() {
 				continue
 			}
 			if _, err := s.MetaClient.AcquireLease(leaseName); err == nil {
-				s.Logger.Printf("running continuous queries by request for time: %v", req.Now)
+				s.Logger.Info(fmt.Sprintf("running continuous queries by request for time: %v", req.Now))
 				s.runContinuousQueries(req)
 			}
 		case <-t.C:
@@ -249,25 +247,31 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 			if !req.matches(&cq) {
 				continue
 			}
-			if err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
-				s.Logger.Printf("error executing query: %s: err = %s", cq.Query, err)
+			if ok, err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
+				s.Logger.Info(fmt.Sprintf("error executing query: %s: err = %s", cq.Query, err))
 				atomic.AddInt64(&s.stats.QueryFail, 1)
-			} else {
+			} else if ok {
 				atomic.AddInt64(&s.stats.QueryOK, 1)
 			}
 		}
 	}
 }
 
-// ExecuteContinuousQuery executes a single CQ.
-func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.ContinuousQueryInfo, now time.Time) error {
+// ExecuteContinuousQuery may execute a single CQ. This will return false if there were no errors and the CQ was not run.
+func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.ContinuousQueryInfo, now time.Time) (bool, error) {
 	// TODO: re-enable stats
 	//s.stats.Inc("continuousQueryExecuted")
 
 	// Local wrapper / helper.
 	cq, err := NewContinuousQuery(dbi.Name, cqi)
 	if err != nil {
-		return err
+		return false, err
+	}
+
+	// Set the time zone on the now time if the CQ has one. Otherwise, force UTC.
+	now = now.UTC()
+	if cq.q.Location != nil {
+		now = now.In(cq.q.Location)
 	}
 
 	// Get the last time this CQ was run from the service's cache.
@@ -281,26 +285,26 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		cq.setIntoRP(dbi.DefaultRetentionPolicy)
 	}
 
-	// See if this query needs to be run.
-	run, nextRun, err := cq.shouldRunContinuousQuery(now)
-	if err != nil {
-		return err
-	} else if !run {
-		return nil
-	}
-
 	// Get the group by interval.
 	interval, err := cq.q.GroupByInterval()
 	if err != nil {
-		return err
+		return false, err
 	} else if interval == 0 {
-		return nil
+		return false, nil
 	}
 
 	// Get the group by offset.
 	offset, err := cq.q.GroupByOffset()
 	if err != nil {
-		return err
+		return false, err
+	}
+
+	// See if this query needs to be run.
+	run, nextRun, err := cq.shouldRunContinuousQuery(now, interval)
+	if err != nil {
+		return false, err
+	} else if !run {
+		return false, nil
 	}
 
 	resampleEvery := interval
@@ -310,7 +314,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	// We're about to run the query so store the current time closest to the nearest interval.
 	// If all is going well, this time should be the same as nextRun.
-	cq.LastRun = now.Add(-offset).Truncate(resampleEvery).Add(offset)
+	cq.LastRun = truncate(now.Add(-offset), resampleEvery).Add(offset)
 	s.lastRuns[id] = cq.LastRun
 
 	// Retrieve the oldest interval we should calculate based on the next time
@@ -331,34 +335,34 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Calculate and set the time range for the query.
-	startTime := nextRun.Add(interval - resampleFor - offset - 1).Truncate(interval).Add(offset)
-	endTime := now.Add(interval - resampleEvery - offset).Truncate(interval).Add(offset)
+	startTime := truncate(nextRun.Add(interval-resampleFor-offset-1), interval).Add(offset)
+	endTime := truncate(now.Add(interval-resampleEvery-offset), interval).Add(offset)
 	if !endTime.After(startTime) {
 		// Exit early since there is no time interval.
-		return nil
+		return false, nil
 	}
 
 	if err := cq.q.SetTimeRange(startTime, endTime); err != nil {
-		s.Logger.Printf("error setting time range: %s\n", err)
-		return err
+		s.Logger.Info(fmt.Sprintf("error setting time range: %s\n", err))
+		return false, err
 	}
 
 	var start time.Time
 	if s.loggingEnabled {
-		s.Logger.Printf("executing continuous query %s (%v to %v)", cq.Info.Name, startTime, endTime)
+		s.Logger.Info(fmt.Sprintf("executing continuous query %s (%v to %v)", cq.Info.Name, startTime, endTime))
 		start = time.Now()
 	}
 
 	// Do the actual processing of the query & writing of results.
 	if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
-		s.Logger.Printf("error: %s. running: %s\n", err, cq.q.String())
-		return err
+		s.Logger.Info(fmt.Sprintf("error: %s. running: %s\n", err, cq.q.String()))
+		return false, err
 	}
 
 	if s.loggingEnabled {
-		s.Logger.Printf("finished continuous query %s (%v to %v) in %s", cq.Info.Name, startTime, endTime, time.Now().Sub(start))
+		s.Logger.Info(fmt.Sprintf("finished continuous query %s (%v to %v) in %s", cq.Info.Name, startTime, endTime, time.Since(start)))
 	}
-	return nil
+	return true, nil
 }
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
@@ -400,7 +404,7 @@ type ContinuousQuery struct {
 func (cq *ContinuousQuery) intoRP() string      { return cq.q.Target.Measurement.RetentionPolicy }
 func (cq *ContinuousQuery) setIntoRP(rp string) { cq.q.Target.Measurement.RetentionPolicy = rp }
 
-// Customizes the resampling intervals and duration of this continuous query.
+// ResampleOptions controls the resampling intervals and duration of this continuous query.
 type ResampleOptions struct {
 	// The query will be resampled at this time interval. The first query will be
 	// performed at this time interval. If this option is not given, the resample
@@ -415,7 +419,7 @@ type ResampleOptions struct {
 	For time.Duration
 }
 
-// NewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement
+// NewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement.
 func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*ContinuousQuery, error) {
 	stmt, err := influxql.NewParser(strings.NewReader(cqi.Query)).ParseStatement()
 	if err != nil {
@@ -442,33 +446,42 @@ func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*Contin
 
 // shouldRunContinuousQuery returns true if the CQ should be schedule to run. It will use the
 // lastRunTime of the CQ and the rules for when to run set through the query to determine
-// if this CQ should be run
-func (cq *ContinuousQuery) shouldRunContinuousQuery(now time.Time) (bool, time.Time, error) {
-	// if it's not aggregated we don't run it
+// if this CQ should be run.
+func (cq *ContinuousQuery) shouldRunContinuousQuery(now time.Time, interval time.Duration) (bool, time.Time, error) {
+	// If it's not aggregated, do not run the query.
 	if cq.q.IsRawQuery {
 		return false, cq.LastRun, errors.New("continuous queries must be aggregate queries")
 	}
 
-	// since it's aggregated we need to figure how often it should be run
-	interval, err := cq.q.GroupByInterval()
-	if err != nil {
-		return false, cq.LastRun, err
-	}
-
-	// allow the interval to be overwritten by the query's resample options
+	// Override the query's default run interval with the resample options.
 	resampleEvery := interval
 	if cq.Resample.Every != 0 {
 		resampleEvery = cq.Resample.Every
 	}
 
-	// if we've passed the amount of time since the last run, or there was no last run, do it up
+	// Determine if we should run the continuous query based on the last time it ran.
+	// If the query never ran, execute it using the current time.
 	if cq.HasRun {
+		// Retrieve the zone offset for the previous window.
+		_, startOffset := cq.LastRun.Add(-1).Zone()
 		nextRun := cq.LastRun.Add(resampleEvery)
+		// Retrieve the end zone offset for the end of the current interval.
+		if _, endOffset := nextRun.Add(-1).Zone(); startOffset != endOffset {
+			diff := int64(startOffset-endOffset) * int64(time.Second)
+			if abs(diff) < int64(resampleEvery) {
+				nextRun = nextRun.Add(time.Duration(diff))
+			}
+		}
 		if nextRun.UnixNano() <= now.UnixNano() {
 			return true, nextRun, nil
 		}
 	} else {
-		return true, now, nil
+		// Retrieve the location from the CQ.
+		loc := cq.q.Location
+		if loc == nil {
+			loc = time.UTC
+		}
+		return true, now.In(loc), nil
 	}
 
 	return false, cq.LastRun, nil
@@ -479,4 +492,38 @@ func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
+}
+
+// truncate truncates the time based on the unix timestamp instead of the
+// Go time library. The Go time library has the start of the week on Monday
+// while the start of the week for the unix timestamp is a Thursday.
+func truncate(ts time.Time, d time.Duration) time.Time {
+	t := ts.UnixNano()
+	offset := zone(ts)
+	dt := (t + offset) % int64(d)
+	if dt < 0 {
+		// Negative modulo rounds up instead of down, so offset
+		// with the duration.
+		dt += int64(d)
+	}
+	ts = time.Unix(0, t-dt).In(ts.Location())
+	if adjustedOffset := zone(ts); adjustedOffset != offset {
+		diff := offset - adjustedOffset
+		if abs(diff) < int64(d) {
+			ts = ts.Add(time.Duration(diff))
+		}
+	}
+	return ts
+}
+
+func zone(ts time.Time) int64 {
+	_, offset := ts.Zone()
+	return int64(offset) * int64(time.Second)
+}
+
+func abs(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

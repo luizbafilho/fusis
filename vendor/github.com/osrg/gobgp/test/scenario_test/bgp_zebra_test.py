@@ -13,17 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.quagga import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
-from noseplugin import OptionParser, parser_option
-from itertools import chain
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import (
+    Bridge,
+    BGP_FSM_ESTABLISHED,
+)
+from lib.gobgp import GoBGPContainer
+from lib.quagga import QuaggaBGPContainer
+
 
 class GoBGPTestBase(unittest.TestCase):
 
@@ -65,17 +73,20 @@ class GoBGPTestBase(unittest.TestCase):
         cls.gobgps = {'ipv4': g1_v4, 'ipv6': g1_v6}
         cls.quaggas = {'ipv4': q1_v4, 'ipv6': q1_v6}
         cls.others = {'ipv4': [o1_v4, o2_v4], 'ipv6': [o1_v6, o2_v6]}
-        cls.bridges = {'br01_v4' : br01_v4,
-                'br02_v4' : br02_v4,
-                'br03_v4' : br03_v4,
-                'br01_v6' : br01_v6,
-                'br02_v6' : br02_v6,
-                'br03_v6' : br03_v6}
+        cls.bridges = {
+            'br01_v4': br01_v4,
+            'br02_v4': br02_v4,
+            'br03_v4': br03_v4,
+            'br01_v6': br01_v6,
+            'br02_v6': br02_v6,
+            'br03_v6': br03_v6,
+        }
 
     """
       No.1 start up ipv4 containers and check state
            each neighbor is established in ipv4 environment
     """
+
     def test_01_check_neighbor_established(self):
         g1 = self.gobgps['ipv4']
         q1 = self.quaggas['ipv4']
@@ -99,6 +110,7 @@ class GoBGPTestBase(unittest.TestCase):
       No.2 check whether the ping is reachable in container
            that have previously beyond the gobpg in ipv4 environment
     """
+
     def test_02_check_reachablily_beyond_gobgp_from_quagga(self):
         g1 = self.gobgps['ipv4']
         q1 = self.quaggas['ipv4']
@@ -108,14 +120,17 @@ class GoBGPTestBase(unittest.TestCase):
         for info in g1.ip_addrs:
             if 'br01_v4' in info[2]:
                 next_hop = info[1].split('/')[0]
-        self.assertFalse(next_hop == None)
+        self.assertFalse(next_hop is None)
         o1.add_static_route(self.bridges['br02_v4'].subnet, next_hop)
-        q1.get_reachablily('192.168.10.1')
+        addr = [e[1] for e in o1.ip_addrs if 'br01_v4' in e[2]]
+        self.assertTrue(len(addr) == 1)
+        q1.get_reachablily(addr[0])
 
     """
       No.3 check whether the ping is reachable in container
            that have previously beyond the quagga in ipv4 environment
     """
+
     def test_03_check_reachablily_beyond_quagga_from_gobgp(self):
         g1 = self.gobgps['ipv4']
         q1 = self.quaggas['ipv4']
@@ -123,12 +138,15 @@ class GoBGPTestBase(unittest.TestCase):
 
         next_hop = q1.ip_addrs[2][1].split('/')[0]
         o2.add_static_route(self.bridges['br02_v4'].subnet, next_hop)
-        g1.get_reachablily('192.168.30.2')
+        addr = [e[1] for e in o2.ip_addrs if 'br03_v4' in e[2]]
+        self.assertTrue(len(addr) == 1)
+        g1.get_reachablily(addr[0])
 
     """
       No.4 start up ipv4 containers and check state
            each neighbor is established in ipv6 environment
     """
+
     def test_04_check_neighbor_established_v6(self):
         g1 = self.gobgps['ipv6']
         q1 = self.quaggas['ipv6']
@@ -152,6 +170,7 @@ class GoBGPTestBase(unittest.TestCase):
       No.5 check whether the ping is reachable in container
            that have previously beyond the gobpg in ipv6 environment
     """
+
     def test_05_check_reachablily_beyond_gobgp_from_quagga(self):
         g1 = self.gobgps['ipv6']
         q1 = self.quaggas['ipv6']
@@ -160,12 +179,15 @@ class GoBGPTestBase(unittest.TestCase):
         next_hop = g1.ip_addrs[1][1].split('/')[0]
         g1.set_ipv6_forward()
         o1.add_static_route(self.bridges['br02_v6'].subnet, next_hop)
-        q1.get_reachablily('2001:10::1')
+        addr = [e[1] for e in o1.ip_addrs if 'br01_v6' in e[2]]
+        self.assertTrue(len(addr) == 1)
+        q1.get_reachablily(addr[0])
 
     """
       No.6 check whether the ping is reachable in container
            that have previously beyond the quagga in ipv6 environment
     """
+
     def test_06_check_reachablily_beyond_quagga_from_gobgp(self):
         g1 = self.gobgps['ipv6']
         q1 = self.quaggas['ipv6']
@@ -174,7 +196,9 @@ class GoBGPTestBase(unittest.TestCase):
         next_hop = q1.ip_addrs[2][1].split('/')[0]
         q1.set_ipv6_forward()
         o2.add_static_route(self.bridges['br02_v6'].subnet, next_hop)
-        g1.get_reachablily('2001:30::2')
+        addr = [e[1] for e in o2.ip_addrs if 'br03_v6' in e[2]]
+        self.assertTrue(len(addr) == 1)
+        g1.get_reachablily(addr[0])
 
     def test_07_mpath_test_setup(self):
         g1 = GoBGPContainer(name='g1', asn=65000, router_id='192.168.0.1',
@@ -182,10 +206,14 @@ class GoBGPTestBase(unittest.TestCase):
                             log_level=parser_option.gobgp_log_level,
                             config_format=parser_option.config_format,
                             zebra=True)
-        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2')
-        g3 = GoBGPContainer(name='g3', asn=65001, router_id='192.168.0.3')
-        g4 = GoBGPContainer(name='g4', asn=65000, router_id='192.168.0.4')
-        g5 = GoBGPContainer(name='g5', asn=65000, router_id='192.168.0.5')
+        g2 = GoBGPContainer(name='g2', asn=65001, router_id='192.168.0.2',
+                            ctn_image_name=parser_option.gobgp_image)
+        g3 = GoBGPContainer(name='g3', asn=65001, router_id='192.168.0.3',
+                            ctn_image_name=parser_option.gobgp_image)
+        g4 = GoBGPContainer(name='g4', asn=65000, router_id='192.168.0.4',
+                            ctn_image_name=parser_option.gobgp_image)
+        g5 = GoBGPContainer(name='g5', asn=65000, router_id='192.168.0.5',
+                            ctn_image_name=parser_option.gobgp_image)
 
         ctns = [g1, g2, g3, g4, g5]
         for ctn in ctns:
@@ -273,9 +301,6 @@ class GoBGPTestBase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

@@ -18,10 +18,11 @@ package table
 import (
 	"bytes"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/packet/bgp"
 	"net"
 	"time"
+
+	"github.com/osrg/gobgp/packet/bgp"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -112,22 +113,16 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time) 
 }
 
 type TableManager struct {
-	Tables    map[bgp.RouteFamily]*Table
-	Vrfs      map[string]*Vrf
-	minLabel  uint32
-	maxLabel  uint32
-	nextLabel uint32
-	rfList    []bgp.RouteFamily
+	Tables map[bgp.RouteFamily]*Table
+	Vrfs   map[string]*Vrf
+	rfList []bgp.RouteFamily
 }
 
-func NewTableManager(rfList []bgp.RouteFamily, minLabel, maxLabel uint32) *TableManager {
+func NewTableManager(rfList []bgp.RouteFamily) *TableManager {
 	t := &TableManager{
-		Tables:    make(map[bgp.RouteFamily]*Table),
-		Vrfs:      make(map[string]*Vrf),
-		minLabel:  minLabel,
-		maxLabel:  maxLabel,
-		nextLabel: minLabel,
-		rfList:    rfList,
+		Tables: make(map[bgp.RouteFamily]*Table),
+		Vrfs:   make(map[string]*Vrf),
+		rfList: rfList,
 	}
 	for _, rf := range rfList {
 		t.Tables[rf] = NewTable(rf)
@@ -139,32 +134,7 @@ func (manager *TableManager) GetRFlist() []bgp.RouteFamily {
 	return manager.rfList
 }
 
-func (manager *TableManager) GetNextLabel(name, nexthop string, isWithdraw bool) (uint32, error) {
-	var label uint32
-	var err error
-	vrf, ok := manager.Vrfs[name]
-	if !ok {
-		return label, fmt.Errorf("vrf %s not found", name)
-	}
-	label, ok = vrf.LabelMap[nexthop]
-	if !ok {
-		label, err = manager.getNextLabel()
-		vrf.LabelMap[nexthop] = label
-	}
-	return label, err
-
-}
-
-func (manager *TableManager) getNextLabel() (uint32, error) {
-	if manager.nextLabel > manager.maxLabel {
-		return 0, fmt.Errorf("ran out of label resource. max label %d", manager.maxLabel)
-	}
-	label := manager.nextLabel
-	manager.nextLabel += 1
-	return label, nil
-}
-
-func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
+func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
 	if _, ok := manager.Vrfs[name]; ok {
 		return nil, fmt.Errorf("vrf %s already exists", name)
 	}
@@ -177,10 +147,10 @@ func (manager *TableManager) AddVrf(name string, rd bgp.RouteDistinguisherInterf
 	}).Debugf("add vrf")
 	manager.Vrfs[name] = &Vrf{
 		Name:     name,
+		Id:       id,
 		Rd:       rd,
 		ImportRt: importRt,
 		ExportRt: exportRt,
-		LabelMap: make(map[string]uint32),
 	}
 	msgs := make([]*Path, 0, len(importRt))
 	nexthop := "0.0.0.0"
@@ -216,29 +186,17 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 	return msgs, nil
 }
 
-func (manager *TableManager) calculate(ids []string, destinations []*Destination) (map[string][]*Path, []*Path, [][]*Path) {
-	withdrawn := make([]*Path, 0, len(destinations))
-	best := make(map[string][]*Path, len(ids))
+func (manager *TableManager) calculate(dsts []*Destination) []*Destination {
+	emptyDsts := make([]*Destination, 0, len(dsts))
+	clonedDsts := make([]*Destination, 0, len(dsts))
 
-	emptyDsts := make([]*Destination, 0, len(destinations))
-	var multi [][]*Path
-	if UseMultiplePaths.Enabled && len(ids) == 1 && ids[0] == GLOBAL_RIB_NAME {
-		multi = make([][]*Path, 0, len(destinations))
-	}
-
-	for _, dst := range destinations {
+	for _, dst := range dsts {
 		log.WithFields(log.Fields{
 			"Topic": "table",
 			"Key":   dst.GetNlri().String(),
 		}).Debug("Processing destination")
-		paths, w, m := dst.Calculate(ids)
-		for id, path := range paths {
-			best[id] = append(best[id], path)
-		}
-		withdrawn = append(withdrawn, w...)
-		if m != nil {
-			multi = append(multi, m)
-		}
+
+		clonedDsts = append(clonedDsts, dst.Calculate())
 
 		if len(dst.knownPathList) == 0 {
 			emptyDsts = append(emptyDsts, dst)
@@ -249,18 +207,18 @@ func (manager *TableManager) calculate(ids []string, destinations []*Destination
 		t := manager.Tables[dst.Family()]
 		t.deleteDest(dst)
 	}
-	return best, withdrawn, multi
+	return clonedDsts
 }
 
-func (manager *TableManager) DeletePathsByPeer(ids []string, info *PeerInfo, rf bgp.RouteFamily) (map[string][]*Path, []*Path, [][]*Path) {
+func (manager *TableManager) DeletePathsByPeer(info *PeerInfo, rf bgp.RouteFamily) []*Destination {
 	if t, ok := manager.Tables[rf]; ok {
 		dsts := t.DeleteDestByPeer(info)
-		return manager.calculate(ids, dsts)
+		return manager.calculate(dsts)
 	}
-	return nil, nil, nil
+	return nil
 }
 
-func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[string][]*Path, []*Path, [][]*Path) {
+func (manager *TableManager) ProcessPaths(pathList []*Path) []*Destination {
 	m := make(map[string]bool, len(pathList))
 	dsts := make([]*Destination, 0, len(pathList))
 	for _, path := range pathList {
@@ -286,7 +244,7 @@ func (manager *TableManager) ProcessPaths(ids []string, pathList []*Path) (map[s
 			}
 		}
 	}
-	return manager.calculate(ids, dsts)
+	return manager.calculate(dsts)
 }
 
 // EVPN MAC MOBILITY HANDLING
@@ -330,37 +288,66 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Destination {
 	return dsts
 }
 
+func (manager *TableManager) tables(list ...bgp.RouteFamily) []*Table {
+	l := make([]*Table, 0, len(manager.Tables))
+	if len(list) == 0 {
+		for _, v := range manager.Tables {
+			l = append(l, v)
+		}
+		return l
+	}
+	for _, f := range list {
+		if t, ok := manager.Tables[f]; ok {
+			l = append(l, t)
+		}
+	}
+	return l
+}
+
 func (manager *TableManager) getDestinationCount(rfList []bgp.RouteFamily) int {
 	count := 0
-	for _, rf := range rfList {
-		if _, ok := manager.Tables[rf]; ok {
-			count += len(manager.Tables[rf].GetDestinations())
-		}
+	for _, t := range manager.tables(rfList...) {
+		count += len(t.GetDestinations())
 	}
 	return count
 }
 
 func (manager *TableManager) GetBestPathList(id string, rfList []bgp.RouteFamily) []*Path {
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
-	for _, rf := range rfList {
-		if t, ok := manager.Tables[rf]; ok {
-			paths = append(paths, t.Bests(id)...)
-		}
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.Bests(id)...)
+	}
+	return paths
+}
+
+func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.RouteFamily) [][]*Path {
+	if !UseMultiplePaths.Enabled {
+		return nil
+	}
+	paths := make([][]*Path, 0, manager.getDestinationCount(rfList))
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.MultiBests(id)...)
 	}
 	return paths
 }
 
 func (manager *TableManager) GetPathList(id string, rfList []bgp.RouteFamily) []*Path {
-	c := 0
-	for _, rf := range rfList {
-		if t, ok := manager.Tables[rf]; ok {
-			c += len(t.destinations)
-		}
+	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	for _, t := range manager.tables(rfList...) {
+		paths = append(paths, t.GetKnownPathList(id)...)
 	}
-	paths := make([]*Path, 0, c)
+	return paths
+}
+
+func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.RouteFamily, nexthop net.IP) []*Path {
+	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
-			paths = append(paths, t.GetKnownPathList(id)...)
+			for _, path := range t.GetKnownPathList(id) {
+				if path.GetNexthop().Equal(nexthop) {
+					paths = append(paths, path)
+				}
+			}
 		}
 	}
 	return paths
@@ -376,4 +363,12 @@ func (manager *TableManager) GetDestination(path *Path) *Destination {
 		return nil
 	}
 	return t.GetDestination(path.getPrefix())
+}
+
+func (manager *TableManager) TableInfo(id string, family bgp.RouteFamily) (*TableInfo, error) {
+	t, ok := manager.Tables[family]
+	if !ok {
+		return nil, fmt.Errorf("address family %s is not configured", family)
+	}
+	return t.Info(id), nil
 }

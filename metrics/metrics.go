@@ -3,7 +3,7 @@ package metrics
 import (
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/mqliang/libipvs"

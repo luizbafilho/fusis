@@ -17,6 +17,7 @@ package table
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
@@ -25,8 +26,10 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/armon/go-radix"
+	log "github.com/sirupsen/logrus"
+
+	radix "github.com/armon/go-radix"
+
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 )
@@ -44,6 +47,7 @@ const (
 	DEFINED_TYPE_AS_PATH
 	DEFINED_TYPE_COMMUNITY
 	DEFINED_TYPE_EXT_COMMUNITY
+	DEFINED_TYPE_LARGE_COMMUNITY
 )
 
 type RouteType int
@@ -53,6 +57,18 @@ const (
 	ROUTE_TYPE_ACCEPT
 	ROUTE_TYPE_REJECT
 )
+
+func (t RouteType) String() string {
+	switch t {
+	case ROUTE_TYPE_NONE:
+		return "continue"
+	case ROUTE_TYPE_ACCEPT:
+		return "accept"
+	case ROUTE_TYPE_REJECT:
+		return "reject"
+	}
+	return fmt.Sprintf("unknown(%d)", t)
+}
 
 type PolicyDirection int
 
@@ -96,6 +112,16 @@ func (o MatchOption) String() string {
 	}
 }
 
+func (o MatchOption) ConvertToMatchSetOptionsRestrictedType() config.MatchSetOptionsRestrictedType {
+	switch o {
+	case MATCH_OPTION_ANY:
+		return config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY
+	case MATCH_OPTION_INVERT:
+		return config.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT
+	}
+	return "unknown"
+}
+
 type MedActionType int
 
 const (
@@ -126,6 +152,7 @@ const (
 	CONDITION_AS_PATH_LENGTH
 	CONDITION_RPKI
 	CONDITION_ROUTE_TYPE
+	CONDITION_LARGE_COMMUNITY
 )
 
 type ActionType int
@@ -138,6 +165,7 @@ const (
 	ACTION_AS_PATH_PREPEND
 	ACTION_NEXTHOP
 	ACTION_LOCAL_PREF
+	ACTION_LARGE_COMMUNITY
 )
 
 func NewMatchOption(c interface{}) (MatchOption, error) {
@@ -175,6 +203,18 @@ const (
 	ATTRIBUTE_LE
 )
 
+func (c AttributeComparison) String() string {
+	switch c {
+	case ATTRIBUTE_EQ:
+		return "="
+	case ATTRIBUTE_GE:
+		return ">="
+	case ATTRIBUTE_LE:
+		return "<="
+	}
+	return "?"
+}
+
 const (
 	ASPATH_REGEXP_MAGIC = "(^|[,{}() ]|$)"
 )
@@ -185,9 +225,28 @@ type DefinedSet interface {
 	Append(DefinedSet) error
 	Remove(DefinedSet) error
 	Replace(DefinedSet) error
+	String() string
+	List() []string
 }
 
 type DefinedSetMap map[DefinedType]map[string]DefinedSet
+
+type DefinedSetList []DefinedSet
+
+func (l DefinedSetList) Len() int {
+	return len(l)
+}
+
+func (l DefinedSetList) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
+func (l DefinedSetList) Less(i, j int) bool {
+	if l[i].Type() != l[j].Type() {
+		return l[i].Type() < l[j].Type()
+	}
+	return l[i].Name() < l[j].Name()
+}
 
 type Prefix struct {
 	Prefix             *net.IPNet
@@ -228,14 +287,32 @@ func (lhs *Prefix) Equal(rhs *Prefix) bool {
 	return lhs.Prefix.String() == rhs.Prefix.String() && lhs.MasklengthRangeMin == rhs.MasklengthRangeMin && lhs.MasklengthRangeMax == rhs.MasklengthRangeMax
 }
 
+func (p *Prefix) PrefixString() string {
+	isZeros := func(p net.IP) bool {
+		for i := 0; i < len(p); i++ {
+			if p[i] != 0 {
+				return false
+			}
+		}
+		return true
+	}
+
+	ip := p.Prefix.IP
+	if p.AddressFamily == bgp.RF_IPv6_UC && isZeros(ip[0:10]) && ip[10] == 0xff && ip[11] == 0xff {
+		m, _ := p.Prefix.Mask.Size()
+		return fmt.Sprintf("::FFFF:%s/%d", ip.To16(), m)
+	}
+	return p.Prefix.String()
+}
+
 func NewPrefix(c config.Prefix) (*Prefix, error) {
-	addr, prefix, err := net.ParseCIDR(c.IpPrefix)
+	_, prefix, err := net.ParseCIDR(c.IpPrefix)
 	if err != nil {
 		return nil, err
 	}
 
 	rf := bgp.RF_IPv4_UC
-	if addr.To4() == nil {
+	if strings.Contains(c.IpPrefix, ":") {
 		rf = bgp.RF_IPv6_UC
 	}
 	p := &Prefix{
@@ -269,8 +346,9 @@ func NewPrefix(c config.Prefix) (*Prefix, error) {
 }
 
 type PrefixSet struct {
-	name string
-	tree *radix.Tree
+	name   string
+	tree   *radix.Tree
+	family bgp.RouteFamily
 }
 
 func (s *PrefixSet) Name() string {
@@ -286,10 +364,29 @@ func (lhs *PrefixSet) Append(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	rhs.tree.Walk(func(s string, v interface{}) bool {
-		lhs.tree.Insert(s, v)
+	// if either is empty, family can be ignored.
+	if lhs.tree.Len() != 0 && rhs.tree.Len() != 0 {
+		_, w, _ := lhs.tree.Minimum()
+		l := w.([]*Prefix)
+		_, v, _ := rhs.tree.Minimum()
+		r := v.([]*Prefix)
+		if l[0].AddressFamily != r[0].AddressFamily {
+			return fmt.Errorf("can't append different family")
+		}
+	}
+	rhs.tree.Walk(func(key string, v interface{}) bool {
+		w, ok := lhs.tree.Get(key)
+		if ok {
+			r := v.([]*Prefix)
+			l := w.([]*Prefix)
+			lhs.tree.Insert(key, append(l, r...))
+		} else {
+			lhs.tree.Insert(key, v)
+		}
 		return false
 	})
+	_, w, _ := lhs.tree.Minimum()
+	lhs.family = w.([]*Prefix)[0].AddressFamily
 	return nil
 }
 
@@ -298,8 +395,31 @@ func (lhs *PrefixSet) Remove(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	rhs.tree.Walk(func(s string, v interface{}) bool {
-		lhs.tree.Delete(s)
+	rhs.tree.Walk(func(key string, v interface{}) bool {
+		w, ok := lhs.tree.Get(key)
+		if !ok {
+			return false
+		}
+		r := v.([]*Prefix)
+		l := w.([]*Prefix)
+		new := make([]*Prefix, 0, len(l))
+		for _, lp := range l {
+			delete := false
+			for _, rp := range r {
+				if lp.Equal(rp) {
+					delete = true
+					break
+				}
+			}
+			if !delete {
+				new = append(new, lp)
+			}
+		}
+		if len(new) == 0 {
+			lhs.tree.Delete(key)
+		} else {
+			lhs.tree.Insert(key, new)
+		}
 		return false
 	})
 	return nil
@@ -311,14 +431,29 @@ func (lhs *PrefixSet) Replace(arg DefinedSet) error {
 		return fmt.Errorf("type cast failed")
 	}
 	lhs.tree = rhs.tree
+	lhs.family = rhs.family
 	return nil
+}
+
+func (s *PrefixSet) List() []string {
+	var list []string
+	s.tree.Walk(func(s string, v interface{}) bool {
+		ps := v.([]*Prefix)
+		for _, p := range ps {
+			list = append(list, fmt.Sprintf("%s %d..%d", p.PrefixString(), p.MasklengthRangeMin, p.MasklengthRangeMax))
+		}
+		return false
+	})
+	return list
 }
 
 func (s *PrefixSet) ToConfig() *config.PrefixSet {
 	list := make([]config.Prefix, 0, s.tree.Len())
 	s.tree.Walk(func(s string, v interface{}) bool {
-		p := v.(*Prefix)
-		list = append(list, config.Prefix{IpPrefix: p.Prefix.String(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
+		ps := v.([]*Prefix)
+		for _, p := range ps {
+			list = append(list, config.Prefix{IpPrefix: p.PrefixString(), MasklengthRange: fmt.Sprintf("%d..%d", p.MasklengthRangeMin, p.MasklengthRangeMax)})
+		}
 		return false
 	})
 	return &config.PrefixSet{
@@ -327,17 +462,39 @@ func (s *PrefixSet) ToConfig() *config.PrefixSet {
 	}
 }
 
+func (s *PrefixSet) String() string {
+	return strings.Join(s.List(), "\n")
+}
+
+func (s *PrefixSet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.ToConfig())
+}
+
 func NewPrefixSetFromApiStruct(name string, prefixes []*Prefix) (*PrefixSet, error) {
 	if name == "" {
 		return nil, fmt.Errorf("empty prefix set name")
 	}
 	tree := radix.New()
-	for _, x := range prefixes {
-		tree.Insert(CidrToRadixkey(x.Prefix.String()), x)
+	var family bgp.RouteFamily
+	for i, x := range prefixes {
+		if i == 0 {
+			family = x.AddressFamily
+		} else if family != x.AddressFamily {
+			return nil, fmt.Errorf("multiple families")
+		}
+		key := CidrToRadixkey(x.Prefix.String())
+		d, ok := tree.Get(key)
+		if ok {
+			ps := d.([]*Prefix)
+			tree.Insert(key, append(ps, x))
+		} else {
+			tree.Insert(key, []*Prefix{x})
+		}
 	}
 	return &PrefixSet{
-		name: name,
-		tree: tree,
+		name:   name,
+		tree:   tree,
+		family: family,
 	}, nil
 }
 
@@ -350,16 +507,30 @@ func NewPrefixSet(c config.PrefixSet) (*PrefixSet, error) {
 		return nil, fmt.Errorf("empty prefix set name")
 	}
 	tree := radix.New()
-	for _, x := range c.PrefixList {
+	var family bgp.RouteFamily
+	for i, x := range c.PrefixList {
 		y, err := NewPrefix(x)
 		if err != nil {
 			return nil, err
 		}
-		tree.Insert(CidrToRadixkey(y.Prefix.String()), y)
+		if i == 0 {
+			family = y.AddressFamily
+		} else if family != y.AddressFamily {
+			return nil, fmt.Errorf("multiple families")
+		}
+		key := CidrToRadixkey(y.Prefix.String())
+		d, ok := tree.Get(key)
+		if ok {
+			ps := d.([]*Prefix)
+			tree.Insert(key, append(ps, y))
+		} else {
+			tree.Insert(key, []*Prefix{y})
+		}
 	}
 	return &PrefixSet{
-		name: name,
-		tree: tree,
+		name:   name,
+		tree:   tree,
+		family: family,
 	}, nil
 }
 
@@ -416,15 +587,27 @@ func (lhs *NeighborSet) Replace(arg DefinedSet) error {
 	return nil
 }
 
-func (s *NeighborSet) ToConfig() *config.NeighborSet {
+func (s *NeighborSet) List() []string {
 	list := make([]string, 0, len(s.list))
 	for _, n := range s.list {
 		list = append(list, n.String())
 	}
+	return list
+}
+
+func (s *NeighborSet) ToConfig() *config.NeighborSet {
 	return &config.NeighborSet{
 		NeighborSetName:  s.name,
-		NeighborInfoList: list,
+		NeighborInfoList: s.List(),
 	}
+}
+
+func (s *NeighborSet) String() string {
+	return strings.Join(s.List(), "\n")
+}
+
+func (s *NeighborSet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.ToConfig())
 }
 
 func NewNeighborSetFromApiStruct(name string, list []net.IP) (*NeighborSet, error) {
@@ -618,7 +801,7 @@ func (lhs *AsPathSet) Replace(arg DefinedSet) error {
 	return nil
 }
 
-func (s *AsPathSet) ToConfig() *config.AsPathSet {
+func (s *AsPathSet) List() []string {
 	list := make([]string, 0, len(s.list)+len(s.singleList))
 	for _, exp := range s.singleList {
 		list = append(list, exp.String())
@@ -626,10 +809,22 @@ func (s *AsPathSet) ToConfig() *config.AsPathSet {
 	for _, exp := range s.list {
 		list = append(list, exp.String())
 	}
+	return list
+}
+
+func (s *AsPathSet) ToConfig() *config.AsPathSet {
 	return &config.AsPathSet{
 		AsPathSetName: s.name,
-		AsPathList:    list,
+		AsPathList:    s.List(),
 	}
+}
+
+func (s *AsPathSet) String() string {
+	return strings.Join(s.List(), "\n")
+}
+
+func (s *AsPathSet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.ToConfig())
 }
 
 func NewAsPathSet(c config.AsPathSet) (*AsPathSet, error) {
@@ -687,6 +882,8 @@ func (lhs *regExpSet) Append(arg DefinedSet) error {
 		list = arg.(*CommunitySet).list
 	case DEFINED_TYPE_EXT_COMMUNITY:
 		list = arg.(*ExtCommunitySet).list
+	case DEFINED_TYPE_LARGE_COMMUNITY:
+		list = arg.(*LargeCommunitySet).list
 	default:
 		return fmt.Errorf("invalid defined-set type: %d", lhs.Type())
 	}
@@ -706,6 +903,8 @@ func (lhs *regExpSet) Remove(arg DefinedSet) error {
 		list = arg.(*CommunitySet).list
 	case DEFINED_TYPE_EXT_COMMUNITY:
 		list = arg.(*ExtCommunitySet).list
+	case DEFINED_TYPE_LARGE_COMMUNITY:
+		list = arg.(*LargeCommunitySet).list
 	default:
 		return fmt.Errorf("invalid defined-set type: %d", lhs.Type())
 	}
@@ -727,11 +926,16 @@ func (lhs *regExpSet) Remove(arg DefinedSet) error {
 }
 
 func (lhs *regExpSet) Replace(arg DefinedSet) error {
-	rhs, ok := arg.(*regExpSet)
-	if !ok {
+	switch c := arg.(type) {
+	case *CommunitySet:
+		lhs.list = c.list
+	case *ExtCommunitySet:
+		lhs.list = c.list
+	case *LargeCommunitySet:
+		lhs.list = c.list
+	default:
 		return fmt.Errorf("type cast failed")
 	}
-	lhs.list = rhs.list
 	return nil
 }
 
@@ -739,19 +943,31 @@ type CommunitySet struct {
 	regExpSet
 }
 
-func (s *CommunitySet) ToConfig() *config.CommunitySet {
+func (s *CommunitySet) List() []string {
 	list := make([]string, 0, len(s.list))
 	for _, exp := range s.list {
 		list = append(list, exp.String())
 	}
+	return list
+}
+
+func (s *CommunitySet) ToConfig() *config.CommunitySet {
 	return &config.CommunitySet{
 		CommunitySetName: s.name,
-		CommunityList:    list,
+		CommunityList:    s.List(),
 	}
 }
 
+func (s *CommunitySet) String() string {
+	return strings.Join(s.List(), "\n")
+}
+
+func (s *CommunitySet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.ToConfig())
+}
+
 func ParseCommunity(arg string) (uint32, error) {
-	i, err := strconv.Atoi(arg)
+	i, err := strconv.ParseUint(arg, 10, 32)
 	if err == nil {
 		return uint32(i), nil
 	}
@@ -802,7 +1018,7 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 }
 
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
-	i, err := strconv.Atoi(arg)
+	i, err := strconv.ParseUint(arg, 10, 32)
 	if err == nil {
 		return regexp.MustCompile(fmt.Sprintf("^%d:%d$", i>>16, i&0x0000ffff)), nil
 	}
@@ -869,7 +1085,7 @@ type ExtCommunitySet struct {
 	subtypeList []bgp.ExtendedCommunityAttrSubType
 }
 
-func (s *ExtCommunitySet) ToConfig() *config.ExtCommunitySet {
+func (s *ExtCommunitySet) List() []string {
 	list := make([]string, 0, len(s.list))
 	f := func(idx int, arg string) string {
 		switch s.subtypeList[idx] {
@@ -886,10 +1102,22 @@ func (s *ExtCommunitySet) ToConfig() *config.ExtCommunitySet {
 	for idx, exp := range s.list {
 		list = append(list, f(idx, exp.String()))
 	}
+	return list
+}
+
+func (s *ExtCommunitySet) ToConfig() *config.ExtCommunitySet {
 	return &config.ExtCommunitySet{
 		ExtCommunitySetName: s.name,
-		ExtCommunityList:    list,
+		ExtCommunityList:    s.List(),
 	}
+}
+
+func (s *ExtCommunitySet) String() string {
+	return strings.Join(s.List(), "\n")
+}
+
+func (s *ExtCommunitySet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.ToConfig())
 }
 
 func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
@@ -920,6 +1148,79 @@ func NewExtCommunitySet(c config.ExtCommunitySet) (*ExtCommunitySet, error) {
 	}, nil
 }
 
+func (s *ExtCommunitySet) Append(arg DefinedSet) error {
+	err := s.regExpSet.Append(arg)
+	if err != nil {
+		return err
+	}
+	sList := arg.(*ExtCommunitySet).subtypeList
+	s.subtypeList = append(s.subtypeList, sList...)
+	return nil
+}
+
+type LargeCommunitySet struct {
+	regExpSet
+}
+
+func (s *LargeCommunitySet) List() []string {
+	list := make([]string, 0, len(s.list))
+	for _, exp := range s.list {
+		list = append(list, exp.String())
+	}
+	return list
+}
+
+func (s *LargeCommunitySet) ToConfig() *config.LargeCommunitySet {
+	return &config.LargeCommunitySet{
+		LargeCommunitySetName: s.name,
+		LargeCommunityList:    s.List(),
+	}
+}
+
+func (s *LargeCommunitySet) String() string {
+	return strings.Join(s.List(), "\n")
+}
+
+func (s *LargeCommunitySet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.ToConfig())
+}
+
+func ParseLargeCommunityRegexp(arg string) (*regexp.Regexp, error) {
+	if regexp.MustCompile("\\d+:\\d+:\\d+").MatchString(arg) {
+		return regexp.MustCompile(fmt.Sprintf("^%s$", arg)), nil
+	}
+	exp, err := regexp.Compile(arg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid large-community format: %s", arg)
+	}
+	return exp, nil
+}
+
+func NewLargeCommunitySet(c config.LargeCommunitySet) (*LargeCommunitySet, error) {
+	name := c.LargeCommunitySetName
+	if name == "" {
+		if len(c.LargeCommunityList) == 0 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("empty large community set name")
+	}
+	list := make([]*regexp.Regexp, 0, len(c.LargeCommunityList))
+	for _, x := range c.LargeCommunityList {
+		exp, err := ParseLargeCommunityRegexp(x)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, exp)
+	}
+	return &LargeCommunitySet{
+		regExpSet: regExpSet{
+			typ:  DEFINED_TYPE_LARGE_COMMUNITY,
+			name: name,
+			list: list,
+		},
+	}, nil
+}
+
 type Condition interface {
 	Name() string
 	Type() ConditionType
@@ -928,7 +1229,6 @@ type Condition interface {
 }
 
 type PrefixCondition struct {
-	name   string
 	set    *PrefixSet
 	option MatchOption
 }
@@ -958,7 +1258,8 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 		}
 		return buffer.String()[:ones]
 	}
-	switch path.GetRouteFamily() {
+	family := path.GetRouteFamily()
+	switch family {
 	case bgp.RF_IPv4_UC:
 		masklen = path.GetNlri().(*bgp.IPAddrPrefix).Length
 		key = keyf(path.GetNlri().(*bgp.IPAddrPrefix).Prefix, int(masklen))
@@ -968,11 +1269,19 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	default:
 		return false
 	}
+	if family != c.set.family {
+		return false
+	}
 
 	result := false
-	_, p, ok := c.set.tree.LongestPrefix(key)
-	if ok && p.(*Prefix).MasklengthRangeMin <= masklen && masklen <= p.(*Prefix).MasklengthRangeMax {
-		result = true
+	_, ps, ok := c.set.tree.LongestPrefix(key)
+	if ok {
+		for _, p := range ps.([]*Prefix) {
+			if p.MasklengthRangeMin <= masklen && masklen <= p.MasklengthRangeMax {
+				result = true
+				break
+			}
+		}
 	}
 
 	if c.option == MATCH_OPTION_INVERT {
@@ -982,7 +1291,7 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	return result
 }
 
-func (c *PrefixCondition) Name() string { return c.name }
+func (c *PrefixCondition) Name() string { return c.set.name }
 
 func NewPrefixCondition(c config.MatchPrefixSet) (*PrefixCondition, error) {
 	if c.PrefixSet == "" {
@@ -993,13 +1302,14 @@ func NewPrefixCondition(c config.MatchPrefixSet) (*PrefixCondition, error) {
 		return nil, err
 	}
 	return &PrefixCondition{
-		name:   c.PrefixSet,
+		set: &PrefixSet{
+			name: c.PrefixSet,
+		},
 		option: o,
 	}, nil
 }
 
 type NeighborCondition struct {
-	name   string
 	set    *NeighborSet
 	option MatchOption
 }
@@ -1051,7 +1361,7 @@ func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	return result
 }
 
-func (c *NeighborCondition) Name() string { return c.name }
+func (c *NeighborCondition) Name() string { return c.set.name }
 
 func NewNeighborCondition(c config.MatchNeighborSet) (*NeighborCondition, error) {
 	if c.NeighborSet == "" {
@@ -1062,13 +1372,14 @@ func NewNeighborCondition(c config.MatchNeighborSet) (*NeighborCondition, error)
 		return nil, err
 	}
 	return &NeighborCondition{
-		name:   c.NeighborSet,
+		set: &NeighborSet{
+			name: c.NeighborSet,
+		},
 		option: o,
 	}, nil
 }
 
 type AsPathCondition struct {
-	name   string
 	set    *AsPathSet
 	option MatchOption
 }
@@ -1122,7 +1433,7 @@ func (c *AsPathCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	return true
 }
 
-func (c *AsPathCondition) Name() string { return c.name }
+func (c *AsPathCondition) Name() string { return c.set.name }
 
 func NewAsPathCondition(c config.MatchAsPathSet) (*AsPathCondition, error) {
 	if c.AsPathSet == "" {
@@ -1133,13 +1444,14 @@ func NewAsPathCondition(c config.MatchAsPathSet) (*AsPathCondition, error) {
 		return nil, err
 	}
 	return &AsPathCondition{
-		name:   c.AsPathSet,
+		set: &AsPathSet{
+			name: c.AsPathSet,
+		},
 		option: o,
 	}, nil
 }
 
 type CommunityCondition struct {
-	name   string
 	set    *CommunitySet
 	option MatchOption
 }
@@ -1180,7 +1492,7 @@ func (c *CommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	return result
 }
 
-func (c *CommunityCondition) Name() string { return c.name }
+func (c *CommunityCondition) Name() string { return c.set.name }
 
 func NewCommunityCondition(c config.MatchCommunitySet) (*CommunityCondition, error) {
 	if c.CommunitySet == "" {
@@ -1191,13 +1503,16 @@ func NewCommunityCondition(c config.MatchCommunitySet) (*CommunityCondition, err
 		return nil, err
 	}
 	return &CommunityCondition{
-		name:   c.CommunitySet,
+		set: &CommunitySet{
+			regExpSet: regExpSet{
+				name: c.CommunitySet,
+			},
+		},
 		option: o,
 	}, nil
 }
 
 type ExtCommunityCondition struct {
-	name   string
 	set    *ExtCommunitySet
 	option MatchOption
 }
@@ -1243,7 +1558,7 @@ func (c *ExtCommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	return result
 }
 
-func (c *ExtCommunityCondition) Name() string { return c.name }
+func (c *ExtCommunityCondition) Name() string { return c.set.name }
 
 func NewExtCommunityCondition(c config.MatchExtCommunitySet) (*ExtCommunityCondition, error) {
 	if c.ExtCommunitySet == "" {
@@ -1254,7 +1569,72 @@ func NewExtCommunityCondition(c config.MatchExtCommunitySet) (*ExtCommunityCondi
 		return nil, err
 	}
 	return &ExtCommunityCondition{
-		name:   c.ExtCommunitySet,
+		set: &ExtCommunitySet{
+			regExpSet: regExpSet{
+				name: c.ExtCommunitySet,
+			},
+		},
+		option: o,
+	}, nil
+}
+
+type LargeCommunityCondition struct {
+	set    *LargeCommunitySet
+	option MatchOption
+}
+
+func (c *LargeCommunityCondition) Type() ConditionType {
+	return CONDITION_LARGE_COMMUNITY
+}
+
+func (c *LargeCommunityCondition) Set() DefinedSet {
+	return c.set
+}
+
+func (c *LargeCommunityCondition) Option() MatchOption {
+	return c.option
+}
+
+func (c *LargeCommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	result := false
+	cs := path.GetLargeCommunities()
+	for _, x := range c.set.list {
+		result = false
+		for _, y := range cs {
+			if x.MatchString(y.String()) {
+				result = true
+				break
+			}
+		}
+		if c.option == MATCH_OPTION_ALL && !result {
+			break
+		}
+		if (c.option == MATCH_OPTION_ANY || c.option == MATCH_OPTION_INVERT) && result {
+			break
+		}
+	}
+	if c.option == MATCH_OPTION_INVERT {
+		result = !result
+	}
+	return result
+}
+
+func (c *LargeCommunityCondition) Name() string { return c.set.name }
+
+func NewLargeCommunityCondition(c config.MatchLargeCommunitySet) (*LargeCommunityCondition, error) {
+	if c.LargeCommunitySet == "" {
+		return nil, nil
+	}
+	o, err := NewMatchOption(c.MatchSetOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &LargeCommunityCondition{
+		set: &LargeCommunitySet{
+			regExpSet: regExpSet{
+				name: c.LargeCommunitySet,
+			},
+		},
 		option: o,
 	}, nil
 }
@@ -1292,6 +1672,10 @@ func (c *AsPathLengthCondition) Set() DefinedSet {
 
 func (c *AsPathLengthCondition) Name() string { return "" }
 
+func (c *AsPathLengthCondition) String() string {
+	return fmt.Sprintf("%s%d", c.operator, c.length)
+}
+
 func NewAsPathLengthCondition(c config.AsPathLength) (*AsPathLengthCondition, error) {
 	if c.Value == 0 && c.Operator == "" {
 		return nil, nil
@@ -1319,7 +1703,7 @@ func (c *RpkiValidationCondition) Type() ConditionType {
 }
 
 func (c *RpkiValidationCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
-	return c.result == path.Validation()
+	return c.result == path.ValidationStatus()
 }
 
 func (c *RpkiValidationCondition) Set() DefinedSet {
@@ -1328,8 +1712,12 @@ func (c *RpkiValidationCondition) Set() DefinedSet {
 
 func (c *RpkiValidationCondition) Name() string { return "" }
 
+func (c *RpkiValidationCondition) String() string {
+	return string(c.result)
+}
+
 func NewRpkiValidationCondition(c config.RpkiValidationResultType) (*RpkiValidationCondition, error) {
-	if c == config.RPKI_VALIDATION_RESULT_TYPE_NONE {
+	if c == config.RpkiValidationResultType("") || c == config.RPKI_VALIDATION_RESULT_TYPE_NONE {
 		return nil, nil
 	}
 	return &RpkiValidationCondition{
@@ -1363,6 +1751,10 @@ func (c *RouteTypeCondition) Set() DefinedSet {
 
 func (c *RouteTypeCondition) Name() string { return "" }
 
+func (c *RouteTypeCondition) String() string {
+	return string(c.typ)
+}
+
 func NewRouteTypeCondition(c config.RouteType) (*RouteTypeCondition, error) {
 	if string(c) == "" || c == config.ROUTE_TYPE_NONE {
 		return nil, nil
@@ -1378,6 +1770,7 @@ func NewRouteTypeCondition(c config.RouteType) (*RouteTypeCondition, error) {
 type Action interface {
 	Type() ActionType
 	Apply(*Path, *PolicyOptions) *Path
+	String() string
 }
 
 type RoutingAction struct {
@@ -1395,13 +1788,25 @@ func (a *RoutingAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	return nil
 }
 
-func NewRoutingAction(c config.RouteDisposition) (*RoutingAction, error) {
-	if c.AcceptRoute == c.RejectRoute && c.AcceptRoute {
-		return nil, fmt.Errorf("invalid route disposition")
+func (a *RoutingAction) String() string {
+	action := "reject"
+	if a.AcceptRoute {
+		action = "accept"
 	}
-	accept := false
-	if c.AcceptRoute && !c.RejectRoute {
+	return action
+}
+
+func NewRoutingAction(c config.RouteDisposition) (*RoutingAction, error) {
+	var accept bool
+	switch c {
+	case config.RouteDisposition(""), config.ROUTE_DISPOSITION_NONE:
+		return nil, nil
+	case config.ROUTE_DISPOSITION_ACCEPT_ROUTE:
 		accept = true
+	case config.ROUTE_DISPOSITION_REJECT_ROUTE:
+		accept = false
+	default:
+		return nil, fmt.Errorf("invalid route disposition")
 	}
 	return &RoutingAction{
 		AcceptRoute: accept,
@@ -1456,6 +1861,25 @@ func RegexpRemoveExtCommunities(path *Path, exps []*regexp.Regexp, subtypes []bg
 	path.SetExtCommunities(newComms, true)
 }
 
+func RegexpRemoveLargeCommunities(path *Path, exps []*regexp.Regexp) {
+	comms := path.GetLargeCommunities()
+	newComms := make([]*bgp.LargeCommunity, 0, len(comms))
+	for _, comm := range comms {
+		c := comm.String()
+		match := false
+		for _, exp := range exps {
+			if exp.MatchString(c) {
+				match = true
+				break
+			}
+		}
+		if match == false {
+			newComms = append(newComms, comm)
+		}
+	}
+	path.SetLargeCommunities(newComms, true)
+}
+
 func (a *CommunityAction) Type() ActionType {
 	return ACTION_COMMUNITY
 }
@@ -1485,6 +1909,17 @@ func (a *CommunityAction) ToConfig() *config.SetCommunity {
 		Options:            string(a.action),
 		SetCommunityMethod: config.SetCommunityMethod{CommunitiesList: cs},
 	}
+}
+
+func (a *CommunityAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
+}
+
+func (a *CommunityAction) String() string {
+	list := a.ToConfig().SetCommunityMethod.CommunitiesList
+	exp := regexp.MustCompile("[\\^\\$]")
+	l := exp.ReplaceAllString(strings.Join(list, ", "), "")
+	return fmt.Sprintf("%s[%s]", a.action, l)
 }
 
 func NewCommunityAction(c config.SetCommunity) (*CommunityAction, error) {
@@ -1575,6 +2010,17 @@ func (a *ExtCommunityAction) ToConfig() *config.SetExtCommunity {
 	}
 }
 
+func (a *ExtCommunityAction) String() string {
+	list := a.ToConfig().SetExtCommunityMethod.CommunitiesList
+	exp := regexp.MustCompile("[\\^\\$]")
+	l := exp.ReplaceAllString(strings.Join(list, ", "), "")
+	return fmt.Sprintf("%s[%s]", a.action, l)
+}
+
+func (a *ExtCommunityAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
+}
+
 func NewExtCommunityAction(c config.SetExtCommunity) (*ExtCommunityAction, error) {
 	a, ok := CommunityOptionValueMap[strings.ToLower(c.Options)]
 	if !ok {
@@ -1617,8 +2063,93 @@ func NewExtCommunityAction(c config.SetExtCommunity) (*ExtCommunityAction, error
 	}, nil
 }
 
+type LargeCommunityAction struct {
+	action     config.BgpSetCommunityOptionType
+	list       []*bgp.LargeCommunity
+	removeList []*regexp.Regexp
+}
+
+func (a *LargeCommunityAction) Type() ActionType {
+	return ACTION_LARGE_COMMUNITY
+}
+
+func (a *LargeCommunityAction) Apply(path *Path, _ *PolicyOptions) *Path {
+	switch a.action {
+	case config.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
+		path.SetLargeCommunities(a.list, false)
+	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
+		RegexpRemoveLargeCommunities(path, a.removeList)
+	case config.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
+		path.SetLargeCommunities(a.list, true)
+	}
+	return path
+}
+
+func (a *LargeCommunityAction) ToConfig() *config.SetLargeCommunity {
+	cs := make([]string, 0, len(a.list)+len(a.removeList))
+	for _, comm := range a.list {
+		cs = append(cs, comm.String())
+	}
+	for _, exp := range a.removeList {
+		cs = append(cs, exp.String())
+	}
+	return &config.SetLargeCommunity{
+		SetLargeCommunityMethod: config.SetLargeCommunityMethod{CommunitiesList: cs},
+		Options:                 config.BgpSetCommunityOptionType(a.action),
+	}
+}
+
+func (a *LargeCommunityAction) String() string {
+	list := a.ToConfig().SetLargeCommunityMethod.CommunitiesList
+	exp := regexp.MustCompile("[\\^\\$]")
+	l := exp.ReplaceAllString(strings.Join(list, ", "), "")
+	return fmt.Sprintf("%s[%s]", a.action, l)
+}
+
+func (a *LargeCommunityAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
+}
+
+func NewLargeCommunityAction(c config.SetLargeCommunity) (*LargeCommunityAction, error) {
+	a, ok := CommunityOptionValueMap[strings.ToLower(string(c.Options))]
+	if !ok {
+		if len(c.SetLargeCommunityMethod.CommunitiesList) == 0 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("invalid option name: %s", c.Options)
+	}
+	var list []*bgp.LargeCommunity
+	var removeList []*regexp.Regexp
+	if a == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
+		removeList = make([]*regexp.Regexp, 0, len(c.SetLargeCommunityMethod.CommunitiesList))
+	} else {
+		list = make([]*bgp.LargeCommunity, 0, len(c.SetLargeCommunityMethod.CommunitiesList))
+	}
+	for _, x := range c.SetLargeCommunityMethod.CommunitiesList {
+		if a == config.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
+			exp, err := ParseLargeCommunityRegexp(x)
+			if err != nil {
+				return nil, err
+			}
+			removeList = append(removeList, exp)
+		} else {
+			comm, err := bgp.ParseLargeCommunity(x)
+			if err != nil {
+				return nil, err
+			}
+			list = append(list, comm)
+		}
+	}
+	return &LargeCommunityAction{
+		action:     a,
+		list:       list,
+		removeList: removeList,
+	}, nil
+
+}
+
 type MedAction struct {
-	value  int
+	value  int64
 	action MedActionType
 }
 
@@ -1630,9 +2161,9 @@ func (a *MedAction) Apply(path *Path, _ *PolicyOptions) *Path {
 	var err error
 	switch a.action {
 	case MED_ACTION_MOD:
-		err = path.SetMed(int64(a.value), false)
+		err = path.SetMed(a.value, false)
 	case MED_ACTION_REPLACE:
-		err = path.SetMed(int64(a.value), true)
+		err = path.SetMed(a.value, true)
 	}
 
 	if err != nil {
@@ -1652,6 +2183,14 @@ func (a *MedAction) ToConfig() config.BgpSetMedType {
 	return config.BgpSetMedType(fmt.Sprintf("%d", a.value))
 }
 
+func (a *MedAction) String() string {
+	return string(a.ToConfig())
+}
+
+func (a *MedAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
+}
+
 func NewMedAction(c config.BgpSetMedType) (*MedAction, error) {
 	if string(c) == "" {
 		return nil, nil
@@ -1666,14 +2205,14 @@ func NewMedAction(c config.BgpSetMedType) (*MedAction, error) {
 	case "+", "-":
 		action = MED_ACTION_MOD
 	}
-	value, _ := strconv.Atoi(string(c))
+	value, _ := strconv.ParseInt(string(c), 10, 64)
 	return &MedAction{
 		value:  value,
 		action: action,
 	}, nil
 }
 
-func NewMedActionFromApiStruct(action MedActionType, value int) *MedAction {
+func NewMedActionFromApiStruct(action MedActionType, value int64) *MedAction {
 	return &MedAction{action: action, value: value}
 }
 
@@ -1692,6 +2231,14 @@ func (a *LocalPrefAction) Apply(path *Path, _ *PolicyOptions) *Path {
 
 func (a *LocalPrefAction) ToConfig() uint32 {
 	return a.value
+}
+
+func (a *LocalPrefAction) String() string {
+	return fmt.Sprintf("%d", a.value)
+}
+
+func (a *LocalPrefAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
 }
 
 func NewLocalPrefAction(value uint32) (*LocalPrefAction, error) {
@@ -1753,6 +2300,15 @@ func (a *AsPathPrependAction) ToConfig() *config.SetAsPathPrepend {
 	}
 }
 
+func (a *AsPathPrependAction) String() string {
+	c := a.ToConfig()
+	return fmt.Sprintf("prepend %s %d times", c.As, c.RepeatN)
+}
+
+func (a *AsPathPrependAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
+}
+
 // NewAsPathPrependAction creates AsPathPrependAction object.
 // If ASN cannot be parsed, nil will be returned.
 func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependAction, error) {
@@ -1768,7 +2324,7 @@ func NewAsPathPrependAction(action config.SetAsPathPrepend) (*AsPathPrependActio
 	case "last-as":
 		a.useLeftMost = true
 	default:
-		asn, err := strconv.Atoi(action.As)
+		asn, err := strconv.ParseUint(action.As, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("As number string invalid")
 		}
@@ -1804,8 +2360,16 @@ func (a *NexthopAction) ToConfig() config.BgpNextHopType {
 	return config.BgpNextHopType(a.value.String())
 }
 
+func (a *NexthopAction) String() string {
+	return string(a.ToConfig())
+}
+
+func (a *NexthopAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ToConfig())
+}
+
 func NewNexthopAction(c config.BgpNextHopType) (*NexthopAction, error) {
-	switch string(c) {
+	switch strings.ToLower(string(c)) {
 	case "":
 		return nil, nil
 	case "self":
@@ -1851,11 +2415,6 @@ func (s *Statement) Apply(path *Path, options *PolicyOptions) (RouteType, *Path)
 		}
 		//Routing action
 		if s.RouteAction == nil || reflect.ValueOf(s.RouteAction).IsNil() {
-			log.WithFields(log.Fields{
-				"Topic":      "Policy",
-				"Path":       path,
-				"PolicyName": s.Name,
-			}).Warn("route action is nil")
 			return ROUTE_TYPE_NONE, path
 		}
 		p := s.RouteAction.Apply(path, options)
@@ -1876,10 +2435,10 @@ func (s *Statement) ToConfig() *config.Statement {
 				switch c.(type) {
 				case *PrefixCondition:
 					v := c.(*PrefixCondition)
-					cond.MatchPrefixSet = config.MatchPrefixSet{PrefixSet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsRestrictedTypeMap[int(v.option)]}
+					cond.MatchPrefixSet = config.MatchPrefixSet{PrefixSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *NeighborCondition:
 					v := c.(*NeighborCondition)
-					cond.MatchNeighborSet = config.MatchNeighborSet{NeighborSet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsRestrictedTypeMap[int(v.option)]}
+					cond.MatchNeighborSet = config.MatchNeighborSet{NeighborSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *AsPathLengthCondition:
 					v := c.(*AsPathLengthCondition)
 					cond.BgpConditions.AsPathLength = config.AsPathLength{Operator: config.IntToAttributeComparisonMap[int(v.operator)], Value: v.length}
@@ -1892,6 +2451,9 @@ func (s *Statement) ToConfig() *config.Statement {
 				case *ExtCommunityCondition:
 					v := c.(*ExtCommunityCondition)
 					cond.BgpConditions.MatchExtCommunitySet = config.MatchExtCommunitySet{ExtCommunitySet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsTypeMap[int(v.option)]}
+				case *LargeCommunityCondition:
+					v := c.(*LargeCommunityCondition)
+					cond.BgpConditions.MatchLargeCommunitySet = config.MatchLargeCommunitySet{LargeCommunitySet: v.set.Name(), MatchSetOptions: config.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *RpkiValidationCondition:
 					v := c.(*RpkiValidationCondition)
 					cond.BgpConditions.RpkiValidationResult = v.result
@@ -1906,7 +2468,13 @@ func (s *Statement) ToConfig() *config.Statement {
 			act := config.Actions{}
 			if s.RouteAction != nil && !reflect.ValueOf(s.RouteAction).IsNil() {
 				a := s.RouteAction.(*RoutingAction)
-				act.RouteDisposition = config.RouteDisposition{AcceptRoute: a.AcceptRoute, RejectRoute: false}
+				if a.AcceptRoute {
+					act.RouteDisposition = config.ROUTE_DISPOSITION_ACCEPT_ROUTE
+				} else {
+					act.RouteDisposition = config.ROUTE_DISPOSITION_REJECT_ROUTE
+				}
+			} else {
+				act.RouteDisposition = config.ROUTE_DISPOSITION_NONE
 			}
 			for _, a := range s.ModActions {
 				switch a.(type) {
@@ -1916,6 +2484,8 @@ func (s *Statement) ToConfig() *config.Statement {
 					act.BgpActions.SetCommunity = *a.(*CommunityAction).ToConfig()
 				case *ExtCommunityAction:
 					act.BgpActions.SetExtCommunity = *a.(*ExtCommunityAction).ToConfig()
+				case *LargeCommunityAction:
+					act.BgpActions.SetLargeCommunity = *a.(*LargeCommunityAction).ToConfig()
 				case *MedAction:
 					act.BgpActions.SetMed = a.(*MedAction).ToConfig()
 				case *LocalPrefAction:
@@ -1927,6 +2497,10 @@ func (s *Statement) ToConfig() *config.Statement {
 			return act
 		}(),
 	}
+}
+
+func (s *Statement) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.ToConfig())
 }
 
 type opType int
@@ -2081,6 +2655,9 @@ func NewStatement(c config.Statement) (*Statement, error) {
 		func() (Condition, error) {
 			return NewExtCommunityCondition(c.Conditions.BgpConditions.MatchExtCommunitySet)
 		},
+		func() (Condition, error) {
+			return NewLargeCommunityCondition(c.Conditions.BgpConditions.MatchLargeCommunitySet)
+		},
 	}
 	cs = make([]Condition, 0, len(cfs))
 	for _, f := range cfs {
@@ -2102,6 +2679,9 @@ func NewStatement(c config.Statement) (*Statement, error) {
 		},
 		func() (Action, error) {
 			return NewExtCommunityAction(c.Actions.BgpActions.SetExtCommunity)
+		},
+		func() (Action, error) {
+			return NewLargeCommunityAction(c.Actions.BgpActions.SetLargeCommunity)
 		},
 		func() (Action, error) {
 			return NewMedAction(c.Actions.BgpActions.SetMed)
@@ -2205,6 +2785,10 @@ func (lhs *Policy) Replace(rhs *Policy) error {
 	return nil
 }
 
+func (p *Policy) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.ToConfig())
+}
+
 func NewPolicy(c config.PolicyDefinition) (*Policy, error) {
 	if c.Name == "" {
 		return nil, fmt.Errorf("empty policy name")
@@ -2228,6 +2812,20 @@ func NewPolicy(c config.PolicyDefinition) (*Policy, error) {
 		Name:       c.Name,
 		Statements: st,
 	}, nil
+}
+
+type Policies []*Policy
+
+func (p Policies) Len() int {
+	return len(p)
+}
+
+func (p Policies) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p Policies) Less(i, j int) bool {
+	return p[i].Name < p[j].Name
 }
 
 type Assignment struct {
@@ -2263,7 +2861,7 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	result := ROUTE_TYPE_NONE
 	after := before
 	for _, p := range r.getPolicy(id, dir) {
-		result, after = p.Apply(before, options)
+		result, after = p.Apply(after, options)
 		if result != ROUTE_TYPE_NONE {
 			break
 		}
@@ -2427,6 +3025,14 @@ func (r *RoutingPolicy) validateCondition(v Condition) (err error) {
 			c := v.(*ExtCommunityCondition)
 			c.set = i.(*ExtCommunitySet)
 		}
+	case CONDITION_LARGE_COMMUNITY:
+		m := r.definedSetMap[DEFINED_TYPE_LARGE_COMMUNITY]
+		if i, ok := m[v.Name()]; !ok {
+			return fmt.Errorf("not found large-community set %s", v.Name())
+		} else {
+			c := v.(*LargeCommunityCondition)
+			c.set = i.(*LargeCommunitySet)
+		}
 	case CONDITION_AS_PATH_LENGTH:
 	case CONDITION_RPKI:
 	}
@@ -2525,6 +3131,17 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 		}
 		dmap[DEFINED_TYPE_EXT_COMMUNITY][y.Name()] = y
 	}
+	dmap[DEFINED_TYPE_LARGE_COMMUNITY] = make(map[string]DefinedSet)
+	for _, x := range bd.LargeCommunitySets {
+		y, err := NewLargeCommunitySet(x)
+		if err != nil {
+			return err
+		}
+		if y == nil {
+			return fmt.Errorf("empty large-community set")
+		}
+		dmap[DEFINED_TYPE_LARGE_COMMUNITY][y.Name()] = y
+	}
 	pmap := make(map[string]*Policy)
 	smap := make(map[string]*Statement)
 	for _, x := range c.PolicyDefinitions {
@@ -2569,7 +3186,7 @@ func (r *RoutingPolicy) reload(c config.RoutingPolicy) error {
 	return nil
 }
 
-func (r *RoutingPolicy) GetDefinedSet(typ DefinedType) (*config.DefinedSets, error) {
+func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*config.DefinedSets, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -2581,12 +3198,16 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType) (*config.DefinedSets, err
 		PrefixSets:   make([]config.PrefixSet, 0),
 		NeighborSets: make([]config.NeighborSet, 0),
 		BgpDefinedSets: config.BgpDefinedSets{
-			CommunitySets:    make([]config.CommunitySet, 0),
-			ExtCommunitySets: make([]config.ExtCommunitySet, 0),
-			AsPathSets:       make([]config.AsPathSet, 0),
+			CommunitySets:      make([]config.CommunitySet, 0),
+			ExtCommunitySets:   make([]config.ExtCommunitySet, 0),
+			LargeCommunitySets: make([]config.LargeCommunitySet, 0),
+			AsPathSets:         make([]config.AsPathSet, 0),
 		},
 	}
 	for _, s := range set {
+		if name != "" && s.Name() != name {
+			continue
+		}
 		switch s.(type) {
 		case *PrefixSet:
 			sets.PrefixSets = append(sets.PrefixSets, *s.(*PrefixSet).ToConfig())
@@ -2596,6 +3217,8 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType) (*config.DefinedSets, err
 			sets.BgpDefinedSets.CommunitySets = append(sets.BgpDefinedSets.CommunitySets, *s.(*CommunitySet).ToConfig())
 		case *ExtCommunitySet:
 			sets.BgpDefinedSets.ExtCommunitySets = append(sets.BgpDefinedSets.ExtCommunitySets, *s.(*ExtCommunitySet).ToConfig())
+		case *LargeCommunitySet:
+			sets.BgpDefinedSets.LargeCommunitySets = append(sets.BgpDefinedSets.LargeCommunitySets, *s.(*LargeCommunitySet).ToConfig())
 		case *AsPathSet:
 			sets.BgpDefinedSets.AsPathSets = append(sets.BgpDefinedSets.AsPathSets, *s.(*AsPathSet).ToConfig())
 		}
@@ -2861,9 +3484,10 @@ func (r *RoutingPolicy) ReplacePolicy(x *Policy, refer, preserve bool) (err erro
 		}
 	}
 
+	ys := y.Statements
 	err = y.Replace(x)
 	if err == nil && !preserve {
-		for _, st := range y.Statements {
+		for _, st := range ys {
 			if !r.statementInUse(st) {
 				log.WithFields(log.Fields{
 					"Topic": "Policy",
@@ -2958,7 +3582,12 @@ func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, p
 		}
 		err = r.setDefaultPolicy(id, dir, ROUTE_TYPE_NONE)
 	} else {
-		n := make([]*Policy, 0, len(cur)-len(ps))
+		l := len(cur) - len(ps)
+		if l < 0 {
+			// try to remove more than the assigned policies...
+			l = len(cur)
+		}
+		n := make([]*Policy, 0, l)
 		for _, y := range cur {
 			found := false
 			for _, x := range ps {
@@ -3061,4 +3690,11 @@ func CanImportToVrf(v *Vrf, path *Path) bool {
 	c, _ := NewExtCommunityCondition(matchSet)
 	c.set = set
 	return c.Evaluate(path, nil)
+}
+
+type PolicyAssignment struct {
+	Name     string
+	Type     PolicyDirection
+	Policies []*Policy
+	Default  RouteType
 }

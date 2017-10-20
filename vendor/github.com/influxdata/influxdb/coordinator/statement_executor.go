@@ -17,6 +17,8 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// ErrDatabaseNameRequired is returned when executing statements that require a database,
+// when a database has not been provided.
 var ErrDatabaseNameRequired = errors.New("database name required")
 
 type pointsWriter interface {
@@ -33,6 +35,9 @@ type StatementExecutor struct {
 	// TSDB storage for local node.
 	TSDBStore TSDBStore
 
+	// ShardMapper for mapping shards when executing a SELECT statement.
+	ShardMapper ShardMapper
+
 	// Holds monitoring data for SHOW STATS and SHOW DIAGNOSTICS.
 	Monitor *monitor.Monitor
 
@@ -45,6 +50,7 @@ type StatementExecutor struct {
 	MaxSelectBucketsN int
 }
 
+// ExecuteStatement executes the given statement with the given execution context.
 func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 	// Select statements are handled separately so that they can be streamed.
 	if stmt, ok := stmt.(*influxql.SelectStatement); ok {
@@ -150,7 +156,7 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influx
 	case *influxql.ShowContinuousQueriesStatement:
 		rows, err = e.executeShowContinuousQueriesStatement(stmt)
 	case *influxql.ShowDatabasesStatement:
-		rows, err = e.executeShowDatabasesStatement(stmt)
+		rows, err = e.executeShowDatabasesStatement(stmt, &ctx)
 	case *influxql.ShowDiagnosticsStatement:
 		rows, err = e.executeShowDiagnosticsStatement(stmt)
 	case *influxql.ShowGrantsForUserStatement:
@@ -238,9 +244,23 @@ func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.Cr
 }
 
 func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.CreateDatabaseStatement) error {
+	if !meta.ValidName(stmt.Name) {
+		// TODO This should probably be in `(*meta.Data).CreateDatabase`
+		// but can't go there until 1.1 is used everywhere
+		return meta.ErrInvalidName
+	}
+
 	if !stmt.RetentionPolicyCreate {
 		_, err := e.MetaClient.CreateDatabase(stmt.Name)
 		return err
+	}
+
+	// If we're doing, for example, CREATE DATABASE "db" WITH DURATION 1d then
+	// the name will not yet be set. We only need to validate non-empty
+	// retention policy names, such as in the statement:
+	// 	CREATE DATABASE "db" WITH DURATION 1d NAME "xyz"
+	if stmt.RetentionPolicyName != "" && !meta.ValidName(stmt.RetentionPolicyName) {
+		return meta.ErrInvalidName
 	}
 
 	spec := meta.RetentionPolicySpec{
@@ -254,6 +274,12 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.Create
 }
 
 func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement) error {
+	if !meta.ValidName(stmt.Name) {
+		// TODO This should probably be in `(*meta.Data).CreateRetentionPolicy`
+		// but can't go there until 1.1 is used everywhere
+		return meta.ErrInvalidName
+	}
+
 	spec := meta.RetentionPolicySpec{
 		Name:               stmt.Name,
 		Duration:           &stmt.Duration,
@@ -299,6 +325,10 @@ func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.Drop
 // It does not return an error if the database was not found on any of
 // the nodes, or in the Meta store.
 func (e *StatementExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) error {
+	if e.MetaClient.Database(stmt.Name) == nil {
+		return nil
+	}
+
 	// Locally delete the datababse.
 	if err := e.TSDBStore.DeleteDatabase(stmt.Name); err != nil {
 		return err
@@ -342,6 +372,15 @@ func (e *StatementExecutor) executeDropShardStatement(stmt *influxql.DropShardSt
 }
 
 func (e *StatementExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropRetentionPolicyStatement) error {
+	dbi := e.MetaClient.Database(stmt.Database)
+	if dbi == nil {
+		return nil
+	}
+
+	if dbi.RetentionPolicy(stmt.Name) == nil {
+		return nil
+	}
+
 	// Locally drop the retention policy.
 	if err := e.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name); err != nil {
 		return err
@@ -399,6 +438,9 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	// Generate a row emitter from the iterator set.
 	em := influxql.NewEmitter(itrs, stmt.TimeAscending(), ctx.ChunkSize)
 	em.Columns = stmt.ColumnNames()
+	if stmt.Location != nil {
+		em.Location = stmt.Location
+	}
 	em.OmitTime = stmt.OmitTime
 	defer em.Close()
 
@@ -488,38 +530,21 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 		InterruptCh: ctx.InterruptCh,
 		NodeID:      ctx.ExecutionOptions.NodeID,
 		MaxSeriesN:  e.MaxSelectSeriesN,
+		Authorizer:  ctx.Authorizer,
 	}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
-	nowValuer := influxql.NowValuer{Now: now}
-	stmt.Condition = influxql.Reduce(stmt.Condition, &nowValuer)
-	// Replace instances of "now()" with the current time in the dimensions.
-	for _, d := range stmt.Dimensions {
-		d.Expr = influxql.Reduce(d.Expr, &nowValuer)
-	}
+	nowValuer := influxql.NowValuer{Now: now, Location: stmt.Location}
+	stmt = stmt.Reduce(&nowValuer)
 
 	var err error
-	opt.MinTime, opt.MaxTime, err = influxql.TimeRange(stmt.Condition)
+	opt.MinTime, opt.MaxTime, err = influxql.TimeRange(stmt.Condition, stmt.Location)
 	if err != nil {
 		return nil, stmt, err
 	}
 
 	if opt.MaxTime.IsZero() {
-		// In the case that we're executing a meta query where the user cannot
-		// specify a time condition, then we expand the default max time
-		// to the maximum possible value, to ensure that data where all points
-		// are in the future are returned.
-		if influxql.Sources(stmt.Sources).HasSystemSource() {
-			opt.MaxTime = time.Unix(0, influxql.MaxTime).UTC()
-		} else {
-			if interval, err := stmt.GroupByInterval(); err != nil {
-				return nil, stmt, err
-			} else if interval > 0 {
-				opt.MaxTime = now
-			} else {
-				opt.MaxTime = time.Unix(0, influxql.MaxTime).UTC()
-			}
-		}
+		opt.MaxTime = time.Unix(0, influxql.MaxTime)
 	}
 	if opt.MinTime.IsZero() {
 		opt.MinTime = time.Unix(0, influxql.MinTime).UTC()
@@ -531,23 +556,20 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	// Remove "time" from fields list.
 	stmt.RewriteTimeFields()
 
+	// Rewrite time condition.
+	if err := stmt.RewriteTimeCondition(now); err != nil {
+		return nil, stmt, err
+	}
+
 	// Rewrite any regex conditions that could make use of the index.
 	stmt.RewriteRegexConditions()
 
 	// Create an iterator creator based on the shards in the cluster.
-	ic, err := e.iteratorCreator(stmt, &opt)
+	ic, err := e.ShardMapper.MapShards(stmt.Sources, &opt)
 	if err != nil {
 		return nil, stmt, err
 	}
-
-	// Expand regex sources to their actual source names.
-	if stmt.Sources.HasRegex() {
-		sources, err := ic.ExpandSources(stmt.Sources)
-		if err != nil {
-			return nil, stmt, err
-		}
-		stmt.Sources = sources
-	}
+	defer ic.Close()
 
 	// Rewrite wildcards, if any exist.
 	tmp, err := stmt.RewriteFields(ic)
@@ -588,16 +610,6 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	return itrs, stmt, nil
 }
 
-// iteratorCreator returns a new instance of IteratorCreator based on stmt.
-func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	// Retrieve a list of shard IDs.
-	shards, err := e.MetaClient.ShardsByTimeRange(stmt.Sources, opt.MinTime, opt.MaxTime)
-	if err != nil {
-		return nil, err
-	}
-	return e.TSDBStore.IteratorCreator(shards, opt)
-}
-
 func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
 	dis := e.MetaClient.Databases()
 
@@ -612,12 +624,16 @@ func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql
 	return rows, nil
 }
 
-func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement) (models.Rows, error) {
+func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, ctx *influxql.ExecutionContext) (models.Rows, error) {
 	dis := e.MetaClient.Databases()
+	a := ctx.ExecutionOptions.Authorizer
 
 	row := &models.Row{Name: "databases", Columns: []string{"name"}}
 	for _, di := range dis {
-		row.Values = append(row.Values, []interface{}{di.Name})
+		// Only include databases that the user is authorized to read or write.
+		if a.AuthorizeDatabase(influxql.ReadPrivilege, di.Name) || a.AuthorizeDatabase(influxql.WritePrivilege, di.Name) {
+			row.Values = append(row.Values, []interface{}{di.Name})
+		}
 	}
 	return []*models.Row{row}, nil
 }
@@ -668,8 +684,8 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 		return ErrDatabaseNameRequired
 	}
 
-	measurements, err := e.TSDBStore.Measurements(q.Database, q.Condition)
-	if err != nil || len(measurements) == 0 {
+	names, err := e.TSDBStore.MeasurementNames(q.Database, q.Condition)
+	if err != nil || len(names) == 0 {
 		return ctx.Send(&influxql.Result{
 			StatementID: ctx.StatementID,
 			Err:         err,
@@ -677,22 +693,22 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 	}
 
 	if q.Offset > 0 {
-		if q.Offset >= len(measurements) {
-			measurements = nil
+		if q.Offset >= len(names) {
+			names = nil
 		} else {
-			measurements = measurements[q.Offset:]
+			names = names[q.Offset:]
 		}
 	}
 
 	if q.Limit > 0 {
-		if q.Limit < len(measurements) {
-			measurements = measurements[:q.Limit]
+		if q.Limit < len(names) {
+			names = names[:q.Limit]
 		}
 	}
 
-	values := make([][]interface{}, len(measurements))
-	for i, m := range measurements {
-		values[i] = []interface{}{m}
+	values := make([][]interface{}, len(names))
+	for i, name := range names {
+		values[i] = []interface{}{string(name)}
 	}
 
 	if len(values) == 0 {
@@ -906,6 +922,8 @@ func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersState
 	return []*models.Row{row}, nil
 }
 
+// BufferedPointsWriter adds buffering to a pointsWriter so that SELECT INTO queries
+// write their points to the destination in batches.
 type BufferedPointsWriter struct {
 	w               pointsWriter
 	buf             []models.Point
@@ -913,6 +931,7 @@ type BufferedPointsWriter struct {
 	retentionPolicy string
 }
 
+// NewBufferedPointsWriter returns a new BufferedPointsWriter.
 func NewBufferedPointsWriter(w pointsWriter, database, retentionPolicy string, capacity int) *BufferedPointsWriter {
 	return &BufferedPointsWriter{
 		w:               w,
@@ -922,6 +941,7 @@ func NewBufferedPointsWriter(w pointsWriter, database, retentionPolicy string, c
 	}
 }
 
+// WritePointsInto implements pointsWriter for BufferedPointsWriter.
 func (w *BufferedPointsWriter) WritePointsInto(req *IntoWriteRequest) error {
 	// Make sure we're buffering points only for the expected destination.
 	if req.Database != w.database || req.RetentionPolicy != w.retentionPolicy {
@@ -1141,22 +1161,17 @@ type TSDBStore interface {
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
-	IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error)
 
-	Measurements(database string, cond influxql.Expr) ([]string, error)
+	MeasurementNames(database string, cond influxql.Expr) ([][]byte, error)
 	TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
+var _ TSDBStore = LocalTSDBStore{}
+
+// LocalTSDBStore embeds a tsdb.Store and implements IteratorCreator
+// to satisfy the TSDBStore interface.
 type LocalTSDBStore struct {
 	*tsdb.Store
-}
-
-func (s LocalTSDBStore) IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	shardIDs := make([]uint64, len(shards))
-	for i, sh := range shards {
-		shardIDs[i] = sh.ID
-	}
-	return s.Store.IteratorCreator(shardIDs, opt)
 }
 
 // ShardIteratorCreator is an interface for creating an IteratorCreator to access a specific shard.
@@ -1174,63 +1189,4 @@ func joinUint64(a []uint64) string {
 		}
 	}
 	return buf.String()
-}
-
-// stringSet represents a set of strings.
-type stringSet map[string]struct{}
-
-// newStringSet returns an empty stringSet.
-func newStringSet() stringSet {
-	return make(map[string]struct{})
-}
-
-// add adds strings to the set.
-func (s stringSet) add(ss ...string) {
-	for _, n := range ss {
-		s[n] = struct{}{}
-	}
-}
-
-// contains returns whether the set contains the given string.
-func (s stringSet) contains(ss string) bool {
-	_, ok := s[ss]
-	return ok
-}
-
-// list returns the current elements in the set, in sorted order.
-func (s stringSet) list() []string {
-	l := make([]string, 0, len(s))
-	for k := range s {
-		l = append(l, k)
-	}
-	sort.Strings(l)
-	return l
-}
-
-// union returns the union of this set and another.
-func (s stringSet) union(o stringSet) stringSet {
-	ns := newStringSet()
-	for k := range s {
-		ns[k] = struct{}{}
-	}
-	for k := range o {
-		ns[k] = struct{}{}
-	}
-	return ns
-}
-
-// intersect returns the intersection of this set and another.
-func (s stringSet) intersect(o stringSet) stringSet {
-	shorter, longer := s, o
-	if len(longer) < len(shorter) {
-		shorter, longer = longer, shorter
-	}
-
-	ns := newStringSet()
-	for k := range shorter {
-		if _, ok := longer[k]; ok {
-			ns[k] = struct{}{}
-		}
-	}
-	return ns
 }

@@ -1,10 +1,10 @@
+// Package collectd provides a service for InfluxDB to ingest data via the collectd protocol.
 package collectd // import "github.com/influxdata/influxdb/services/collectd"
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 // statistics gathered by the collectd service.
@@ -34,15 +35,15 @@ const (
 
 // pointsWriter is an internal interface to make testing easier.
 type pointsWriter interface {
-	WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
+	WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
-// metaStore is an internal interface to make testing easier.
+// metaClient is an internal interface to make testing easier.
 type metaClient interface {
 	CreateDatabase(name string) (*meta.DatabaseInfo, error)
 }
 
-// Reads a collectd types db from a file.
+// TypesDBFile reads a collectd types db from a file.
 func TypesDBFile(path string) (typesdb *api.TypesDB, err error) {
 	var reader *os.File
 	reader, err = os.Open(path)
@@ -58,7 +59,7 @@ type Service struct {
 	Config       *Config
 	MetaClient   metaClient
 	PointsWriter pointsWriter
-	Logger       *log.Logger
+	Logger       zap.Logger
 
 	wg      sync.WaitGroup
 	conn    *net.UDPConn
@@ -81,7 +82,7 @@ func NewService(c Config) *Service {
 		// Use defaults where necessary.
 		Config: c.WithDefaults(),
 
-		Logger:      log.New(os.Stderr, "[collectd] ", log.LstdFlags),
+		Logger:      zap.New(zap.NullEncoder()),
 		stats:       &Statistics{},
 		defaultTags: models.StatisticTags{"bind": c.BindAddress},
 	}
@@ -99,7 +100,7 @@ func (s *Service) Open() error {
 	}
 	s.done = make(chan struct{})
 
-	s.Logger.Printf("Starting collectd service")
+	s.Logger.Info("Starting collectd service")
 
 	if s.Config.BindAddress == "" {
 		return fmt.Errorf("bind address is blank")
@@ -114,12 +115,15 @@ func (s *Service) Open() error {
 		if stat, err := os.Stat(s.Config.TypesDB); err != nil {
 			return fmt.Errorf("Stat(): %s", err)
 		} else if stat.IsDir() {
-			alltypesdb := new(api.TypesDB)
+			alltypesdb, err := api.NewTypesDB(&bytes.Buffer{})
+			if err != nil {
+				return err
+			}
 			var readdir func(path string)
 			readdir = func(path string) {
 				files, err := ioutil.ReadDir(path)
 				if err != nil {
-					s.Logger.Printf("Unable to read directory %s: %s\n", path, err)
+					s.Logger.Info(fmt.Sprintf("Unable to read directory %s: %s\n", path, err))
 					return
 				}
 
@@ -130,10 +134,10 @@ func (s *Service) Open() error {
 						continue
 					}
 
-					s.Logger.Printf("Loading %s\n", fullpath)
+					s.Logger.Info(fmt.Sprintf("Loading %s\n", fullpath))
 					types, err := TypesDBFile(fullpath)
 					if err != nil {
-						s.Logger.Printf("Unable to parse collectd types file: %s\n", f.Name())
+						s.Logger.Info(fmt.Sprintf("Unable to parse collectd types file: %s\n", f.Name()))
 						continue
 					}
 
@@ -143,7 +147,7 @@ func (s *Service) Open() error {
 			readdir(s.Config.TypesDB)
 			s.popts.TypesDB = alltypesdb
 		} else {
-			s.Logger.Printf("Loading %s\n", s.Config.TypesDB)
+			s.Logger.Info(fmt.Sprintf("Loading %s\n", s.Config.TypesDB))
 			types, err := TypesDBFile(s.Config.TypesDB)
 			if err != nil {
 				return fmt.Errorf("Open(): %s", err)
@@ -190,7 +194,7 @@ func (s *Service) Open() error {
 	}
 	s.conn = conn
 
-	s.Logger.Println("Listening on UDP: ", conn.LocalAddr().String())
+	s.Logger.Info(fmt.Sprint("Listening on UDP: ", conn.LocalAddr().String()))
 
 	// Start the points batcher.
 	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchPending, time.Duration(s.Config.BatchDuration))
@@ -227,7 +231,7 @@ func (s *Service) Close() error {
 	// Release all remaining resources.
 	s.conn = nil
 	s.batcher = nil
-	s.Logger.Println("collectd UDP closed")
+	s.Logger.Info("collectd UDP closed")
 	s.done = nil
 	return nil
 }
@@ -262,10 +266,9 @@ func (s *Service) createInternalStorage() error {
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[collectd] ", log.LstdFlags)
+// WithLogger sets the service's logger.
+func (s *Service) WithLogger(log zap.Logger) {
+	s.Logger = log.With(zap.String("service", "collectd"))
 }
 
 // Statistics maintains statistics for the collectd service.
@@ -305,7 +308,7 @@ func (s *Service) SetTypes(types string) (err error) {
 	return
 }
 
-// Addr returns the listener's address. Returns nil if listener is closed.
+// Addr returns the listener's address. It returns nil if listener is closed.
 func (s *Service) Addr() net.Addr {
 	return s.conn.LocalAddr()
 }
@@ -333,7 +336,7 @@ func (s *Service) serve() {
 		n, _, err := s.conn.ReadFromUDP(buffer)
 		if err != nil {
 			atomic.AddInt64(&s.stats.ReadFail, 1)
-			s.Logger.Printf("collectd ReadFromUDP error: %s", err)
+			s.Logger.Info(fmt.Sprintf("collectd ReadFromUDP error: %s", err))
 			continue
 		}
 		if n > 0 {
@@ -347,7 +350,7 @@ func (s *Service) handleMessage(buffer []byte) {
 	valueLists, err := network.Parse(buffer, s.popts)
 	if err != nil {
 		atomic.AddInt64(&s.stats.PointsParseFail, 1)
-		s.Logger.Printf("Collectd parse error: %s", err)
+		s.Logger.Info(fmt.Sprintf("Collectd parse error: %s", err))
 		return
 	}
 	for _, valueList := range valueLists {
@@ -367,22 +370,22 @@ func (s *Service) writePoints() {
 		case batch := <-s.batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
-				s.Logger.Printf("Required database %s not yet created: %s", s.Config.Database, err.Error())
+				s.Logger.Info(fmt.Sprintf("Required database %s not yet created: %s", s.Config.Database, err.Error()))
 				continue
 			}
 
-			if err := s.PointsWriter.WritePoints(s.Config.Database, s.Config.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
+			if err := s.PointsWriter.WritePointsPrivileged(s.Config.Database, s.Config.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				s.Logger.Printf("failed to write point batch to database %q: %s", s.Config.Database, err)
+				s.Logger.Info(fmt.Sprintf("failed to write point batch to database %q: %s", s.Config.Database, err))
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 		}
 	}
 }
 
-// Unmarshal translates a ValueList into InfluxDB data points.
+// UnmarshalValueList translates a ValueList into InfluxDB data points.
 func (s *Service) UnmarshalValueList(vl *api.ValueList) []models.Point {
 	timestamp := vl.Time.UTC()
 
@@ -419,7 +422,7 @@ func (s *Service) UnmarshalValueList(vl *api.ValueList) []models.Point {
 		// Drop invalid points
 		p, err := models.NewPoint(name, models.NewTags(tags), fields, timestamp)
 		if err != nil {
-			s.Logger.Printf("Dropping point %v: %v", name, err)
+			s.Logger.Info(fmt.Sprintf("Dropping point %v: %v", name, err))
 			atomic.AddInt64(&s.stats.InvalidDroppedPoints, 1)
 			continue
 		}

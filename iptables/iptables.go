@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/net"

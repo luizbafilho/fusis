@@ -16,6 +16,8 @@
 package table
 
 import (
+	"fmt"
+
 	"github.com/osrg/gobgp/packet/bgp"
 )
 
@@ -43,7 +45,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 			continue
 		}
 		rf := path.GetRouteFamily()
-		key := path.getPrefix()
+		key := fmt.Sprintf("%d:%s", path.GetNlri().PathIdentifier(), path.getPrefix())
 
 		old, found := adj.table[rf][key]
 		if path.IsWithdraw {
@@ -59,7 +61,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				o := old.Filtered(adj.id)
 				if o == POLICY_DIRECTION_IN && n == POLICY_DIRECTION_NONE {
 					adj.accepted[rf]++
-				} else if o == POLICY_DIRECTION_NONE && n == POLICY_DIRECTION_IN {
+				} else if o != POLICY_DIRECTION_IN && n == POLICY_DIRECTION_IN {
 					adj.accepted[rf]--
 				}
 			} else {
@@ -167,4 +169,37 @@ func (adj *AdjRib) Exists(path *Path) bool {
 	}
 	_, ok = table[path.getPrefix()]
 	return ok
+}
+
+func (adj *AdjRib) Select(family bgp.RouteFamily, accepted bool, option ...TableSelectOption) (*Table, error) {
+	paths := adj.PathList([]bgp.RouteFamily{family}, accepted)
+	dsts := make(map[string]*Destination, len(paths))
+	for _, path := range paths {
+		if d, y := dsts[path.GetNlri().String()]; y {
+			d.knownPathList = append(d.knownPathList, path)
+		} else {
+			dst := NewDestination(path.GetNlri(), 0)
+			dsts[path.GetNlri().String()] = dst
+			dst.knownPathList = append(dst.knownPathList, path)
+		}
+	}
+	tbl := &Table{
+		routeFamily:  family,
+		destinations: dsts,
+	}
+	option = append(option, TableSelectOption{adj: true})
+	return tbl.Select(option...)
+}
+
+func (adj *AdjRib) TableInfo(family bgp.RouteFamily) (*TableInfo, error) {
+	if _, ok := adj.table[family]; !ok {
+		return nil, fmt.Errorf("%s unsupported", family)
+	}
+	c := adj.Count([]bgp.RouteFamily{family})
+	a := adj.Accepted([]bgp.RouteFamily{family})
+	return &TableInfo{
+		NumDestination: c,
+		NumPath:        c,
+		NumAccepted:    a,
+	}, nil
 }

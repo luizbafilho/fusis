@@ -21,10 +21,10 @@ import (
 
 type Vrf struct {
 	Name     string
+	Id       uint32
 	Rd       bgp.RouteDistinguisherInterface
 	ImportRt []bgp.ExtendedCommunityInterface
 	ExportRt []bgp.ExtendedCommunityInterface
-	LabelMap map[string]uint32
 }
 
 func (v *Vrf) Clone() *Vrf {
@@ -37,16 +37,10 @@ func (v *Vrf) Clone() *Vrf {
 	}
 	return &Vrf{
 		Name:     v.Name,
+		Id:       v.Id,
 		Rd:       v.Rd,
 		ImportRt: f(v.ImportRt),
 		ExportRt: f(v.ExportRt),
-		LabelMap: func() map[string]uint32 {
-			m := make(map[string]uint32)
-			for k, v := range v.LabelMap {
-				m[k] = v
-			}
-			return m
-		}(),
 	}
 }
 

@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/hashicorp/serf/serf"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/config"

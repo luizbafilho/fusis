@@ -20,9 +20,12 @@ func NewHTTP(addr string, timeout time.Duration) (*HTTP, error) {
 	return NewHTTPS(addr, timeout, false, "")
 }
 
-// NewHTTPS returns a new HTTPS points writer with default options and HTTPS configured
+// NewHTTPS returns a new HTTPS points writer with default options and HTTPS configured.
 func NewHTTPS(addr string, timeout time.Duration, unsafeSsl bool, caCerts string) (*HTTP, error) {
-	tlsConfig, err := createTlsConfig(caCerts)
+	tlsConfig, err := createTLSConfig(caCerts)
+	if err != nil {
+		return nil, err
+	}
 
 	conf := client.HTTPConfig{
 		Addr:               addr,
@@ -51,7 +54,7 @@ func (h *HTTP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
 	return
 }
 
-func createTlsConfig(caCerts string) (*tls.Config, error) {
+func createTLSConfig(caCerts string) (*tls.Config, error) {
 	if caCerts == "" {
 		return nil, nil
 	}

@@ -14,7 +14,7 @@ type MetaClient struct {
 	CreateDatabaseWithRetentionPolicyFn func(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
 	CreateRetentionPolicyFn             func(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error)
 	CreateSubscriptionFn                func(database, rp, name, mode string, destinations []string) error
-	CreateUserFn                        func(name, password string, admin bool) (*meta.UserInfo, error)
+	CreateUserFn                        func(name, password string, admin bool) (meta.User, error)
 	DatabaseFn                          func(name string) *meta.DatabaseInfo
 	DatabasesFn                         func() []meta.DatabaseInfo
 	DataNodeFn                          func(id uint64) (*meta.NodeInfo, error)
@@ -31,7 +31,7 @@ type MetaClient struct {
 	RetentionPolicyFn                   func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 	SetAdminPrivilegeFn                 func(username string, admin bool) error
 	SetPrivilegeFn                      func(username, database string, p influxql.Privilege) error
-	ShardsByTimeRangeFn                 func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error)
+	ShardGroupsByTimeRangeFn            func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	UpdateRetentionPolicyFn             func(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	UpdateUserFn                        func(name, password string) error
 	UserPrivilegeFn                     func(username, database string) (*influxql.Privilege, error)
@@ -63,7 +63,7 @@ func (c *MetaClient) CreateSubscription(database, rp, name, mode string, destina
 	return c.CreateSubscriptionFn(database, rp, name, mode, destinations)
 }
 
-func (c *MetaClient) CreateUser(name, password string, admin bool) (*meta.UserInfo, error) {
+func (c *MetaClient) CreateUser(name, password string, admin bool) (meta.User, error) {
 	return c.CreateUserFn(name, password, admin)
 }
 
@@ -127,8 +127,8 @@ func (c *MetaClient) SetPrivilege(username, database string, p influxql.Privileg
 	return c.SetPrivilegeFn(username, database, p)
 }
 
-func (c *MetaClient) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
-	return c.ShardsByTimeRangeFn(sources, tmin, tmax)
+func (c *MetaClient) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+	return c.ShardGroupsByTimeRangeFn(database, policy, min, max)
 }
 
 func (c *MetaClient) UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error {

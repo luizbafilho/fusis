@@ -41,6 +41,8 @@ gobgp has six subcommands.
 % gobgp global rib [-a <address family>]
 # show a specific route information
 % gobgp global rib [<prefix>|<host>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+# show table summary
+% gobgp global rib summary [-a <address family>]
 ```
 
 #### - example
@@ -57,21 +59,27 @@ If you want to remove routes with the address of the ipv6 from global rib：
 ```shell
 % gobgp global rib add -a ipv4 10.0.0.0/24 origin igp
 % gobgp global rib add -a ipv4 10.0.0.0/24 origin egp
+% gobgp global rib add -a ipv4 10.0.0.0/24 aspath 10,20,100.100
+% gobgp global rib add -a ipv4 10.0.0.0/24 aspath "10 20 {30,40} 50"
 % gobgp global rib add -a ipv4 10.0.0.0/24 nexthop 20.20.20.20
 % gobgp global rib add -a ipv4 10.0.0.0/24 med 10
 % gobgp global rib add -a ipv4 10.0.0.0/24 local-pref 110
 % gobgp global rib add -a ipv4 10.0.0.0/24 community 100:100
 % gobgp global rib add -a ipv4 10.0.0.0/24 community 100:100,200:200
 % gobgp global rib add -a ipv4 10.0.0.0/24 community no-export
+% gobgp global rib add -a ipv4 10.0.0.0/24 community blackhole
 % gobgp global rib add -a ipv4 10.0.0.0/24 aigp metric 200
+% gobgp global rib add -a ipv4 10.0.0.0/24 large-community 100:100:100
+% gobgp global rib add -a ipv4 10.0.0.0/24 large-community 100:100:100,200:200:200
+% gobgp global rib add -a ipv4 10.0.0.0/24 identifier 10
 % gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100
 % gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100/200
 % gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100 nexthop 20.20.20.20
 % gobgp global rib add -a ipv4-mpls 10.0.0.0/24 100 med 10
-% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100:100
-% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100.100:100
-% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 10.10.10.10:100
-% gobgp global rib add -a vpnv4 10.0.0.0/24 rd 100:100 rt 100:200
+% gobgp global rib add -a vpnv4 10.0.0.0/24 label 10 rd 100:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 label 10 rd 100.100:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 label 10 rd 10.10.10.10:100
+% gobgp global rib add -a vpnv4 10.0.0.0/24 label 10 rd 100:100 rt 100:200
 % gobgp global rib add -a opaque key hello value world
 ```
 
@@ -97,13 +105,16 @@ The following options can be specified in the global subcommand:
 ### 2.2. Operations for neighbor - shutdown/reset/softreset/enable/disable -
 #### - syntax
 ```shell
-% gobgp neighbor <neighbor address> shutdown
-% gobgp neighbor <neighbor address> reset
+# add neighbor
+% gobgp neighbor add { <neighbor address> | interface <ifname> } as <as number> [ vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as ]
+# delete neighbor
+% gobgp neighbor delete { <neighbor address> | interface <ifname> }
 % gobgp neighbor <neighbor address> softreset [-a <address family>]
 % gobgp neighbor <neighbor address> softresetin [-a <address family>]
 % gobgp neighbor <neighbor address> softresetout [-a <address family>]
 % gobgp neighbor <neighbor address> enable
 % gobgp neighbor <neighbor address> disable
+% gobgp neighbor <neighbor address> reset
 ```
 #### - option
   The following options can be specified in the neighbor subcommand:
@@ -119,6 +130,10 @@ The following options can be specified in the global subcommand:
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [-a <address family>]
 # show a specific route in [local|adj-in|adj-out] table
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [<prefix>|<host>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+# show table summary
+% gobgp neighbor <neighbor address> [local|adj-in|adj-out] summary [-a <address family>]
+# show RPKI detailed information in adj-in table
+% gobgp neighbor <neighbor address> adj-in <prefix> validation
 ```
 
 #### - example
@@ -334,22 +349,48 @@ If you want to remove one element(extended community) of ExtCommunitySet, to spe
 % gobgp policy prefix del ecs1 RT:65100:10
 ```
 
-### 3.6 Statement Operation - add/del/show -
+### 3.6. Operations for LargeCommunitySet - add/del/show -
+#### Syntax
+```shell
+# add LargeCommunitySet
+% gobgp policy large-community add <set name> <large community>...
+# delete a specific LargeCommunitySet
+% gobgp policy large-community del <set name>
+# delete a large-community from a LargeCommunitySet
+% gobgp policy large-community del <set name> <large community>
+# show all LargeCommunitySet information
+% gobgp policy large-community
+# show a specific LargeCommunitySet information
+% gobgp policy large-community <set name>
+```
+
+#### Example
+```shell
+% gobgp policy large-community add l0 100:100:100
+% gobgp policy large-community add l0 ^100:
+% gobgp policy large-community add l0 :100$
+% gobgp policy large-community del l0 100:100:100
+% gobgp policy large-community add l0 200:100:100
+% gobgp policy large-community
+% gobgp policy large-community set l0 100:100:100 200:200:200 300:300:300
+```
+
+### 3.7 Statement Operation - add/del/show -
 #### Syntax
 ```shell
 # mod statement
 % gobgp policy statement { add | del } <statement name>
 # mod a condition to a statement
-% gobgp policy statement <statement name> { add | del | set } condition { { prefix | neighbor | as-path | community | ext-community } <set name> [{ any | all | invert }] | as-path-length <len> { eq | ge | le } | rpki { valid | invalid | not-found } }
+% gobgp policy statement <statement name> { add | del | set } condition { { prefix | neighbor | as-path | community | ext-community | large-community } <set name> [{ any | all | invert }] | as-path-length <len> { eq | ge | le } | rpki { valid | invalid | not-found } }
 # mod an action to a statement
-% gobgp policy statement <statement name> { add | del | set } action { reject | accept | { community | ext-community } { add | remove | replace } <value>... | med { add | sub | set } <value> | local-pref <value> | as-prepend { <asn> | last-as } <repeat-value> }
+% gobgp policy statement <statement name> { add | del | set } action { reject | accept | { community | ext-community | large-community } { add | remove | replace } <value>... | med { add | sub | set } <value> | local-pref <value> | as-prepend { <asn> | last-as } <repeat-value> }
 # show all statements
 % gobgp policy statement
 # show a specific statement
 % gobgp policy statement <statement name>
 ```
 
-### 3.7 Policy Operation - add/del/show -
+### 3.8 Policy Operation - add/del/show -
 #### Syntax
 ```shell
 # mod policy

@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/state"
@@ -14,6 +13,7 @@ import (
 	"github.com/osrg/gobgp/packet/bgp"
 	gobgp "github.com/osrg/gobgp/server"
 	"github.com/osrg/gobgp/table"
+	log "github.com/sirupsen/logrus"
 )
 
 type BgpService struct {
@@ -140,13 +140,14 @@ func (bs *BgpService) AddPath(route string) error {
 func (bs *BgpService) GetPaths() ([]string, error) {
 	paths := []string{}
 
-	var lookupPrefix []*gobgp.LookupPrefix
-	_, dsts, err := bs.bgp.GetRib("", bgp.RF_IPv4_UC, lookupPrefix)
+	// var lookupPrefix []*gobgp.LookupPrefix
+	var lookupPrefix []*table.LookupPrefix
+	table, err := bs.bgp.GetRib("", bgp.RF_IPv4_UC, lookupPrefix)
 	if err != nil {
 		return paths, fmt.Errorf("[bgp] Error getting bgp paths. %v", err)
 	}
 
-	for k := range dsts {
+	for k := range table.GetDestinations() {
 		paths = append(paths, strings.TrimSuffix(k, "/32"))
 	}
 

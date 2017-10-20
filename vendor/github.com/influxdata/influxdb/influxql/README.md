@@ -36,6 +36,27 @@ Notation operators in order of increasing precedence:
 {}  repetition (0 to n times)
 ```
 
+## Comments
+
+Both single and multiline comments are supported. A comment is treated
+the same as whitespace by the parser.
+
+```
+-- single line comment
+/*
+    multiline comment
+*/
+```
+
+Single line comments will skip all text until the scanner hits a
+newline. Multiline comments will skip all text until the end comment
+marker is hit. Nested multiline comments are not supported so the
+following does not work:
+
+```
+/* /* this does not work */ */
+```
+
 ## Query representation
 
 ### Characters
@@ -115,7 +136,7 @@ InfluxQL supports decimal integer literals.  Hexadecimal and octal literals are
 not currently supported.
 
 ```
-int_lit             = ( "1" … "9" ) { digit } .
+int_lit             = [ "+" | "-" ] ( "1" … "9" ) { digit } .
 ```
 
 ### Floats
@@ -123,7 +144,7 @@ int_lit             = ( "1" … "9" ) { digit } .
 InfluxQL supports floating-point literals.  Exponents are not currently supported.
 
 ```
-float_lit           = int_lit "." int_lit .
+float_lit           = [ "+" | "-" ] ( "." digit { digit } | digit { digit } "." { digit } ) .
 ```
 
 ### Strings
@@ -766,7 +787,8 @@ REVOKE READ ON "mydb" FROM "jdoe"
 ```
 select_stmt = "SELECT" fields from_clause [ into_clause ] [ where_clause ]
               [ group_by_clause ] [ order_by_clause ] [ limit_clause ]
-              [ offset_clause ] [ slimit_clause ] [ soffset_clause ] .
+              [ offset_clause ] [ slimit_clause ] [ soffset_clause ]
+              [ timezone_clause ] .
 ```
 
 #### Examples:
@@ -777,6 +799,9 @@ SELECT mean("value") FROM "cpu" WHERE "region" = 'uswest' GROUP BY time(10m) fil
 
 -- select from all measurements beginning with cpu into the same measurement name in the cpu_1h retention policy
 SELECT mean("value") INTO "cpu_1h".:MEASUREMENT FROM /cpu.*/
+
+-- select from measurements grouped by the day with a timezone
+SELECT mean("value") FROM "cpu" GROUP BY region, time(1d) fill(0) tz("America/Chicago")
 ```
 
 ## Clauses
@@ -796,6 +821,8 @@ slimit_clause   = "SLIMIT" int_lit .
 
 soffset_clause  = "SOFFSET" int_lit .
 
+timezone_clause = tz(string_lit) .
+
 on_clause       = "ON" db_name .
 
 order_by_clause = "ORDER BY" sort_fields .
@@ -812,8 +839,8 @@ with_tag_clause = "WITH KEY" ( "=" tag_key | "!=" tag_key | "=~" regex_lit | "IN
 ## Expressions
 
 ```
-binary_op        = "+" | "-" | "*" | "/" | "AND" | "OR" | "=" | "!=" | "<>" | "<" |
-                   "<=" | ">" | ">=" .
+binary_op        = "+" | "-" | "*" | "/" | "%" | "&" | "|" | "^" | "AND" |
+                   "OR" | "=" | "!=" | "<>" | "<" | "<=" | ">" | ">=" .
 
 expr             = unary_expr { binary_op unary_expr } .
 
@@ -931,7 +958,7 @@ points:
 
 ```
 type FloatIterator interface {
-    Next() *FloatPoint
+    Next() (*FloatPoint, error)
 }
 ```
 
@@ -939,7 +966,7 @@ These iterators are created through the `IteratorCreator` interface:
 
 ```
 type IteratorCreator interface {
-    CreateIterator(opt *IteratorOptions) (Iterator, error)
+    CreateIterator(m *Measurement, opt IteratorOptions) (Iterator, error)
 }
 ```
 
@@ -1046,3 +1073,89 @@ Some iterators are more complex or need to be implemented at a higher level.
 For example, the `DERIVATIVE()` needs to retrieve all points for a window first
 before performing the calculation. This iterator is created by the engine itself
 and is never requested to be created by the lower levels.
+
+### Subqueries
+
+Subqueries are built on top of iterators. Most of the work involved in
+supporting subqueries is in organizing how data is streamed to the
+iterators that will process the data.
+
+The final ordering of the stream has to output all points from one
+series before moving to the next series and it also needs to ensure
+those points are printed in order. So there are two separate concepts we
+need to consider when creating an iterator: ordering and grouping.
+
+When an inner query has a different grouping than the outermost query,
+we still need to group together related points into buckets, but we do
+not have to ensure that all points from one buckets are output before
+the points in another bucket. In fact, if we do that, we will be unable
+to perform the grouping for the outer query correctly. Instead, we group
+all points by the outermost query for an interval and then, within that
+interval, we group the points for the inner query. For example, here are
+series keys and times in seconds (fields are omitted since they don't
+matter in this example):
+
+    cpu,host=server01 0
+    cpu,host=server01 10
+    cpu,host=server01 20
+    cpu,host=server01 30
+    cpu,host=server02 0
+    cpu,host=server02 10
+    cpu,host=server02 20
+    cpu,host=server02 30
+
+With the following query:
+
+    SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY host, time(20s)) GROUP BY time(20s)
+
+The final grouping keeps all of the points together which means we need
+to group `server01` with `server02`. That means we output the points
+from the underlying engine like this:
+
+    cpu,host=server01 0
+    cpu,host=server01 10
+    cpu,host=server02 0
+    cpu,host=server02 10
+    cpu,host=server01 20
+    cpu,host=server01 30
+    cpu,host=server02 20
+    cpu,host=server02 30
+
+Within each one of those time buckets, we calculate the `max()` value
+for each unique host so the output stream gets transformed to look like
+this:
+
+    cpu,host=server01 0
+    cpu,host=server02 0
+    cpu,host=server01 20
+    cpu,host=server02 20
+
+Then we can process the `mean()` on this stream of data instead and it
+will be output in the correct order. This is true of any order of
+grouping since grouping can only go from more specific to less specific.
+
+When it comes to ordering, unordered data is faster to process, but we
+always need to produce ordered data. When processing a raw query with no
+aggregates, we need to ensure data coming from the engine is ordered so
+the output is ordered. When we have an aggregate, we know one point is
+being emitted for each interval and will always produce ordered output.
+So for aggregates, we can take unordered data as the input and get
+ordered output. Any ordered data as input will always result in ordered
+data so we just need to look at how an iterator processes unordered
+data.
+
+|                 | raw query        | selector (without group by time) | selector (with group by time) | aggregator     |
+|-----------------|------------------|----------------------------------|-------------------------------|----------------|
+| ordered input   | ordered output   | ordered output                   | ordered output                | ordered output |
+| unordered input | unordered output | unordered output                 | ordered output                | ordered output |
+
+Since we always need ordered output, we just need to work backwards and
+determine which pattern of input gives us ordered output. If both
+ordered and unordered input produce ordered output, we prefer unordered
+input since it is faster.
+
+There are also certain aggregates that require ordered input like
+`median()` and `percentile()`. These functions will explicitly request
+ordered input. It is also important to realize that selectors that are
+grouped by time are the equivalent of an aggregator. It is only
+selectors without a group by time that are different.

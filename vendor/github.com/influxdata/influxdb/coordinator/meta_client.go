@@ -14,7 +14,7 @@ type MetaClient interface {
 	CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
 	CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error)
 	CreateSubscription(database, rp, name, mode string, destinations []string) error
-	CreateUser(name, password string, admin bool) (*meta.UserInfo, error)
+	CreateUser(name, password string, admin bool) (meta.User, error)
 	Database(name string) *meta.DatabaseInfo
 	Databases() []meta.DatabaseInfo
 	DropShard(id uint64) error
@@ -26,7 +26,7 @@ type MetaClient interface {
 	RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 	SetAdminPrivilege(username string, admin bool) error
 	SetPrivilege(username, database string, p influxql.Privilege) error
-	ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error)
+	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	UpdateUser(name, password string) error
 	UserPrivilege(username, database string) (*influxql.Privilege, error)

@@ -13,16 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-from fabric.api import local
-from lib import base
-from lib.gobgp import *
-from lib.exabgp import *
+from __future__ import absolute_import
+
 import sys
-import os
 import time
+import unittest
+
+from fabric.api import local
 import nose
-from noseplugin import OptionParser, parser_option
+
+from lib.noseplugin import OptionParser, parser_option
+
+from lib import base
+from lib.base import BGP_FSM_ESTABLISHED
+from lib.gobgp import GoBGPContainer
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -80,18 +84,18 @@ class GoBGPTestBase(unittest.TestCase):
         g1.set_prefix_set(ps0)
 
         st0 = {'conditions': {'match-prefix-set': {'prefix-set': 'ps0'}},
-               'actions': {'route-disposition': {'accept-route': True}}}
+               'actions': {'route-disposition': 'accept-route'}}
 
         pol0 = {'name': 'pol0', 'statements': [st0]}
 
-        filename = g1.add_policy(pol0, g3, 'in', 'reject')
+        _filename = g1.add_policy(pol0, g3, 'in', 'reject')
 
         g3.add_route('10.0.10.0/24')
         g3.add_route('10.0.20.0/24')
 
         time.sleep(1)
 
-        num = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num = g2.get_neighbor(g1)['state']['messages']['received']['update']
 
         ps0 = {'prefix-set-name': 'ps0', 'prefix-list': [p1]}
         g1.set_prefix_set(ps0)
@@ -101,14 +105,14 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(1)
 
-        num2 = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
-        self.assertTrue(num+1 == num2)
+        num2 = g2.get_neighbor(g1)['state']['messages']['received']['update']
+        self.assertTrue((num + 1) == num2)
 
         g3.softreset(g1, type='out')
 
         time.sleep(1)
 
-        num3 = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num3 = g2.get_neighbor(g1)['state']['messages']['received']['update']
         self.assertTrue(num2 == num3)
 
     def test_03_softresetin_test2(self):
@@ -118,21 +122,18 @@ class GoBGPTestBase(unittest.TestCase):
         g2.add_route('10.0.10.0/24')
         time.sleep(1)
 
-        num = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num = g2.get_neighbor(g1)['state']['messages']['received']['update']
         time.sleep(3)
 
         g1.local('gobgp n all softresetin')
         time.sleep(3)
 
-        num1 = g2.get_neighbor(g1)['info']['messages']['received']['UPDATE']
+        num1 = g2.get_neighbor(g1)['state']['messages']['received']['update']
 
         self.assertTrue(num == num1)
 
 
 if __name__ == '__main__':
-    if os.geteuid() is not 0:
-        print "you are not root."
-        sys.exit(1)
     output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
     if int(output) is not 0:
         print "docker not found"

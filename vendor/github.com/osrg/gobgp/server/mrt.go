@@ -21,11 +21,16 @@ import (
 	"os"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/osrg/gobgp/config"
 	"github.com/osrg/gobgp/packet/bgp"
 	"github.com/osrg/gobgp/packet/mrt"
 	"github.com/osrg/gobgp/table"
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	MIN_ROTATION_INTERVAL = 60
+	MIN_DUMP_INTERVAL     = 60
 )
 
 type mrtWriter struct {
@@ -74,7 +79,7 @@ func (m *mrtWriter) loop() error {
 		if m.rotationInterval != 0 {
 			rotator.Stop()
 		}
-		if m.dumpInterval == 0 {
+		if m.dumpInterval != 0 {
 			dump.Stop()
 		}
 		w.Stop()
@@ -104,7 +109,7 @@ func (m *mrtWriter) loop() error {
 				t := uint32(time.Now().Unix())
 				peers := make([]*mrt.Peer, 0, len(m.Neighbor))
 				for _, pconf := range m.Neighbor {
-					peers = append(peers, mrt.NewPeer(pconf.State.Description, pconf.Config.NeighborAddress, pconf.Config.PeerAs, true))
+					peers = append(peers, mrt.NewPeer(pconf.State.RemoteRouterId, pconf.State.NeighborAddress, pconf.Config.PeerAs, true))
 				}
 				if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.RouterId, "", peers)); err != nil {
 					break
@@ -114,7 +119,7 @@ func (m *mrtWriter) loop() error {
 
 				idx := func(p *table.Path) uint16 {
 					for i, pconf := range m.Neighbor {
-						if p.GetSource().Address.String() == pconf.Config.NeighborAddress {
+						if p.GetSource().Address.String() == pconf.State.NeighborAddress {
 							return uint16(i)
 						}
 					}
@@ -142,7 +147,7 @@ func (m *mrtWriter) loop() error {
 						if path.IsLocal() {
 							continue
 						}
-						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.GetPathAttrs()))
+						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs()))
 					}
 					if len(entries) > 0 {
 						bm, _ := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, subtype(pathList[0]), mrt.NewRib(seq, pathList[0].GetNlri(), entries))
@@ -197,13 +202,7 @@ func (m *mrtWriter) loop() error {
 				w(b.Bytes())
 			}
 		}
-		select {
-		case <-m.dead:
-			drain(nil)
-			return nil
-		case e := <-w.Event():
-			drain(e)
-		case <-rotator.C:
+		rotate := func() {
 			m.file.Close()
 			file, err := mrtFileOpen(m.filename, m.rotationInterval)
 			if err == nil {
@@ -213,6 +212,23 @@ func (m *mrtWriter) loop() error {
 					"Topic": "mrt",
 					"Error": err,
 				}).Warn("can't rotate MRT file")
+			}
+		}
+
+		select {
+		case <-m.dead:
+			drain(nil)
+			return nil
+		case e := <-w.Event():
+			drain(e)
+			if m.dumpType == config.MRT_TYPE_TABLE && m.rotationInterval != 0 {
+				rotate()
+			}
+		case <-rotator.C:
+			if m.dumpType == config.MRT_TYPE_UPDATES {
+				rotate()
+			} else {
+				w.Generate(WATCH_EVENT_TYPE_TABLE)
 			}
 		case <-dump.C:
 			w.Generate(WATCH_EVENT_TYPE_TABLE)
@@ -291,21 +307,37 @@ func (m *mrtManager) enable(c *config.MrtConfig) error {
 	}
 
 	rInterval := c.RotationInterval
-	if rInterval != 0 && rInterval < 30 {
-		log.Info("minimum mrt dump interval is 30 seconds")
-		rInterval = 30
-	}
 	dInterval := c.DumpInterval
+
+	setRotationMin := func() {
+		if rInterval < MIN_ROTATION_INTERVAL {
+			log.WithFields(log.Fields{
+				"Topic": "MRT",
+			}).Info("minimum mrt rotation interval is %d seconds", MIN_ROTATION_INTERVAL)
+			rInterval = MIN_ROTATION_INTERVAL
+		}
+	}
+
 	if c.DumpType == config.MRT_TYPE_TABLE {
-		if dInterval < 60 {
-			log.Info("minimum mrt dump interval is 30 seconds")
-			dInterval = 60
+		if rInterval == 0 {
+			if dInterval < MIN_DUMP_INTERVAL {
+				log.WithFields(log.Fields{
+					"Topic": "MRT",
+				}).Info("minimum mrt dump interval is %d seconds", MIN_DUMP_INTERVAL)
+				dInterval = MIN_DUMP_INTERVAL
+			}
+		} else if dInterval == 0 {
+			setRotationMin()
+		} else {
+			return fmt.Errorf("can't specify both intervals in the table dump type")
 		}
 	} else if c.DumpType == config.MRT_TYPE_UPDATES {
+		// ignore the dump interval
 		dInterval = 0
 		if len(c.TableName) > 0 {
 			return fmt.Errorf("can't specify the table name with the update dump type")
 		}
+		setRotationMin()
 	}
 
 	w, err := newMrtWriter(m.bgpServer, c.DumpType, c.FileName, c.TableName, rInterval, dInterval)

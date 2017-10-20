@@ -26,12 +26,12 @@ func NewTestBGPOpenMessage() *BGPMessage {
 		[]ParameterCapabilityInterface{NewCapMultiProtocol(RF_IPv4_UC)})
 	g := &CapGracefulRestartTuple{4, 2, 3}
 	p3 := NewOptionParameterCapability(
-		[]ParameterCapabilityInterface{NewCapGracefulRestart(false, 100,
+		[]ParameterCapabilityInterface{NewCapGracefulRestart(false, true, 100,
 			[]*CapGracefulRestartTuple{g})})
 	p4 := NewOptionParameterCapability(
 		[]ParameterCapabilityInterface{NewCapFourOctetASNumber(100000)})
 	p5 := NewOptionParameterCapability(
-		[]ParameterCapabilityInterface{NewCapAddPath(RF_IPv4_UC, BGP_ADD_PATH_BOTH)})
+		[]ParameterCapabilityInterface{NewCapAddPath([]*CapAddPathTuple{NewCapAddPathTuple(RF_IPv4_UC, BGP_ADD_PATH_BOTH)})})
 	return NewBGPOpenMessage(11033, 303, "100.4.10.3",
 		[]OptionParameterInterface{p1, p2, p3, p4, p5})
 }

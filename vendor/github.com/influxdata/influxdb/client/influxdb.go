@@ -1,7 +1,10 @@
+// Package client implements a now-deprecated client for InfluxDB;
+// use github.com/influxdata/influxdb/client/v2 instead.
 package client // import "github.com/influxdata/influxdb/client"
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -144,7 +147,7 @@ func NewClient(c Config) (*Client, error) {
 		// No need for compression in local communications.
 		tr.DisableCompression = true
 
-		tr.Dial = func(_, _ string) (net.Conn, error) {
+		tr.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
 			return net.Dial("unix", c.UnixSocket)
 		}
 	}

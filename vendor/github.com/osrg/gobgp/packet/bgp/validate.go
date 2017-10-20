@@ -8,7 +8,9 @@ import (
 )
 
 // Validator for BGPUpdate
-func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
+func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]BGPAddPathMode, doConfedCheck bool) (bool, error) {
+	var strongestError error
+
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeAttrList := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 	eSubCodeMissing := uint8(BGP_ERROR_SUB_MISSING_WELL_KNOWN_ATTRIBUTE)
@@ -20,24 +22,36 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck boo
 	}
 
 	seen := make(map[BGPAttrType]PathAttributeInterface)
+	newAttrs := make([]PathAttributeInterface, 0, len(seen))
 	// check path attribute
 	for _, a := range m.PathAttributes {
 		// check duplication
 		if _, ok := seen[a.GetType()]; !ok {
 			seen[a.GetType()] = a
-		} else {
+			newAttrs = append(newAttrs, a)
+			//check specific path attribute
+			ok, err := ValidateAttribute(a, rfs, doConfedCheck)
+			if !ok {
+				if err.(*MessageError).ErrorHandling == ERROR_HANDLING_SESSION_RESET {
+					return false, err
+				} else if err.(*MessageError).Stronger(strongestError) {
+					strongestError = err
+				}
+			}
+		} else if a.GetType() == BGP_ATTR_TYPE_MP_REACH_NLRI || a.GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
 			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
 			return false, NewMessageError(eCode, eSubCodeAttrList, nil, eMsg)
-		}
-
-		//check specific path attribute
-		ok, e := ValidateAttribute(a, rfs, doConfedCheck)
-		if !ok {
-			return false, e
+		} else {
+			eMsg := "the path attribute apears twice. Type : " + strconv.Itoa(int(a.GetType()))
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeAttrList, nil, ERROR_HANDLING_ATTRIBUTE_DISCARD, nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	}
+	m.PathAttributes = newAttrs
 
-	if len(m.NLRI) > 0 {
+	if _, ok := seen[BGP_ATTR_TYPE_MP_REACH_NLRI]; ok || len(m.NLRI) > 0 {
 		// check the existence of well-known mandatory attributes
 		exist := func(attrs []BGPAttrType) (bool, BGPAttrType) {
 			for _, attr := range attrs {
@@ -48,17 +62,25 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[RouteFamily]bool, doConfedCheck boo
 			}
 			return true, 0
 		}
-		mandatory := []BGPAttrType{BGP_ATTR_TYPE_ORIGIN, BGP_ATTR_TYPE_AS_PATH, BGP_ATTR_TYPE_NEXT_HOP}
+		mandatory := []BGPAttrType{BGP_ATTR_TYPE_ORIGIN, BGP_ATTR_TYPE_AS_PATH}
+		if len(m.NLRI) > 0 {
+			mandatory = append(mandatory, BGP_ATTR_TYPE_NEXT_HOP)
+		}
 		if ok, t := exist(mandatory); !ok {
 			eMsg := "well-known mandatory attributes are not present. type : " + strconv.Itoa(int(t))
 			data := []byte{byte(t)}
-			return false, NewMessageError(eCode, eSubCodeMissing, data, eMsg)
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeMissing, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	}
-	return true, nil
+
+	return strongestError == nil, strongestError
 }
 
-func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doConfedCheck bool) (bool, error) {
+func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]BGPAddPathMode, doConfedCheck bool) (bool, error) {
+	var strongestError error
 
 	eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 	eSubCodeBadOrigin := uint8(BGP_ERROR_SUB_INVALID_ORIGIN_ATTRIBUTE)
@@ -123,7 +145,10 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 			v != BGP_ORIGIN_ATTR_TYPE_INCOMPLETE {
 			data, _ := a.Serialize()
 			eMsg := "invalid origin attribute. value : " + strconv.Itoa(int(v))
-			return false, NewMessageError(eCode, eSubCodeBadOrigin, data, eMsg)
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeBadOrigin, data, getErrorHandlingFromPathAttribute(p.GetType()), nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	case *PathAttributeNextHop:
 
@@ -141,7 +166,10 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 		if p.Value.IsLoopback() || isZero(p.Value) || isClassDorE(p.Value) {
 			eMsg := "invalid nexthop address"
 			data, _ := a.Serialize()
-			return false, NewMessageError(eCode, eSubCodeBadNextHop, data, eMsg)
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeBadNextHop, data, getErrorHandlingFromPathAttribute(p.GetType()), nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	case *PathAttributeAsPath:
 		if doConfedCheck {
@@ -155,10 +183,29 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 				}
 
 				if segType == BGP_ASPATH_ATTR_TYPE_CONFED_SET || segType == BGP_ASPATH_ATTR_TYPE_CONFED_SEQ {
-					return false, NewMessageError(eCode, eSubCodeMalformedAspath, nil, fmt.Sprintf("segment type confederation(%d) found", segType))
+					err := NewMessageErrorWithErrorHandling(
+						eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, fmt.Sprintf("segment type confederation(%d) found", segType))
+					if err.(*MessageError).Stronger(strongestError) {
+						strongestError = err
+					}
 				}
 			}
 		}
+	case *PathAttributeLargeCommunities:
+		uniq := make([]*LargeCommunity, 0, len(p.Values))
+		for _, x := range p.Values {
+			found := false
+			for _, y := range uniq {
+				if x.String() == y.String() {
+					found = true
+					break
+				}
+			}
+			if !found {
+				uniq = append(uniq, x)
+			}
+		}
+		p.Values = uniq
 
 	case *PathAttributeUnknown:
 		if p.GetFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
@@ -168,8 +215,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[RouteFamily]bool, doCon
 		}
 	}
 
-	return true, nil
-
+	return strongestError == nil, strongestError
 }
 
 // validator for PathAttribute
@@ -215,9 +261,9 @@ func ValidateBGPMessage(m *BGPMessage) error {
 	return nil
 }
 
-func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) error {
+func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) (uint32, error) {
 	if m.Version != 4 {
-		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, nil, fmt.Sprintf("upsuppored version %d", m.Version))
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, nil, fmt.Sprintf("upsuppored version %d", m.Version))
 	}
 
 	as := uint32(m.MyAS)
@@ -233,12 +279,12 @@ func ValidateOpenMsg(m *BGPOpen, expectedAS uint32) error {
 			}
 		}
 	}
-	if as != expectedAS {
-		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_BAD_PEER_AS, nil, fmt.Sprintf("as number mismatch expected %d, received %d", expectedAS, as))
+	if expectedAS != 0 && as != expectedAS {
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_BAD_PEER_AS, nil, fmt.Sprintf("as number mismatch expected %d, received %d", expectedAS, as))
 	}
 
 	if m.HoldTime < 3 && m.HoldTime != 0 {
-		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNACCEPTABLE_HOLD_TIME, nil, fmt.Sprintf("unacceptable hold time %d", m.HoldTime))
+		return 0, NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNACCEPTABLE_HOLD_TIME, nil, fmt.Sprintf("unacceptable hold time %d", m.HoldTime))
 	}
-	return nil
+	return as, nil
 }

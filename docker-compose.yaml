@@ -1,0 +1,56 @@
+version: '2'
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    privileged: true
+    environment:
+      STORE_ADDRESS: consul://172.100.0.30:8500
+    volumes:
+      - ".:/go/src/github.com/luizbafilho/fusis/"
+      - "/lib/modules:/lib/modules"
+    depends_on:
+      - consul
+    command: go test -race ./...
+
+  fusis:
+    build:
+      context: .
+    privileged: true
+    depends_on:
+      - consul
+      - bird
+    volumes:
+      - "./fusis.toml:/etc/fusis.toml"
+      - "/lib/modules:/lib/modules"
+    networks:
+      default:
+        ipv4_address: 172.100.0.10
+
+  bird:
+    build:
+      context: .
+      dockerfile: Dockerfile.bird
+    privileged: true
+    volumes:
+      - "./bird.conf:/etc/bird/bird.conf"
+    networks:
+      default:
+        ipv4_address: 172.100.0.20
+
+  consul:
+    image: consul:1.0.0
+    networks:
+      default:
+        ipv4_address: 172.100.0.30
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.100.0.0/24
+

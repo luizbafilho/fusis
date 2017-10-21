@@ -1,9 +1,11 @@
 package net
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGetSysctl(t *testing.T) {
-	got, err := GetSysctl("net.ipv4.tcp_sack")
+	got, err := GetSysctl("net.ipv4.ip_forward")
 	ex := "1"
 	if err != nil {
 		t.Fatalf("Could not read key")

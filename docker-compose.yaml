@@ -1,10 +1,25 @@
 version: '2'
 
 services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    privileged: true
+    environment:
+      STORE_ADDRESS: consul://172.100.0.30:8500
+    volumes:
+      - ".:/go/src/github.com/luizbafilho/fusis/"
+      - "/lib/modules:/lib/modules"
+    depends_on:
+      - consul
+    working_dir: /go/src/github.com/luizbafilho/fusis/
+    command: sh -c "go build -o bin/fusis && bin/fusis balancer"
+
   test:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile.dev
     privileged: true
     environment:
       STORE_ADDRESS: consul://172.100.0.30:8500

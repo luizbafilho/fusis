@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/health"
@@ -22,6 +21,7 @@ import (
 	"github.com/luizbafilho/fusis/vip"
 	"github.com/luizbafilho/leadership"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 type Balancer interface {
@@ -137,12 +137,23 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 	go balancer.watchLeaderChanges()
 	go balancer.watchStore()
 	go balancer.watchState()
+	go balancer.reconcile()
 
 	go metrics.Monitor()
 
-	balancer.loadInitialState()
+	err = balancer.loadInitialState()
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to load initial state")
+	}
 
 	return balancer, nil
+}
+
+func (b *FusisBalancer) reconcile() {
+	ticker := time.NewTicker(30 * time.Second)
+	for _ = range ticker.C {
+		b.changesCh <- true
+	}
 }
 
 func (b *FusisBalancer) loadInitialState() error {

@@ -15,6 +15,9 @@ services:
       - consul
     working_dir: /go/src/github.com/luizbafilho/fusis/
     command: sh -c "go build -o bin/fusis && bin/fusis balancer"
+    networks:
+      default:
+        ipv4_address: 172.100.0.5
 
   test:
     build:

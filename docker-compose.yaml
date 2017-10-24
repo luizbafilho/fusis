@@ -59,7 +59,7 @@ services:
         ipv4_address: 172.100.0.20
 
   consul:
-    image: consul:1.0.0
+    image: consul:0.7.1
     networks:
       default:
         ipv4_address: 172.100.0.30

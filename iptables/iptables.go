@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/deckarep/golang-set"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/net"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -54,13 +54,13 @@ func New(config *config.BalancerConfig) (*IptablesMngr, error) {
 	}
 
 	// create FUSIS iptables chain, ignore error in case FUSIS chain already exists
-	_ = exec.Command(path, "--wait", "-t", "nat", "-N", "FUSIS").Run()
+	_ = exec.Command(path, "-t", "nat", "-N", "FUSIS").Run()
 
 	// if FUSIS chain is not present in POSTROUTING
-	err = exec.Command(path, "--wait", "-t", "nat", "-C", "POSTROUTING", "-j", "FUSIS").Run()
+	err = exec.Command(path, "-t", "nat", "-C", "POSTROUTING", "-j", "FUSIS").Run()
 	if err != nil {
 		// add FUSIS chain
-		err = exec.Command(path, "--wait", "-t", "nat", "-A", "POSTROUTING", "-j", "FUSIS").Run()
+		err = exec.Command(path, "-t", "nat", "-A", "POSTROUTING", "-j", "FUSIS").Run()
 		if err != nil {
 			return nil, ErrIptablesRule
 		}
@@ -83,8 +83,6 @@ func (i IptablesMngr) Sync(s state.State) error {
 		log.Debugf("[iptables ] Sync took %v", time.Since(start))
 	}()
 
-	i.Lock()
-	defer i.Unlock()
 	log.Debug("[iptables] Syncing")
 
 	stateSet, err := i.getStateRulesSet(s)
@@ -203,7 +201,9 @@ func (i IptablesMngr) removeRule(r SnatRule) error {
 }
 
 func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
-	cmd := exec.Command(i.path, "--wait", "-t", "nat", action, "FUSIS", "-m", "ipvs", "--vaddr", r.vaddr+"/32", "--vport", r.vport, "-j", "SNAT", "--to-source", r.toSource)
+	i.Lock()
+	defer i.Unlock()
+	cmd := exec.Command(i.path, "-t", "nat", action, "FUSIS", "-m", "ipvs", "--vaddr", r.vaddr+"/32", "--vport", r.vport, "-j", "SNAT", "--to-source", r.toSource)
 	err := cmd.Run()
 	if err != nil {
 		return err
@@ -213,7 +213,9 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 }
 
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
-	out, err := exec.Command(i.path, "--wait", "--list", "FUSIS", "-t", "nat").Output()
+	i.Lock()
+	defer i.Unlock()
+	out, err := exec.Command(i.path, "--list", "FUSIS", "-t", "nat").Output()
 	if err != nil {
 		log.Fatal("[iptables] Error executing iptables ", err)
 	}

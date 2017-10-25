@@ -15,16 +15,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
-
 	"time"
 
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"golang.org/x/net/context"
+
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 )
@@ -266,6 +266,7 @@ func (ls *leaseStresser) keepLeaseAlive(leaseID int64) {
 	defer ls.aliveWg.Done()
 	ctx, cancel := context.WithCancel(ls.ctx)
 	stream, err := ls.lc.LeaseKeepAlive(ctx)
+	defer func() { cancel() }()
 	for {
 		select {
 		case <-time.After(500 * time.Millisecond):
@@ -289,6 +290,7 @@ func (ls *leaseStresser) keepLeaseAlive(leaseID int64) {
 			cancel()
 			ctx, cancel = context.WithCancel(ls.ctx)
 			stream, err = ls.lc.LeaseKeepAlive(ctx)
+			cancel()
 			continue
 		}
 		err = stream.Send(&pb.LeaseKeepAliveRequest{ID: leaseID})
@@ -360,17 +362,21 @@ func (ls *leaseStresser) randomlyDropLease(leaseID int64) (bool, error) {
 	return false, ls.ctx.Err()
 }
 
-func (ls *leaseStresser) Cancel() {
-	plog.Debugf("lease stresser %q is canceling...", ls.endpoint)
+func (ls *leaseStresser) Pause() {
+	ls.Close()
+}
+
+func (ls *leaseStresser) Close() {
+	plog.Debugf("lease stresser %q is closing...", ls.endpoint)
 	ls.cancel()
 	ls.runWg.Wait()
 	ls.aliveWg.Wait()
 	ls.conn.Close()
-	plog.Infof("lease stresser %q is canceled", ls.endpoint)
+	plog.Infof("lease stresser %q is closed", ls.endpoint)
 }
 
 func (ls *leaseStresser) ModifiedKeys() int64 {
 	return atomic.LoadInt64(&ls.atomicModifiedKey)
 }
 
-func (ls *leaseStresser) Checker() Checker { return &leaseChecker{ls: ls} }
+func (ls *leaseStresser) Checker() Checker { return &leaseChecker{endpoint: ls.endpoint, ls: ls} }

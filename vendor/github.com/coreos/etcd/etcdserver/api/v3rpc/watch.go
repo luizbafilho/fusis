@@ -15,12 +15,12 @@
 package v3rpc
 
 import (
+	"context"
 	"io"
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
-
+	"github.com/coreos/etcd/auth"
 	"github.com/coreos/etcd/etcdserver"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
@@ -33,6 +33,8 @@ type watchServer struct {
 	memberID  int64
 	raftTimer etcdserver.RaftTimer
 	watchable mvcc.WatchableKV
+
+	ag AuthGetter
 }
 
 func NewWatchServer(s *etcdserver.EtcdServer) pb.WatchServer {
@@ -41,6 +43,7 @@ func NewWatchServer(s *etcdserver.EtcdServer) pb.WatchServer {
 		memberID:  int64(s.ID()),
 		raftTimer: s,
 		watchable: s.Watchable(),
+		ag:        s,
 	}
 }
 
@@ -101,6 +104,8 @@ type serverWatchStream struct {
 
 	// wg waits for the send loop to complete
 	wg sync.WaitGroup
+
+	ag AuthGetter
 }
 
 func (ws *watchServer) Watch(stream pb.Watch_WatchServer) (err error) {
@@ -118,6 +123,8 @@ func (ws *watchServer) Watch(stream pb.Watch_WatchServer) (err error) {
 		progress:   make(map[mvcc.WatchID]bool),
 		prevKV:     make(map[mvcc.WatchID]bool),
 		closec:     make(chan struct{}),
+
+		ag: ws.ag,
 	}
 
 	sws.wg.Add(1)
@@ -150,6 +157,19 @@ func (ws *watchServer) Watch(stream pb.Watch_WatchServer) (err error) {
 	return err
 }
 
+func (sws *serverWatchStream) isWatchPermitted(wcr *pb.WatchCreateRequest) bool {
+	authInfo, err := sws.ag.AuthInfoFromCtx(sws.gRPCStream.Context())
+	if err != nil {
+		return false
+	}
+	if authInfo == nil {
+		// if auth is enabled, IsRangePermitted() can cause an error
+		authInfo = &auth.AuthInfo{}
+	}
+
+	return sws.ag.AuthStore().IsRangePermitted(authInfo, wcr.Key, wcr.RangeEnd) == nil
+}
+
 func (sws *serverWatchStream) recvLoop() error {
 	for {
 		req, err := sws.gRPCStream.Recv()
@@ -171,10 +191,32 @@ func (sws *serverWatchStream) recvLoop() error {
 				// \x00 is the smallest key
 				creq.Key = []byte{0}
 			}
+			if len(creq.RangeEnd) == 0 {
+				// force nil since watchstream.Watch distinguishes
+				// between nil and []byte{} for single key / >=
+				creq.RangeEnd = nil
+			}
 			if len(creq.RangeEnd) == 1 && creq.RangeEnd[0] == 0 {
 				// support  >= key queries
 				creq.RangeEnd = []byte{}
 			}
+
+			if !sws.isWatchPermitted(creq) {
+				wr := &pb.WatchResponse{
+					Header:       sws.newResponseHeader(sws.watchStream.Rev()),
+					WatchId:      -1,
+					Canceled:     true,
+					Created:      true,
+					CancelReason: rpctypes.ErrGRPCPermissionDenied.Error(),
+				}
+
+				select {
+				case sws.ctrlStream <- wr:
+				case <-sws.closec:
+				}
+				return nil
+			}
+
 			filters := FiltersFromRequest(creq)
 
 			wsrev := sws.watchStream.Rev()
@@ -278,11 +320,13 @@ func (sws *serverWatchStream) sendLoop() {
 				}
 			}
 
+			canceled := wresp.CompactRevision != 0
 			wr := &pb.WatchResponse{
 				Header:          sws.newResponseHeader(wresp.Revision),
 				WatchId:         int64(wresp.WatchID),
 				Events:          events,
 				CompactRevision: wresp.CompactRevision,
+				Canceled:        canceled,
 			}
 
 			if _, hasId := ids[wresp.WatchID]; !hasId {

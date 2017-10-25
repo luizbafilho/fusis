@@ -15,15 +15,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
-
-	"google.golang.org/grpc"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"golang.org/x/net/context"
+
+	"google.golang.org/grpc"
 )
 
 const (
@@ -81,6 +81,7 @@ func (hc *hashChecker) Check() error {
 }
 
 type leaseChecker struct {
+	endpoint    string
 	ls          *leaseStresser
 	leaseClient pb.LeaseClient
 	kvc         pb.KVClient
@@ -132,7 +133,8 @@ func (lc *leaseChecker) checkShortLivedLease(ctx context.Context, leaseID int64)
 	var resp *pb.LeaseTimeToLiveResponse
 	for i := 0; i < retries; i++ {
 		resp, err = lc.getLeaseByID(ctx, leaseID)
-		if rpctypes.Error(err) == rpctypes.ErrLeaseNotFound {
+		// lease not found, for ~v3.1 compatibilities, check ErrLeaseNotFound
+		if (err == nil && resp.TTL == -1) || (err != nil && rpctypes.Error(err) == rpctypes.ErrLeaseNotFound) {
 			return nil
 		}
 		if err != nil {
@@ -157,12 +159,12 @@ func (lc *leaseChecker) checkShortLivedLease(ctx context.Context, leaseID int64)
 func (lc *leaseChecker) checkLease(ctx context.Context, expired bool, leaseID int64) error {
 	keysExpired, err := lc.hasKeysAttachedToLeaseExpired(ctx, leaseID)
 	if err != nil {
-		plog.Errorf("hasKeysAttachedToLeaseExpired error: (%v)", err)
+		plog.Errorf("hasKeysAttachedToLeaseExpired error %v (endpoint %q)", err, lc.endpoint)
 		return err
 	}
 	leaseExpired, err := lc.hasLeaseExpired(ctx, leaseID)
 	if err != nil {
-		plog.Errorf("hasLeaseExpired error: (%v)", err)
+		plog.Errorf("hasLeaseExpired error %v (endpoint %q)", err, lc.endpoint)
 		return err
 	}
 	if leaseExpired != keysExpired {
@@ -194,13 +196,15 @@ func (lc *leaseChecker) hasLeaseExpired(ctx context.Context, leaseID int64) (boo
 	// keep retrying until lease's state is known or ctx is being canceled
 	for ctx.Err() == nil {
 		resp, err := lc.getLeaseByID(ctx, leaseID)
-		if err == nil {
-			return false, nil
+		if err != nil {
+			// for ~v3.1 compatibilities
+			if rpctypes.Error(err) == rpctypes.ErrLeaseNotFound {
+				return true, nil
+			}
+		} else {
+			return resp.TTL == -1, nil
 		}
-		if rpctypes.Error(err) == rpctypes.ErrLeaseNotFound {
-			return true, nil
-		}
-		plog.Warningf("hasLeaseExpired %v resp %v error (%v)", leaseID, resp, err)
+		plog.Warningf("hasLeaseExpired %v resp %v error %v (endpoint %q)", leaseID, resp, err, lc.endpoint)
 	}
 	return false, ctx.Err()
 }
@@ -213,9 +217,8 @@ func (lc *leaseChecker) hasKeysAttachedToLeaseExpired(ctx context.Context, lease
 		Key:      []byte(fmt.Sprintf("%d", leaseID)),
 		RangeEnd: []byte(clientv3.GetPrefixRangeEnd(fmt.Sprintf("%d", leaseID))),
 	}, grpc.FailFast(false))
-	plog.Debugf("hasKeysAttachedToLeaseExpired %v resp %v error (%v)", leaseID, resp, err)
 	if err != nil {
-		plog.Errorf("retriving keys attached to lease %v error: (%v)", leaseID, err)
+		plog.Errorf("retrieving keys attached to lease %v error %v (endpoint %q)", leaseID, err, lc.endpoint)
 		return false, err
 	}
 	return len(resp.Kvs) == 0, nil
@@ -240,6 +243,19 @@ func (cchecker *compositeChecker) Check() error {
 		}
 	}
 	return errsToError(errs)
+}
+
+type runnerChecker struct {
+	errc chan error
+}
+
+func (rc *runnerChecker) Check() error {
+	select {
+	case err := <-rc.errc:
+		return err
+	default:
+		return nil
+	}
 }
 
 type noChecker struct{}

@@ -15,14 +15,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
-
-	"net/http"
-	"net/url"
 
 	"github.com/coreos/etcd/etcdserver/stats"
 	"github.com/coreos/etcd/pkg/fileutil"
@@ -33,7 +33,6 @@ import (
 	"github.com/coreos/etcd/snap"
 	"github.com/coreos/etcd/wal"
 	"github.com/coreos/etcd/wal/walpb"
-	"golang.org/x/net/context"
 )
 
 // A key-value stream backed by raft
@@ -94,7 +93,6 @@ func newRaftNode(id int, peers []string, join bool, getSnapshot func() ([]byte, 
 		waldir:      fmt.Sprintf("raftexample-%d", id),
 		snapdir:     fmt.Sprintf("raftexample-%d-snap", id),
 		getSnapshot: getSnapshot,
-		raftStorage: raft.NewMemoryStorage(),
 		snapCount:   defaultSnapCount,
 		stopc:       make(chan struct{}),
 		httpstopc:   make(chan struct{}),
@@ -108,14 +106,17 @@ func newRaftNode(id int, peers []string, join bool, getSnapshot func() ([]byte, 
 }
 
 func (rc *raftNode) saveSnap(snap raftpb.Snapshot) error {
-	if err := rc.snapshotter.SaveSnap(snap); err != nil {
-		return err
-	}
+	// must save the snapshot index to the WAL before saving the
+	// snapshot to maintain the invariant that we only Open the
+	// wal at previously-saved snapshot indexes.
 	walSnap := walpb.Snapshot{
 		Index: snap.Metadata.Index,
 		Term:  snap.Metadata.Term,
 	}
 	if err := rc.wal.SaveSnapshot(walSnap); err != nil {
+		return err
+	}
+	if err := rc.snapshotter.SaveSnap(snap); err != nil {
 		return err
 	}
 	return rc.wal.ReleaseLockTo(snap.Metadata.Index)
@@ -185,8 +186,16 @@ func (rc *raftNode) publishEntries(ents []raftpb.Entry) bool {
 	return true
 }
 
+func (rc *raftNode) loadSnapshot() *raftpb.Snapshot {
+	snapshot, err := rc.snapshotter.Load()
+	if err != nil && err != snap.ErrNoSnapshot {
+		log.Fatalf("raftexample: error loading snapshot (%v)", err)
+	}
+	return snapshot
+}
+
 // openWAL returns a WAL ready for reading.
-func (rc *raftNode) openWAL() *wal.WAL {
+func (rc *raftNode) openWAL(snapshot *raftpb.Snapshot) *wal.WAL {
 	if !wal.Exist(rc.waldir) {
 		if err := os.Mkdir(rc.waldir, 0750); err != nil {
 			log.Fatalf("raftexample: cannot create dir for wal (%v)", err)
@@ -199,7 +208,12 @@ func (rc *raftNode) openWAL() *wal.WAL {
 		w.Close()
 	}
 
-	w, err := wal.Open(rc.waldir, walpb.Snapshot{})
+	walsnap := walpb.Snapshot{}
+	if snapshot != nil {
+		walsnap.Index, walsnap.Term = snapshot.Metadata.Index, snapshot.Metadata.Term
+	}
+	log.Printf("loading WAL at term %d and index %d", walsnap.Term, walsnap.Index)
+	w, err := wal.Open(rc.waldir, walsnap)
 	if err != nil {
 		log.Fatalf("raftexample: error loading wal (%v)", err)
 	}
@@ -209,11 +223,19 @@ func (rc *raftNode) openWAL() *wal.WAL {
 
 // replayWAL replays WAL entries into the raft instance.
 func (rc *raftNode) replayWAL() *wal.WAL {
-	w := rc.openWAL()
+	log.Printf("replaying WAL of member %d", rc.id)
+	snapshot := rc.loadSnapshot()
+	w := rc.openWAL(snapshot)
 	_, st, ents, err := w.ReadAll()
 	if err != nil {
 		log.Fatalf("raftexample: failed to read WAL (%v)", err)
 	}
+	rc.raftStorage = raft.NewMemoryStorage()
+	if snapshot != nil {
+		rc.raftStorage.ApplySnapshot(*snapshot)
+	}
+	rc.raftStorage.SetHardState(st)
+
 	// append to storage so raft starts at the right place in log
 	rc.raftStorage.Append(ents)
 	// send nil once lastIndex is published so client knows commit channel is current
@@ -222,7 +244,6 @@ func (rc *raftNode) replayWAL() *wal.WAL {
 	} else {
 		rc.commitC <- nil
 	}
-	rc.raftStorage.SetHardState(st)
 	return w
 }
 
@@ -269,14 +290,11 @@ func (rc *raftNode) startRaft() {
 		rc.node = raft.StartNode(c, startPeers)
 	}
 
-	ss := &stats.ServerStats{}
-	ss.Initialize()
-
 	rc.transport = &rafthttp.Transport{
 		ID:          types.ID(rc.id),
 		ClusterID:   0x1000,
 		Raft:        rc,
-		ServerStats: ss,
+		ServerStats: stats.NewServerStats("", ""),
 		LeaderStats: stats.NewLeaderStats(strconv.Itoa(rc.id)),
 		ErrorC:      make(chan error),
 	}

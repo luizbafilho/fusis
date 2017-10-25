@@ -15,29 +15,13 @@ ETCDCTL_KEY=/tmp/key.pem
 
 Prefix flag strings with `ETCDCTL_`, convert all letters to upper-case, and replace dash(`-`) with underscore(`_`).
 
-## Commands
-
-### VERSION
-
-Prints the version of etcdctl
-
-#### Return value
-
-##### Simple reply
-
-- Prints etcd version and API version
-
-#### Examples
-
-```bash
-./etcdctl version
-# etcdctl version: 3.1.0-alpha.0+git
-# API version: 3.1
-```
+## Key-value commands
 
 ### PUT [options] \<key\> \<value\>
 
 PUT assigns the specified value with the specified key. If key already holds a value, it is overwritten.
+
+RPC: Put
 
 #### Options
 
@@ -45,21 +29,13 @@ PUT assigns the specified value with the specified key. If key already holds a v
 
 - prev-kv -- return the previous key-value pair before modification.
 
-#### Return value
+- ignore-value -- updates the key using its current value.
 
-##### Simple reply
+- ignore-lease -- updates the key using its current lease.
 
-- OK if PUT executed correctly. Exit code is zero.
+#### Output
 
-- Error string if PUT failed. Exit code is non-zero.
-
-##### JSON reply
-
-The JSON encoding of the PUT [RPC response][etcdrpc].
-
-##### Protobuf reply
-
-The protobuf encoding of the PUT [RPC response][etcdrpc].
+`OK`
 
 #### Examples
 
@@ -69,6 +45,18 @@ The protobuf encoding of the PUT [RPC response][etcdrpc].
 ./etcdctl get foo
 # foo
 # bar
+./etcdctl put foo --ignore-value # to detache lease
+# OK
+```
+
+```bash
+./etcdctl put foo bar --lease=1234abcd
+# OK
+./etcdctl put foo bar1 --ignore-lease # to use existing lease 1234abcd
+# OK
+./etcdctl get foo
+# foo
+# bar1
 ```
 
 ```bash
@@ -81,7 +69,7 @@ The protobuf encoding of the PUT [RPC response][etcdrpc].
 # bar1
 ```
 
-#### Notes
+#### Remarks
 
 If \<value\> isn't given as command line argument, this command tries to read the value from standard input.
 
@@ -96,6 +84,8 @@ Insert '--' for workaround:
 ### GET [options] \<key\> [range_end]
 
 GET gets the key or a range of keys [key, range_end) if `range-end` is given.
+
+RPC: Range
 
 #### Options
 
@@ -119,23 +109,13 @@ GET gets the key or a range of keys [key, range_end) if `range-end` is given.
 
 - keys-only -- Get only the keys
 
-#### Return value
+#### Output
 
-##### Simple reply
-
-- \<key\>\n\<value\>\n\<next_key\>\n\<next_value\>...
-
-- Error string if GET failed. Exit code is non-zero.
-
-##### JSON reply
-
-The JSON encoding of the [RPC response][etcdrpc] for the GET's Range request.
-
-##### Protobuf reply
-
-The protobuf encoding of the [RPC message][etcdrpc] for a key-value pair for each fetched key-value.
+\<key\>\n\<value\>\n\<next_key\>\n\<next_value\>...
 
 #### Examples
+
+First, populate etcd with some keys:
 
 ```bash
 ./etcdctl put foo bar
@@ -146,9 +126,33 @@ The protobuf encoding of the [RPC message][etcdrpc] for a key-value pair for eac
 # OK
 ./etcdctl put foo3 bar3
 # OK
+```
+
+Get the key named `foo`:
+
+```bash
 ./etcdctl get foo
 # foo
 # bar
+```
+
+Get all keys:
+
+```bash
+./etcdctl get --from-key ''
+# foo
+# bar
+# foo1
+# bar1
+# foo2
+# foo2
+# foo3
+# bar3
+```
+
+Get all keys with names greater than or equal to `foo1`:
+
+```bash
 ./etcdctl get --from-key foo1
 # foo1
 # bar1
@@ -156,6 +160,11 @@ The protobuf encoding of the [RPC message][etcdrpc] for a key-value pair for eac
 # bar2
 # foo3
 # bar3
+```
+
+Get keys with names greater than or equal to `foo1` and less than `foo3`:
+
+```bash
 ./etcdctl get foo1 foo3
 # foo1
 # bar1
@@ -163,14 +172,15 @@ The protobuf encoding of the [RPC message][etcdrpc] for a key-value pair for eac
 # bar2
 ```
 
-#### Notes
+#### Remarks
 
-If any key or value contains non-printable characters or control characters, the output in text format (e.g. simple reply) might be ambiguous.
-Adding `--hex` to print key or value as hex encode string in text format can resolve this issue.
+If any key or value contains non-printable characters or control characters, simple formatted output can be ambiguous due to new lines. To resolve this issue, set `--hex` to hex encode all strings.
 
 ### DEL [options] \<key\> [range_end]
 
 Removes the specified key or range of keys [key, range_end) if `range-end` is given.
+
+RPC: DeleteRange
 
 #### Options
 
@@ -180,21 +190,9 @@ Removes the specified key or range of keys [key, range_end) if `range-end` is gi
 
 - from-key -- delete keys that are greater than or equal to the given key using byte compare
 
-#### Return value
+#### Output
 
-##### Simple reply
-
-- The number of keys that were removed in decimal if DEL executed correctly. Exit code is zero.
-
-- Error string if DEL failed. Exit code is non-zero.
-
-##### JSON reply
-
-The JSON encoding of the DeleteRange [RPC response][etcdrpc].
-
-##### Protobuf reply
-
-The protobuf encoding of the DeleteRange [RPC response][etcdrpc].
+Prints the number of keys that were removed in decimal if DEL succeeded.
 
 #### Examples
 
@@ -245,21 +243,24 @@ The protobuf encoding of the DeleteRange [RPC response][etcdrpc].
 TXN reads multiple etcd requests from standard input and applies them as a single atomic transaction.
 A transaction consists of list of conditions, a list of requests to apply if all the conditions are true, and a list of requests to apply if any condition is false.
 
+RPC: Txn
+
 #### Options
 
-- hex -- print out keys and values as hex encoded string
+- hex -- print out keys and values as hex encoded strings.
 
-- interactive -- input transaction with interactive prompting
+- interactive -- input transaction with interactive prompting.
 
 #### Input Format
 ```ebnf
 <Txn> ::= <CMP>* "\n" <THEN> "\n" <ELSE> "\n"
-<CMP> ::= (<CMPCREATE>|<CMPMOD>|<CMPVAL>|<CMPVER>) "\n"
+<CMP> ::= (<CMPCREATE>|<CMPMOD>|<CMPVAL>|<CMPVER>|<CMPLEASE>) "\n"
 <CMPOP> ::= "<" | "=" | ">"
 <CMPCREATE> := ("c"|"create")"("<KEY>")" <REVISION>
 <CMPMOD> ::= ("m"|"mod")"("<KEY>")" <CMPOP> <REVISION>
 <CMPVAL> ::= ("val"|"value")"("<KEY>")" <CMPOP> <VALUE>
 <CMPVER> ::= ("ver"|"version")"("<KEY>")" <CMPOP> <VERSION>
+<CMPLEASE> ::= "lease("<KEY>")" <CMPOP> <LEASE>
 <THEN> ::= <OP>*
 <ELSE> ::= <OP>*
 <OP> ::= ((see put, get, del etcdctl command syntax)) "\n"
@@ -267,25 +268,12 @@ A transaction consists of list of conditions, a list of requests to apply if all
 <VALUE> ::= (%q formatted string)
 <REVISION> ::= "\""[0-9]+"\""
 <VERSION> ::= "\""[0-9]+"\""
+<LEASE> ::= "\""[0-9]+\""
 ```
 
-#### Return value
+#### Output
 
-##### Simple reply
-
-- SUCCESS if etcd processed the transaction success list, FAILURE if etcd processed the transaction failure list.
-
-- Simple reply for each command executed request list, each separated by a blank line.
-
-- Additional error string if TXN failed. Exit code is non-zero.
-
-##### JSON reply
-
-The JSON encoding of the Txn [RPC response][etcdrpc].
-
-##### Protobuf reply
-
-The protobuf encoding of the Txn [RPC response][etcdrpc].
+`SUCCESS` if etcd processed the transaction success list, `FAILURE` if etcd processed the transaction failure list. Prints the output for each command in the executed request list, each separated by a blank line.
 
 #### Examples
 
@@ -327,9 +315,33 @@ put key2 "some extra key"
 # OK
 ```
 
+### COMPACTION [options] \<revision\>
+
+COMPACTION discards all etcd event history prior to a given revision. Since etcd uses a multiversion concurrency control
+model, it preserves all key updates as event history. When the event history up to some revision is no longer needed,
+all superseded keys may be compacted away to reclaim storage space in the etcd backend database.
+
+RPC: Compact
+
+#### Options
+
+- physical -- 'true' to wait for compaction to physically remove all old revisions
+
+#### Output
+
+Prints the compacted revision.
+
+#### Example
+```bash
+./etcdctl compaction 1234
+# compacted revision 1234
+```
+
 ### WATCH [options] [key or prefix] [range_end]
 
 Watch watches events stream on keys or prefixes, [key or prefix, range_end) if `range-end` is given. The watch command runs until it encounters an error or is terminated by the user.  If range_end is given, it must be lexicographically greater than key or "\x00".
+
+RPC: Watch
 
 #### Options
 
@@ -343,7 +355,7 @@ Watch watches events stream on keys or prefixes, [key or prefix, range_end) if `
 
 - rev -- the revision to start watching. Specifying a revision is useful for observing past events.
 
-#### Input Format
+#### Input format
 
 Input is only accepted for interactive mode.
 
@@ -351,21 +363,9 @@ Input is only accepted for interactive mode.
 watch [options] <key or prefix>\n
 ```
 
-#### Return value
+#### Output
 
-##### Simple reply
-
-- \<event\>[\n\<old_key\>\n\<old_value\>]\n\<key\>\n\<value\>\n\<event\>\n\<next_key\>\n\<next_value\>\n...
-
-- Additional error string if WATCH failed. Exit code is non-zero.
-
-##### JSON reply
-
-The JSON encoding of the [RPC message][storagerpc] for each received Event.
-
-##### Protobuf reply
-
-The protobuf encoding of the [RPC message][storagerpc] for each received Event.
+\<event\>[\n\<old_key\>\n\<old_value\>]\n\<key\>\n\<value\>\n\<event\>\n\<next_key\>\n\<next_value\>\n...
 
 #### Examples
 
@@ -401,11 +401,11 @@ LEASE provides commands for key lease management.
 LEASE GRANT creates a fresh lease with a server-selected time-to-live in seconds
 greater than or equal to the requested TTL value.
 
-#### Return value
+RPC: LeaseGrant
 
-- On success, prints a message with the granted lease ID.
+#### Output
 
-- On failure, prints an error message and returns with a non-zero exit code.
+Prints a message with the granted lease ID.
 
 #### Example
 
@@ -418,11 +418,11 @@ greater than or equal to the requested TTL value.
 
 LEASE REVOKE destroys a given lease, deleting all attached keys.
 
-#### Return value
+RPC: LeaseRevoke
 
-- On success, prints a message indicating the lease is revoked.
+#### Output
 
-- On failure, prints an error message and returns with a non-zero exit code.
+Prints a message indicating the lease is revoked.
 
 #### Example
 
@@ -431,20 +431,19 @@ LEASE REVOKE destroys a given lease, deleting all attached keys.
 # lease 32695410dcc0ca06 revoked
 ```
 
-
 ### LEASE TIMETOLIVE \<leaseID\> [options]
 
 LEASE TIMETOLIVE retrieves the lease information with the given lease ID.
+
+RPC: LeaseTimeToLive
 
 #### Options
 
 - keys -- Get keys attached to this lease
 
-#### Return value
+#### Output
 
-- On success, prints lease information.
-
-- On failure, prints an error message and returns with a non-zero exit code.
+Prints lease information.
 
 #### Example
 
@@ -471,16 +470,35 @@ LEASE TIMETOLIVE retrieves the lease information with the given lease ID.
 # {"cluster_id":17186838941855831277,"member_id":4845372305070271874,"revision":3,"raft_term":2,"id":3279279168933706764,"ttl":459,"granted-ttl":500,"keys":["Zm9vMQ==","Zm9vMg=="]}
 ```
 
+### LEASE LIST
+
+LEASE LIST lists all active leases.
+
+RPC: LeaseLeases
+
+#### Output
+
+Prints a message with a list of active leases.
+
+#### Example
+
+```bash
+./etcdctl lease grant 10
+# lease 32695410dcc0ca06 granted with TTL(10s)
+
+./etcdctl lease list
+32695410dcc0ca06
+```
 
 ### LEASE KEEP-ALIVE \<leaseID\>
 
 LEASE KEEP-ALIVE periodically refreshes a lease so it does not expire.
 
-#### Return value
+RPC: LeaseKeepAlive
 
-- On success, prints a message for every keep alive sent.
+#### Output
 
-- On failure, returns a non-zero exit code if a keep-alive channel could not be established. Otherwise, prints a message indicating the lease is gone.
+Prints a message for every keep alive sent or prints a message indicating the lease is gone.
 
 #### Example
 ```bash
@@ -491,6 +509,7 @@ LEASE KEEP-ALIVE periodically refreshes a lease so it does not expire.
 ...
 ```
 
+## Cluster maintenance commands
 
 ### MEMBER \<subcommand\>
 
@@ -500,37 +519,41 @@ MEMBER provides commands for managing etcd cluster membership.
 
 MEMBER ADD introduces a new member into the etcd cluster as a new peer.
 
+RPC: MemberAdd
+
 #### Options
 
 - peer-urls -- comma separated list of URLs to associate with the new member.
 
-#### Return value
+#### Output
 
-- On success, prints the member ID of the new member and the cluster ID.
-
-- On failure, prints an error message and returns with a non-zero exit code.
+Prints the member ID of the new member and the cluster ID.
 
 #### Example
 
 ```bash
 ./etcdctl member add newMember --peer-urls=https://127.0.0.1:12345
-# Member 2be1eb8f84b7f63e added to cluster ef37ad9dc622a7c4
-```
 
+Member ced000fda4d05edf added to cluster 8c4281cc65c7b112
+
+ETCD_NAME="newMember"
+ETCD_INITIAL_CLUSTER="newMember=https://127.0.0.1:12345,default=http://10.0.0.30:2380"
+ETCD_INITIAL_CLUSTER_STATE="existing"
+```
 
 ### MEMBER UPDATE \<memberID\> [options]
 
 MEMBER UPDATE sets the peer URLs for an existing member in the etcd cluster.
 
+RPC: MemberUpdate
+
 #### Options
 
 - peer-urls -- comma separated list of URLs to associate with the updated member.
 
-#### Return value
+#### Output
 
-- On success, prints the member ID of the updated member and the cluster ID.
-
-- On failure, prints an error message and returns with a non-zero exit code.
+Prints the member ID of the updated member and the cluster ID.
 
 #### Example
 
@@ -539,16 +562,15 @@ MEMBER UPDATE sets the peer URLs for an existing member in the etcd cluster.
 # Member 2be1eb8f84b7f63e updated in cluster ef37ad9dc622a7c4
 ```
 
-
 ### MEMBER REMOVE \<memberID\>
 
 MEMBER REMOVE removes a member of an etcd cluster from participating in cluster consensus.
 
-#### Return value
+RPC: MemberRemove
 
-- On success, prints the member ID of the removed member and the cluster ID.
+#### Output
 
-- On failure, prints an error message and returns with a non-zero exit code.
+Prints the member ID of the removed member and the cluster ID.
 
 #### Example
 
@@ -561,19 +583,11 @@ MEMBER REMOVE removes a member of an etcd cluster from participating in cluster 
 
 MEMBER LIST prints the member details for all members associated with an etcd cluster.
 
-#### Return value
+RPC: [MemberList][member_list_rpc].
 
-##### Simple reply
+#### Output
 
-On success, prints a humanized table of the member IDs, statuses, names, peer addresses, and client addresses. On failure, prints an error message and returns with a non-zero exit code.
-
-##### JSON reply
-
-On success, prints a JSON listing of the member IDs, statuses, names, peer addresses, and client addresses. On failure, prints an error message and returns with a non-zero exit code.
-
-##### Protobuf reply
-
-The protobuf encoding of the MEMBER LIST [RPC response][member_list_rpc].
+Prints a humanized table of the member IDs, statuses, names, peer addresses, and client addresses.
 
 #### Examples
 
@@ -600,212 +614,212 @@ The protobuf encoding of the MEMBER LIST [RPC response][member_list_rpc].
 +------------------+---------+--------+------------------------+------------------------+
 ```
 
-## Utility Commands
-
 ### ENDPOINT \<subcommand\>
 
 ENDPOINT provides commands for querying individual endpoints.
+
+#### Options
+
+- cluster -- fetch and use all endpoints from the etcd cluster member list
 
 ### ENDPOINT HEALTH
 
 ENDPOINT HEALTH checks the health of the list of endpoints with respect to cluster. An endpoint is unhealthy
 when it cannot participate in consensus with the rest of the cluster.
 
-#### Return value
+#### Output
 
-- If an endpoint can participate in consensus, prints a message indicating the endpoint is healthy.
-
-- If an endpoint fails to participate in consensus, prints a message indicating the endpoint is unhealthy.
+If an endpoint can participate in consensus, prints a message indicating the endpoint is healthy. If an endpoint fails to participate in consensus, prints a message indicating the endpoint is unhealthy.
 
 #### Example
 
+Check the default endpoint's health:
+
 ```bash
 ./etcdctl endpoint health
-# 127.0.0.1:32379 is healthy: successfully committed proposal: took = 2.130877ms
 # 127.0.0.1:2379 is healthy: successfully committed proposal: took = 2.095242ms
-# 127.0.0.1:22379 is healthy: successfully committed proposal: took = 2.083263ms
+```
+
+Check all endpoints for the cluster associated with the default endpoint:
+
+```bash
+./etcdctl endpoint --cluster health
+# http://127.0.0.1:2379 is healthy: successfully committed proposal: took = 1.060091ms
+# http://127.0.0.1:22379 is healthy: successfully committed proposal: took = 903.138µs
+# http://127.0.0.1:32379 is healthy: successfully committed proposal: took = 1.113848ms
 ```
 
 ### ENDPOINT STATUS
 
 ENDPOINT STATUS queries the status of each endpoint in the given endpoint list.
 
-#### Return value
+#### Output
 
-##### Simple reply
+##### Simple format
 
-On success, prints a humanized table of each endpoint URL, ID, version, database size, leadership status, raft term, and raft status. On failure, returns with a non-zero exit code.
+Prints a humanized table of each endpoint URL, ID, version, database size, leadership status, raft term, and raft status.
 
-##### JSON reply
+##### JSON format
 
-On success, prints a line of JSON encoding each endpoint URL, ID, version, database size, leadership status, raft term, and raft status. On failure, returns with a non-zero exit code.
-
-##### Protobuf reply
-
-ENDPOINT STATUS does not support protobuf encoded output.
+Prints a line of JSON encoding each endpoint URL, ID, version, database size, leadership status, raft term, and raft status.
 
 #### Examples
+
+Get the status for the default endpoint:
 
 ```bash
 ./etcdctl endpoint status
 # 127.0.0.1:2379, 8211f1d0f64f3269, 3.0.0, 25 kB, false, 2, 63
-# 127.0.0.1:22379, 91bc3c398fb3c146, 3.0.0, 25 kB, false, 2, 63
-# 127.0.0.1:32379, fd422379fda50e48, 3.0.0, 25 kB, true, 2, 63
 ```
+
+Get the status for the default endpoint as JSON:
 
 ```bash
 ./etcdctl -w json endpoint status
-# [{"Endpoint":"127.0.0.1:2379","Status":{"header":{"cluster_id":17237436991929493444,"member_id":9372538179322589801,"revision":2,"raft_term":2},"version":"3.0.0","dbSize":24576,"leader":18249187646912138824,"raftIndex":32623,"raftTerm":2}},{"Endpoint":"127.0.0.1:22379","Status":{"header":{"cluster_id":17237436991929493444,"member_id":10501334649042878790,"revision":2,"raft_term":2},"version":"3.0.0","dbSize":24576,"leader":18249187646912138824,"raftIndex":32623,"raftTerm":2}},{"Endpoint":"127.0.0.1:32379","Status":{"header":{"cluster_id":17237436991929493444,"member_id":18249187646912138824,"revision":2,"raft_term":2},"version":"3.0.0","dbSize":24576,"leader":18249187646912138824,"raftIndex":32623,"raftTerm":2}}]
+# [{"Endpoint":"127.0.0.1:2379","Status":{"header":{"cluster_id":17237436991929493444,"member_id":9372538179322589801,"revision":2,"raft_term":2},"version":"3.0.0","dbSize":24576,"leader":18249187646912138824,"raftIndex":32623,"raftTerm":2}}]
 ```
+
+Get the status for all endpoints in the cluster associated with the default endpoint:
 
 ```bash
-./etcdctl -w table endpoint status
-+-----------------+------------------+---------+---------+-----------+-----------+------------+
-|    ENDPOINT     |        ID        | VERSION | DB SIZE | IS LEADER | RAFT TERM | RAFT INDEX |
-+-----------------+------------------+---------+---------+-----------+-----------+------------+
-| 127.0.0.1:2379  | 8211f1d0f64f3269 |  3.0.0  | 25 kB   | false     |         2 |         52 |
-| 127.0.0.1:22379 | 91bc3c398fb3c146 |  3.0.0  | 25 kB   | false     |         2 |         52 |
-| 127.0.0.1:32379 | fd422379fda50e48 |  3.0.0  | 25 kB   | true      |         2 |         52 |
-+-----------------+------------------+---------+---------+-----------+-----------+------------+
+./etcdctl -w table endpoint --cluster status
++------------------------+------------------+----------------+---------+-----------+-----------+------------+
+|        ENDPOINT        |        ID        |    VERSION     | DB SIZE | IS LEADER | RAFT TERM | RAFT INDEX |
++------------------------+------------------+----------------+---------+-----------+-----------+------------+
+| http://127.0.0.1:2379  | 8211f1d0f64f3269 | 3.2.0-rc.1+git |   25 kB |     false |         2 |          8 |
+| http://127.0.0.1:22379 | 91bc3c398fb3c146 | 3.2.0-rc.1+git |   25 kB |     false |         2 |          8 |
+| http://127.0.0.1:32379 | fd422379fda50e48 | 3.2.0-rc.1+git |   25 kB |      true |         2 |          8 |
++------------------------+------------------+----------------+---------+-----------+-----------+------------+
 ```
 
-### LOCK \<lockname\>
+### ENDPOINT HASHKV
 
-LOCK acquires a distributed named mutex with a given name. Once the lock is acquired, it will be held until etcdctl is terminated.
+ENDPOINT HASHKV fetches the hash of the key-value store of an endpoint.
 
-#### Return value
+#### Output
 
-- Once the lock is acquired, the result for the GET on the unique lock holder key is displayed.
+##### Simple format
 
-- LOCK returns a zero exit code only if it is terminated by a signal and can release the lock.
+Prints a humanized table of each endpoint URL and KV history hash.
 
-#### Example
+##### JSON format
+
+Prints a line of JSON encoding each endpoint URL and KV history hash.
+
+#### Examples
+
+Get the hash for the default endpoint:
+
 ```bash
-./etcdctl lock mylock
-# mylock/1234534535445
-
-
+./etcdctl endpoint hashkv
+# 127.0.0.1:2379, 1084519789
 ```
 
-#### Notes
+Get the status for the default endpoint as JSON:
 
-The lease length of a lock defaults to 60 seconds. If LOCK is abnormally terminated, lock progress may be delayed
-by up to 60 seconds.
+```bash
+./etcdctl -w json endpoint hashkv
+# [{"Endpoint":"127.0.0.1:2379","Hash":{"header":{"cluster_id":14841639068965178418,"member_id":10276657743932975437,"revision":1,"raft_term":3},"hash":1084519789,"compact_revision":-1}}]
+```
 
+Get the status for all endpoints in the cluster associated with the default endpoint:
 
-### ELECT [options] \<election-name\> [proposal]
+```bash
+./etcdctl -w table endpoint --cluster hashkv
++------------------------+------------+
+|        ENDPOINT        |    HASH    |
++------------------------+------------+
+| http://127.0.0.1:12379 | 1084519789 |
+| http://127.0.0.1:22379 | 1084519789 |
+| http://127.0.0.1:32379 | 1084519789 |
++------------------------+------------+
+```
 
-ELECT participates on a named election. A node announces its candidacy in the election by providing
-a proposal value. If a node wishes to observe the election, ELECT listens for new leaders values.
-Whenever a leader is elected, its proposal is given as output.
+### ALARM \<subcommand\>
+
+Provides alarm related commands
+
+### ALARM DISARM
+
+`alarm disarm` Disarms all alarms
+
+RPC: Alarm
+
+#### Output
+
+`alarm:<alarm type>` if alarm is present and disarmed.
+
+#### Examples
+
+```bash
+./etcdctl alarm disarm
+```
+
+If NOSPACE alarm is present:
+
+```bash
+./etcdctl alarm disarm
+# alarm:NOSPACE
+```
+
+### ALARM LIST
+
+`alarm list` lists all alarms.
+
+RPC: Alarm
+
+#### Output
+
+`alarm:<alarm type>` if alarm is present, empty string if no alarms present.
+
+#### Examples
+
+```bash
+./etcdctl alarm list
+```
+
+If NOSPACE alarm is present:
+
+```bash
+./etcdctl alarm list
+# alarm:NOSPACE
+```
+
+### DEFRAG [options]
+
+DEFRAG defragments the backend database file for a set of given endpoints while etcd is running, or directly defragments an
+etcd data directory while etcd is not running. When an etcd member reclaims storage space from deleted and compacted keys, the
+space is kept in a free list and the database file remains the same size. By defragmenting the database, the etcd member
+releases this free space back to the file system.
 
 #### Options
 
-- listen -- observe the election
+- data-dir -- Optional. If present, defragments a data directory not in use by etcd.
 
-#### Return value
+#### Output
 
-- If a candidate, ELECT displays the GET on the leader key once the node is elected election.
-
-- If observing, ELECT streams the result for a GET on the leader key for the current election and all future elections.
-
-- ELECT returns a zero exit code only if it is terminated by a signal and can revoke its candidacy or leadership, if any.
+For each endpoints, prints a message indicating whether the endpoint was successfully defragmented.
 
 #### Example
-```bash
-./etcdctl elect myelection foo
-# myelection/1456952310051373265
-# foo
-```
 
-#### Notes
-
-The lease length of a leader defaults to 60 seconds. If a candidate is abnormally terminated, election
-progress may be delayed by up to 60 seconds.
-
-
-### COMPACTION [options] \<revision\>
-
-COMPACTION discards all etcd event history prior to a given revision. Since etcd uses a multiversion concurrency control
-model, it preserves all key updates as event history. When the event history up to some revision is no longer needed,
-all superseded keys may be compacted away to reclaim storage space in the etcd backend database.
-
-#### Options
-
-- physical -- 'true' to wait for compaction to physically remove all old revisions
-
-#### Return value
-
-- On success, prints the compacted revision and returns a zero exit code.
-
-- On failure, prints an error message and returns with a non-zero exit code.
-
-#### Example
-```bash
-./etcdctl compaction 1234
-# compacted revision 1234
-```
-
-### DEFRAG
-
-DEFRAG defragments the backend database file for a set of given endpoints. When an etcd member reclaims storage space
-from deleted and compacted keys, the space is kept in a free list and the database file remains the same size. By defragmenting
-the database, the etcd member releases this free space back to the file system.
-
-#### Return value
-
-- If successfully defragmented an endpoint, prints a message indicating success for that endpoint.
-
-- If failed defragmenting an endpoint, prints a message indicating failure for that endpoint.
-
-- DEFRAG returns a zero exit code only if it succeeded defragmenting all given endpoints.
-
-#### Example
 ```bash
 ./etcdctl --endpoints=localhost:2379,badendpoint:2379 defrag
 # Finished defragmenting etcd member[localhost:2379]
 # Failed to defragment etcd member[badendpoint:2379] (grpc: timed out trying to connect)
 ```
 
+To defragment a data directory directly, use the `--data-dir` flag:
 
-### MAKE-MIRROR [options] \<destination\>
-
-[make-mirror][mirror] mirrors a key prefix in an etcd cluster to a destination etcd cluster.
-
-#### Options
-
-- dest-cacert -- TLS certificate authority file for destination cluster
-
-- dest-cert -- TLS certificate file for destination cluster
-
-- dest-key -- TLS key file for destination cluster
-
-- prefix -- The key-value prefix to mirror
-
-- dest-prefix -- The destination prefix to mirror a prefix to a different prefix in the destination cluster
-
-- no-dest-prefix -- Mirror key-values to the root of the destination cluster
-
-- dest-insecure-transport -- Disable transport security for client connections
-
-#### Return value
-
-Simple reply
-
-- The approximate total number of keys transferred to the destination cluster, updated every 30 seconds.
-
-- Error string if mirroring failed. Exit code is non-zero.
-
-#### Examples
-
-```
-./etcdctl make-mirror mirror.example.com:2379
-# 10
-# 18
+``` bash
+# Defragment while etcd is not running
+./etcdctl defrag --data-dir default.etcd
+# success (exit status 0)
+# Error: cannot open database at default.etcd/member/snap/db
 ```
 
-[mirror]: ./doc/mirror_maker.md
+#### Remarks
 
+DEFRAG returns a zero exit code only if it succeeded defragmenting all given endpoints.
 
 ### SNAPSHOT \<subcommand\>
 
@@ -815,11 +829,9 @@ SNAPSHOT provides commands to restore a snapshot of a running etcd server into a
 
 SNAPSHOT SAVE writes a point-in-time snapshot of the etcd backend database to a file.
 
-#### Return value
+#### Output
 
-- On success, the backend snapshot is written to the given file path.
-
-- Error string if snapshotting failed. Exit code is non-zero.
+The backend snapshot is written to the given file path.
 
 #### Example
 
@@ -827,7 +839,6 @@ Save a snapshot to "snapshot.db":
 ```
 ./etcdctl snapshot save snapshot.db
 ```
-
 
 ### SNAPSHOT RESTORE [options] \<filename\>
 
@@ -849,11 +860,9 @@ The snapshot restore options closely resemble to those used in the `etcd` comman
 
 - skip-hash-check -- Ignore snapshot integrity hash value (required if copied from data directory)
 
-#### Return value
+#### Output
 
-- On success, a new etcd data directory is initialized.
-
-- Error string if the data directory could not be completely initialized. Exit code is non-zero.
+A new etcd data directory initialized with the snapshot.
 
 #### Example
 
@@ -876,19 +885,15 @@ bin/etcd --name sshot3 --listen-client-urls http://127.0.0.1:32379 --advertise-c
 
 SNAPSHOT STATUS lists information about a given backend database snapshot file.
 
-#### Return value
+#### Output
 
-##### Simple Reply
+##### Simple format
 
-On success, prints a humanized table of the database hash, revision, total keys, and size. On failure, return with a non-zero exit code.
+Prints a humanized table of the database hash, revision, total keys, and size.
 
-##### JSON reply
+##### JSON format
 
-On success, prints a line of JSON encoding the database hash, revision, total keys, and size. On failure, return with a non-zero exit code.
-
-##### Protobuf reply
-
-SNAPSHOT STATUS does not support protobuf encoded output.
+Prints a line of JSON encoding the database hash, revision, total keys, and size.
 
 #### Examples
 ```bash
@@ -910,9 +915,445 @@ SNAPSHOT STATUS does not support protobuf encoded output.
 +----------+----------+------------+------------+
 ```
 
+### MOVE-LEADER \<hexadecimal-transferee-id\>
+
+MOVE-LEADER transfers leadership from the leader to another member in the cluster.
+
+#### Example
+
+```bash
+# to choose transferee
+transferee_id=$(./etcdctl \
+  --endpoints localhost:12379,localhost:22379,localhost:32379 \
+  endpoint status | grep -m 1 "false" | awk -F', ' '{print $2}')
+echo ${transferee_id}
+# c89feb932daef420
+
+# endpoints should include leader node
+./etcdctl --endpoints ${transferee_ep} move-leader ${transferee_id}
+# Error:  no leader endpoint given at [localhost:22379 localhost:32379]
+
+# request to leader with target node ID
+./etcdctl --endpoints ${leader_ep} move-leader ${transferee_id}
+# Leadership transferred from 45ddc0e800e20b93 to c89feb932daef420
+```
+
+## Concurrency commands
+
+### LOCK [options] \<lockname\> [command arg1 arg2 ...]
+
+LOCK acquires a distributed named mutex with a given name. Once the lock is acquired, it will be held until etcdctl is terminated.
+
+#### Options
+
+- ttl - time out in seconds of lock session.
+
+#### Output
+
+Once the lock is acquired, the result for the GET on the unique lock holder key is displayed.
+
+If a command is given, it will be launched with environment variables `ETCD_LOCK_KEY` and `ETCD_LOCK_REV` set to the lock's holder key and revision.
+
+#### Example
+
+Acquire lock with standard output display:
+
+```bash
+./etcdctl lock mylock
+# mylock/1234534535445
+```
+
+Acquire lock and execute `echo lock acquired`:
+
+```bash
+./etcdctl lock mylock echo lock acquired
+# lock acquired
+```
+
+#### Remarks
+
+LOCK returns a zero exit code only if it is terminated by a signal and releases the lock.
+
+If LOCK is abnormally terminated or fails to contact the cluster to release the lock, the lock will remain held until the lease expires. Progress may be delayed by up to the default lease length of 60 seconds.
+
+### ELECT [options] \<election-name\> [proposal]
+
+ELECT participates on a named election. A node announces its candidacy in the election by providing
+a proposal value. If a node wishes to observe the election, ELECT listens for new leaders values.
+Whenever a leader is elected, its proposal is given as output.
+
+#### Options
+
+- listen -- observe the election.
+
+#### Output
+
+- If a candidate, ELECT displays the GET on the leader key once the node is elected election.
+
+- If observing, ELECT streams the result for a GET on the leader key for the current election and all future elections.
+
+#### Example
+
+```bash
+./etcdctl elect myelection foo
+# myelection/1456952310051373265
+# foo
+```
+
+#### Remarks
+
+ELECT returns a zero exit code only if it is terminated by a signal and can revoke its candidacy or leadership, if any.
+
+If a candidate is abnormally terminated, election rogress may be delayed by up to the default lease length of 60 seconds.
+
+## Authentication commands
+
+### AUTH \<enable or disable\>
+
+`auth enable` activates authentication on an etcd cluster and `auth disable` deactivates. When authentication is enabled, etcd checks all requests for appropriate authorization.
+
+RPC: AuthEnable/AuthDisable
+
+#### Output
+
+`Authentication Enabled`.
+
+#### Examples
+
+```bash
+./etcdctl user add root
+# Password of root:#type password for root
+# Type password of root again for confirmation:#re-type password for root
+# User root created
+./etcdctl user grant-role root root
+# Role root is granted to user root
+./etcdctl user get root
+# User: root
+# Roles: root
+./etcdctl role add root
+# Role root created
+./etcdctl role get root
+# Role root
+# KV Read:
+# KV Write:
+./etcdctl auth enable
+# Authentication Enabled
+```
+
+### ROLE \<subcommand\>
+
+ROLE is used to specify differnt roles which can be assigned to etcd user(s).
+
+### ROLE ADD \<role name\>
+
+`role add` creates a role.
+
+RPC: RoleAdd
+
+#### Output
+
+`Role <role name> created`.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 role add myrole
+# Role myrole created
+```
+
+### ROLE GET \<role name\>
+
+`role get` lists detailed role information.
+
+RPC: RoleGet
+
+#### Output
+
+Detailed role information.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 role get myrole
+# Role myrole
+# KV Read:
+# foo
+# KV Write:
+# foo
+```
+
+### ROLE DELETE \<role name\>
+
+`role delete` deletes a role.
+
+RPC: RoleDelete
+
+#### Output
+
+`Role <role name> deleted`.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 role delete myrole
+# Role myrole deleted
+```
+
+### ROLE LIST \<role name\>
+
+`role list` lists all roles in etcd.
+
+RPC: RoleList
+
+#### Output
+
+A role per line.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 role list
+# roleA
+# roleB
+# myrole
+```
+
+### ROLE GRANT-PERMISSION [options] \<role name\> \<permission type\> \<key\> [endkey]
+
+`role grant-permission` grants a key to a role.
+
+RPC: RoleGrantPermission
+
+#### Options
+
+- from-key -- grant a permission of keys that are greater than or equal to the given key using byte compare
+
+- prefix -- grant a prefix permission
+
+#### Output
+
+`Role <role name> updated`.
+
+#### Examples
+
+Grant read and write permission on the key `foo` to role `myrole`:
+
+```bash
+./etcdctl --user=root:123 role grant-permission myrole readwrite foo
+# Role myrole updated
+```
+
+Grant read permission on the wildcard key pattern `foo/*` to role `myrole`:
+
+```bash
+./etcdctl --user=root:123 role grant-permission --prefix myrole readwrite foo/
+# Role myrole updated
+```
+
+### ROLE REVOKE-PERMISSION \<role name\> \<permission type\> \<key\> [endkey]
+
+`role revoke-permission` revokes a key from a role.
+
+RPC: RoleRevokePermission
+
+#### Options
+
+- from-key -- revoke a permission of keys that are greater than or equal to the given key using byte compare
+
+- prefix -- revoke a prefix permission
+
+#### Output
+
+`Permission of key <key> is revoked from role <role name>` for single key. `Permission of range [<key>, <endkey>) is revoked from role <role name>` for a key range. Exit code is zero.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 role revoke-permission myrole foo
+# Permission of key foo is revoked from role myrole
+```
+
+### USER \<subcommand\>
+
+USER provides commands for managing users of etcd.
+
+### USER ADD \<user name or user:password\> [options]
+
+`user add` creates a user.
+
+RPC: UserAdd
+
+#### Options
+
+- interactive -- Read password from stdin instead of interactive terminal
+
+#### Output
+
+`User <user name> created`.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 user add myuser
+# Password of myuser: #type password for my user
+# Type password of myuser again for confirmation:#re-type password for my user
+# User myuser created
+```
+
+### USER GET \<user name\> [options]
+
+`user get` lists detailed user information.
+
+RPC: UserGet
+
+#### Options
+
+- detail -- Show permissions of roles granted to the user
+
+#### Output
+
+Detailed user information.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 user get myuser
+# User: myuser
+# Roles:
+```
+
+### USER DELETE \<user name\>
+
+`user delete` deletes a user.
+
+RPC: UserDelete
+
+#### Output
+
+`User <user name> deleted`.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 user delete myuser
+# User myuser deleted
+```
+
+### USER LIST
+
+`user list` lists detailed user information.
+
+RPC: UserList
+
+#### Output
+
+- List of users, one per line.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 user list
+# user1
+# user2
+# myuser
+```
+
+### USER PASSWD \<user name\> [options]
+
+`user passwd` changes a user's password.
+
+RPC: UserChangePassword
+
+#### Options
+
+- interactive -- if true, read password in interactive terminal
+
+#### Output
+
+`Password updated`.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 user passwd myuser
+# Password of myuser: #type new password for my user
+# Type password of myuser again for confirmation: #re-type the new password for my user
+# Password updated
+```
+
+### USER GRANT-ROLE \<user name\> \<role name\>
+
+`user grant-role` grants a role to a user
+
+RPC: UserGrantRole
+
+#### Output
+
+`Role <role name> is granted to user <user name>`.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 user grant-role userA roleA
+# Role roleA is granted to user userA
+```
+
+### USER REVOKE-ROLE \<user name\> \<role name\>
+
+`user revoke-role` revokes a role from a user
+
+RPC: UserRevokeRole
+
+#### Output
+
+`Role <role name> is revoked from user <user name>`.
+
+#### Examples
+
+```bash
+./etcdctl --user=root:123 user revoke-role userA roleA
+# Role roleA is revoked from user userA
+```
+
+## Utility commands
+
+### MAKE-MIRROR [options] \<destination\>
+
+[make-mirror][mirror] mirrors a key prefix in an etcd cluster to a destination etcd cluster.
+
+#### Options
+
+- dest-cacert -- TLS certificate authority file for destination cluster
+
+- dest-cert -- TLS certificate file for destination cluster
+
+- dest-key -- TLS key file for destination cluster
+
+- prefix -- The key-value prefix to mirror
+
+- dest-prefix -- The destination prefix to mirror a prefix to a different prefix in the destination cluster
+
+- no-dest-prefix -- Mirror key-values to the root of the destination cluster
+
+- dest-insecure-transport -- Disable transport security for client connections
+
+#### Output
+
+The approximate total number of keys transferred to the destination cluster, updated every 30 seconds.
+
+#### Examples
+
+```
+./etcdctl make-mirror mirror.example.com:2379
+# 10
+# 18
+```
+
+[mirror]: ./doc/mirror_maker.md
+
 ### MIGRATE [options]
 
-Migrate migrates keys in a v2 store to a mvcc store. Users should run migration command for all members in the cluster.
+Migrates keys in a v2 store to a v3 mvcc store. Users should run migration command for all members in the cluster.
 
 #### Options
 
@@ -922,13 +1363,9 @@ Migrate migrates keys in a v2 store to a mvcc store. Users should run migration 
 
 - transformer -- Path to the user-provided transformer program (default if not provided)
 
-#### Return value
+#### Output
 
-Simple reply
-
-- Exit code is zero when migration is finished successfully.
-
-- Error string if migration failed. Exit code is non-zero.
+No output on success.
 
 #### Default transformer
 
@@ -959,348 +1396,53 @@ The provided transformer should read until EOF and flush the stdout before exiti
 #### Example
 
 ```
-./etcdctl --data-dir=/var/etcd --transformer=k8s-transformer
+./etcdctl migrate --data-dir=/var/etcd --transformer=k8s-transformer
 # finished transforming keys
 ```
 
-### ROLE \<subcommand\>
+### VERSION
 
-ROLE is used to specify differnt roles which can be assigned to etcd user(s).
+Prints the version of etcdctl.
 
-### ROLE ADD \<role name\>
+#### Output
 
-`role add` creates a role.
-
-#### Return value
-
-##### Simple reply
-
-- `Role <role name> created`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
+Prints etcd version and API version.
 
 #### Examples
 
 ```bash
-./etcdctl --user=root:123 role add myrole
-# Role myrole created
+./etcdctl version
+# etcdctl version: 3.1.0-alpha.0+git
+# API version: 3.1
 ```
 
-### ROLE GET \<role name\>
+## Exit codes
 
-`role get` lists detailed role information.
+For all commands, a successful execution return a zero exit code. All failures will return non-zero exit codes.
 
-#### Return value
+## Output formats
 
-##### Simple reply
+All commands accept an output format by setting `-w` or `--write-out`. All commands default to the "simple" output format, which is meant to be human-readable. The simple format is listed in each command's `Output` description since it is customized for each command. If a command has a corresponding RPC, it will respect all output formats.
 
-- Detailed role information. Exit code is zero.
+If a command fails, returning a non-zero exit code, an error string will be written to standard error regardless of output format.
 
-- Error string if failed. Exit code is non-zero.
+### Simple
 
-#### Examples
+A format meant to be easy to parse and human-readable. Specific to each command.
 
-```bash
-./etcdctl --user=root:123 role get myrole
-# Role myrole
-# KV Read:
-# foo
-# KV Write:
-# foo
-```
+### JSON
 
-### ROLE GRANT-PERMISSION [options] \<role name\> \<permission type\> \<key\> [endkey]
+The JSON encoding of the command's [RPC response][etcdrpc]. Since etcd's RPCs use byte strings, the JSON output will encode keys and values in base64.
 
-`role grant-permission` grants a key to a role.
+Some commands without an RPC also support JSON; see the command's `Output` description.
 
-#### Options
+### Protobuf
 
-- prefix -- grant a prefix permission
+The protobuf encoding of the command's [RPC response][etcdrpc]. If an RPC is streaming, the stream messages will be concetenated. If an RPC is not given for a command, the protobuf output is not defined.
 
-#### Return value
+### Fields
 
-##### Simple reply
-
-- `Role <role name> updated`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 role grant-permission myrole readwrite foo
-# Role myrole updated
-```
-
-### ROLE REVOKE-PERMISSION \<role name\> \<permission type\> \<key\> [endkey]
-
-`role revoke-permission` revokes a key from a role.
-
-#### Return value
-
-##### Simple reply
-
-- `Permission of key <key> is revoked from role <role name>`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 role revoke-permission myrole foo
-# Permission of key foo is revoked from role myrole
-```
-
-### ROLE DELETE \<role name\>
-
-`role delete` deletes a role.
-
-#### Return value
-
-##### Simple reply
-
-- `Role <role name> deleted`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 role delete myrole
-# Role myrole deleted
-```
-
-### USER \<subcommand\>
-
-USER provides commands for managing users of etcd.
-
-### USER ADD \<user name or user:password\> [options]
-
-`user add` creates a user.
-
-#### Options
-
-- interactive -- Read password from stdin instead of interactive terminal
-
-#### Return value
-
-##### Simple reply
-
-- `User <user name> created`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 user add myuser
-# Password of myuser: #type password for my user
-# Type password of myuser again for confirmation:#re-type password for my user
-# User myuser created
-```
-
-### USER GET \<user name\> [options]
-
-`user get` lists detailed user information.
-
-#### Options
-
-- detail -- Show permissions of roles granted to the user
-
-#### Return value
-
-##### Simple reply
-
-- Detailed user information. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 user get myuser
-# User: myuser
-# Roles:
-```
-
-### USER PASSWD \<user name\> [options]
-
-`user passwd` changes a user's password.
-
-#### Options
-
-- interactive -- if true, read password in interactive terminal
-
-#### Return value
-
-##### Simple reply
-
-- `Password updated`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 user passwd myuser
-# Password of myuser: #type new password for my user
-# Type password of myuser again for confirmation: #re-type the new password for my user
-# Password updated
-```
-
-### USER GRANT-ROLE \<user name\> \<role name\>
-
-`user grant-role` grants a role to a user
-
-#### Return value
-
-##### Simple reply
-
-- `Role <role name> is granted to user <user name>`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 user grant-role userA roleA
-# Role roleA is granted to user userA
-```
-
-### USER REVOKE-ROLE \<user name\> \<role name\>
-
-`user revoke-role` revokes a role from a user
-
-#### Return value
-
-##### Simple reply
-
-- `Role <role name> is revoked from user <user name>`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 user revoke-role userA roleA
-# Role roleA is revoked from user userA
-```
-
-### USER DELETE \<user name\>
-
-`user delete` deletes a user.
-
-#### Return value
-
-##### Simple reply
-
-- `User <user name> deleted`. Exit code is zero.
-
-- Error string if failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl --user=root:123 user delete myuser
-# User myuser deleted
-```
-
-### AUTH \<enable or disable\>
-
-`auth enable` activates authentication on an etcd cluster and `auth disable` deactivates. When authentication is enabled, etcd checks all requests for appropriate authorization.
-
-#### Return value
-
-##### Simple reply
-
-- `Authentication Enabled`. Exit code is zero.
-
-- Error string if AUTH failed. Exit code is non-zero.
-
-#### Examples
-
-```bash
-./etcdctl user add root
-# Password of root:#type password for root
-# Type password of root again for confirmation:#re-type password for root
-# User root created
-./etcdctl user grant-role root root
-# Role root is granted to user root
-./etcdctl user get root
-# User: root
-# Roles: root
-./etcdctl role add root
-# Role root created
-./etcdctl role get root
-# Role root
-# KV Read:
-# KV Write:
-./etcdctl auth enable
-# Authentication Enabled
-```
-
-## ALARM \<subcommand\>
-
-Provides alarm related commands
-
-### ALARM DISARM
-
-`alarm disarm` Disarms all alarms
-
-#### Return value
-
-##### Simple reply
-
-- `alarm:<alarm type>` if alarm is present
-
-- `` if alarm is not present
-
-#### Examples
-
-```bash
-./etcdctl alarm disarm
-```
-
-If NOSPACE alarm is present:
-
-```bash
-./etcdctl alarm disarm
-# alarm:NOSPACE
-```
-
-### ALARM LIST
-
-`alarm list` Lists all alarms
-
-#### Return value
-
-##### Simple reply
-
-- `alarm:<alarm type>` if alarm is present
-
-- `` if alarm is not present
-
-#### Examples
-
-```bash
-./etcdctl alarm list
-```
-
-If NOSPACE alarm is present:
-
-```bash
-./etcdctl alarm list
-# alarm:NOSPACE
-```
-
-## Notes
-
-- JSON encoding for keys and values uses base64 since they are byte strings.
-
-- 
-[etcdrpc]: ../etcdserver/etcdserverpb/rpc.proto
-[storagerpc]: ../mvcc/mvccpb/kv.proto
-[member_list_rpc]: ../etcdserver/etcdserverpb/rpc.proto#L493-L497
+An output format similar to JSON but meant to parse with coreutils. For an integer field named `Field`, it writes a line in the format `"Field" : %d` where `%d` is go's integer formatting. For byte array fields, it writes `"Field" : %q` where `%q` is go's quoted string formatting (e.g., `[]byte{'a', '\n'}` is written as `"a\n"`).
 
 ## Compatibility Support
 
@@ -1322,3 +1464,6 @@ backward compatibility for `JSON` format and the format in non-interactive mode.
 [READMEv2]: READMEv2.md
 [v2key]: ../store/node_extern.go#L28-L37
 [v3key]: ../mvcc/mvccpb/kv.proto#L12-L29
+[etcdrpc]: ../etcdserver/etcdserverpb/rpc.proto
+[storagerpc]: ../mvcc/mvccpb/kv.proto
+[member_list_rpc]: ../etcdserver/etcdserverpb/rpc.proto#L493-L497

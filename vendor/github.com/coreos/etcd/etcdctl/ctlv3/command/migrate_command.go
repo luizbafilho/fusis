@@ -21,7 +21,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/coreos/etcd/client"
@@ -100,8 +100,22 @@ func migrateCommandFunc(cmd *cobra.Command, args []string) {
 }
 
 func prepareBackend() backend.Backend {
-	dbpath := path.Join(migrateDatadir, "member", "snap", "db")
-	be := backend.New(dbpath, time.Second, 10000)
+	var be backend.Backend
+
+	bch := make(chan struct{})
+	dbpath := filepath.Join(migrateDatadir, "member", "snap", "db")
+	go func() {
+		defer close(bch)
+		be = backend.NewDefaultBackend(dbpath)
+
+	}()
+	select {
+	case <-bch:
+	case <-time.After(time.Second):
+		fmt.Fprintf(os.Stderr, "waiting for etcd to close and release its lock on %q\n", dbpath)
+		<-bch
+	}
+
 	tx := be.BatchTx()
 	tx.Lock()
 	tx.UnsafeCreateBucket([]byte("key"))
@@ -116,9 +130,9 @@ func rebuildStoreV2() (store.Store, uint64) {
 
 	waldir := migrateWALdir
 	if len(waldir) == 0 {
-		waldir = path.Join(migrateDatadir, "member", "wal")
+		waldir = filepath.Join(migrateDatadir, "member", "wal")
 	}
-	snapdir := path.Join(migrateDatadir, "member", "snap")
+	snapdir := filepath.Join(migrateDatadir, "member", "snap")
 
 	ss := snap.New(snapdir)
 	snapshot, err := ss.Load()
@@ -204,8 +218,9 @@ func applyConf(cc raftpb.ConfChange, cl *membership.RaftCluster) {
 	}
 }
 
-func applyRequest(r *pb.Request, applyV2 etcdserver.ApplierV2) {
-	toTTLOptions(r)
+func applyRequest(req *pb.Request, applyV2 etcdserver.ApplierV2) {
+	r := (*etcdserver.RequestV2)(req)
+	r.TTLOptions()
 	switch r.Method {
 	case "POST":
 		applyV2.Post(r)
@@ -220,15 +235,6 @@ func applyRequest(r *pb.Request, applyV2 etcdserver.ApplierV2) {
 	default:
 		panic("unknown command")
 	}
-}
-
-func toTTLOptions(r *pb.Request) store.TTLOptionSet {
-	refresh, _ := pbutil.GetBool(r.Refresh)
-	ttlOptions := store.TTLOptionSet{Refresh: refresh}
-	if r.Expiration != 0 {
-		ttlOptions.ExpireTime = time.Unix(0, r.Expiration)
-	}
-	return ttlOptions
 }
 
 func writeStore(w io.Writer, st store.Store) uint64 {

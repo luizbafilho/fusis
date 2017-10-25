@@ -19,10 +19,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -31,6 +30,7 @@ import (
 	"github.com/coreos/etcd/discovery"
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/etcd/etcdserver"
+	"github.com/coreos/etcd/etcdserver/api/etcdhttp"
 	"github.com/coreos/etcd/pkg/cors"
 	"github.com/coreos/etcd/pkg/fileutil"
 	pkgioutil "github.com/coreos/etcd/pkg/ioutil"
@@ -39,10 +39,8 @@ import (
 	"github.com/coreos/etcd/pkg/types"
 	"github.com/coreos/etcd/proxy/httpproxy"
 	"github.com/coreos/etcd/version"
-	"github.com/coreos/go-systemd/daemon"
-	systemdutil "github.com/coreos/go-systemd/util"
 	"github.com/coreos/pkg/capnslog"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
 )
 
@@ -84,11 +82,12 @@ func startEtcdOrProxyV2() {
 	GoMaxProcs := runtime.GOMAXPROCS(0)
 	plog.Infof("setting maximum number of CPUs to %d, total number of available CPUs is %d", GoMaxProcs, runtime.NumCPU())
 
-	// TODO: check whether fields are set instead of whether fields have default value
-	defaultHost, defaultHostErr := cfg.IsDefaultHost()
-	defaultHostOverride := defaultHost == "" || defaultHostErr == nil
-	if (defaultHostOverride || cfg.Name != embed.DefaultName) && cfg.InitialCluster == defaultInitialCluster {
-		cfg.InitialCluster = cfg.InitialClusterFromName(cfg.Name)
+	defaultHost, dhErr := (&cfg.Config).UpdateDefaultClusterFromName(defaultInitialCluster)
+	if defaultHost != "" {
+		plog.Infof("advertising using detected default host %q", defaultHost)
+	}
+	if dhErr != nil {
+		plog.Noticef("failed to detect default host (%v)", dhErr)
 	}
 
 	if cfg.Dir == "" {
@@ -161,20 +160,12 @@ func startEtcdOrProxyV2() {
 
 	osutil.HandleInterrupts()
 
-	if systemdutil.IsRunningSystemd() {
-		// At this point, the initialization of etcd is done.
-		// The listeners are listening on the TCP ports and ready
-		// for accepting connections. The etcd instance should be
-		// joined with the cluster and ready to serve incoming
-		// connections.
-		sent, err := daemon.SdNotify(false, "READY=1")
-		if err != nil {
-			plog.Errorf("failed to notify systemd for readiness: %v", err)
-		}
-		if !sent {
-			plog.Errorf("forgot to set Type=notify in systemd service file?")
-		}
-	}
+	// At this point, the initialization of etcd is done.
+	// The listeners are listening on the TCP ports and ready
+	// for accepting connections. The etcd instance should be
+	// joined with the cluster and ready to serve incoming
+	// connections.
+	notifySystemd()
 
 	select {
 	case lerr := <-errc:
@@ -188,21 +179,19 @@ func startEtcdOrProxyV2() {
 
 // startEtcd runs StartEtcd in addition to hooks needed for standalone etcd.
 func startEtcd(cfg *embed.Config) (<-chan struct{}, <-chan error, error) {
-	defaultHost, dhErr := cfg.IsDefaultHost()
-	if defaultHost != "" {
-		if dhErr == nil {
-			plog.Infof("advertising using detected default host %q", defaultHost)
-		} else {
-			plog.Noticef("failed to detect default host, advertise falling back to %q (%v)", defaultHost, dhErr)
-		}
+	if cfg.Metrics == "extensive" {
+		grpc_prometheus.EnableHandlingTimeHistogram()
 	}
 
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-	osutil.RegisterInterruptHandler(e.Server.Stop)
-	<-e.Server.ReadyNotify() // wait for e.Server to join the cluster
+	osutil.RegisterInterruptHandler(e.Close)
+	select {
+	case <-e.Server.ReadyNotify(): // wait for e.Server to join the cluster
+	case <-e.Server.StopNotify(): // publish aborted from 'ErrStopped'
+	}
 	return e.Server.StopNotify(), e.Err(), nil
 }
 
@@ -210,25 +199,37 @@ func startEtcd(cfg *embed.Config) (<-chan struct{}, <-chan error, error) {
 func startProxy(cfg *config) error {
 	plog.Notice("proxy: this proxy supports v2 API only!")
 
-	pt, err := transport.NewTimeoutTransport(cfg.PeerTLSInfo, time.Duration(cfg.ProxyDialTimeoutMs)*time.Millisecond, time.Duration(cfg.ProxyReadTimeoutMs)*time.Millisecond, time.Duration(cfg.ProxyWriteTimeoutMs)*time.Millisecond)
+	clientTLSInfo := cfg.ClientTLSInfo
+	if clientTLSInfo.Empty() {
+		// Support old proxy behavior of defaulting to PeerTLSInfo
+		// for both client and peer connections.
+		clientTLSInfo = cfg.PeerTLSInfo
+	}
+	clientTLSInfo.InsecureSkipVerify = cfg.ClientAutoTLS
+	cfg.PeerTLSInfo.InsecureSkipVerify = cfg.PeerAutoTLS
+
+	pt, err := transport.NewTimeoutTransport(clientTLSInfo, time.Duration(cfg.ProxyDialTimeoutMs)*time.Millisecond, time.Duration(cfg.ProxyReadTimeoutMs)*time.Millisecond, time.Duration(cfg.ProxyWriteTimeoutMs)*time.Millisecond)
 	if err != nil {
 		return err
 	}
 	pt.MaxIdleConnsPerHost = httpproxy.DefaultMaxIdleConnsPerHost
 
+	if err = cfg.PeerSelfCert(); err != nil {
+		plog.Fatalf("could not get certs (%v)", err)
+	}
 	tr, err := transport.NewTimeoutTransport(cfg.PeerTLSInfo, time.Duration(cfg.ProxyDialTimeoutMs)*time.Millisecond, time.Duration(cfg.ProxyReadTimeoutMs)*time.Millisecond, time.Duration(cfg.ProxyWriteTimeoutMs)*time.Millisecond)
 	if err != nil {
 		return err
 	}
 
-	cfg.Dir = path.Join(cfg.Dir, "proxy")
+	cfg.Dir = filepath.Join(cfg.Dir, "proxy")
 	err = os.MkdirAll(cfg.Dir, fileutil.PrivateDirMode)
 	if err != nil {
 		return err
 	}
 
 	var peerURLs []string
-	clusterfile := path.Join(cfg.Dir, "cluster")
+	clusterfile := filepath.Join(cfg.Dir, "cluster")
 
 	b, err := ioutil.ReadFile(clusterfile)
 	switch {
@@ -313,20 +314,28 @@ func startProxy(cfg *config) error {
 	if cfg.isReadonlyProxy() {
 		ph = httpproxy.NewReadonlyHandler(ph)
 	}
+
+	// setup self signed certs when serving https
+	cHosts, cTLS := []string{}, false
+	for _, u := range cfg.LCUrls {
+		cHosts = append(cHosts, u.Host)
+		cTLS = cTLS || u.Scheme == "https"
+	}
+	for _, u := range cfg.ACUrls {
+		cHosts = append(cHosts, u.Host)
+		cTLS = cTLS || u.Scheme == "https"
+	}
+	listenerTLS := cfg.ClientTLSInfo
+	if cfg.ClientAutoTLS && cTLS {
+		listenerTLS, err = transport.SelfCert(filepath.Join(cfg.Dir, "clientCerts"), cHosts)
+		if err != nil {
+			plog.Fatalf("proxy: could not initialize self-signed client certs (%v)", err)
+		}
+	}
+
 	// Start a proxy server goroutine for each listen address
 	for _, u := range cfg.LCUrls {
-		var (
-			l      net.Listener
-			tlscfg *tls.Config
-		)
-		if !cfg.ClientTLSInfo.Empty() {
-			tlscfg, err = cfg.ClientTLSInfo.ServerConfig()
-			if err != nil {
-				return err
-			}
-		}
-
-		l, err := transport.NewListener(u.Host, u.Scheme, tlscfg)
+		l, err := transport.NewListener(u.Host, u.Scheme, &listenerTLS)
 		if err != nil {
 			return err
 		}
@@ -335,7 +344,7 @@ func startProxy(cfg *config) error {
 		go func() {
 			plog.Info("proxy: listening for client requests on ", host)
 			mux := http.NewServeMux()
-			mux.Handle("/metrics", prometheus.Handler())
+			etcdhttp.HandlePrometheus(mux) // v2 proxy just uses the same port
 			mux.Handle("/", ph)
 			plog.Fatal(http.Serve(l, mux))
 		}()
@@ -379,9 +388,15 @@ func identifyDataDirOrDie(dir string) dirType {
 }
 
 func setupLogging(cfg *config) {
+	cfg.ClientTLSInfo.HandshakeFailure = func(conn *tls.Conn, err error) {
+		plog.Infof("rejected connection from %q (%v)", conn.RemoteAddr().String(), err)
+	}
+	cfg.PeerTLSInfo.HandshakeFailure = cfg.ClientTLSInfo.HandshakeFailure
+
 	capnslog.SetGlobalLogLevel(capnslog.INFO)
 	if cfg.Debug {
 		capnslog.SetGlobalLogLevel(capnslog.DEBUG)
+		grpc.EnableTracing = true
 	}
 	if cfg.LogPkgLevels != "" {
 		repoLog := capnslog.MustRepoLogger("github.com/coreos/etcd")
@@ -409,7 +424,7 @@ func setupLogging(cfg *config) {
 
 func checkSupportArch() {
 	// TODO qualify arm64
-	if runtime.GOARCH == "amd64" {
+	if runtime.GOARCH == "amd64" || runtime.GOARCH == "ppc64le" {
 		return
 	}
 	if env, ok := os.LookupEnv("ETCD_UNSUPPORTED_ARCH"); ok && env == runtime.GOARCH {

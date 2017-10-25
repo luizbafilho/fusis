@@ -16,13 +16,14 @@ package command
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/coreos/etcd/clientv3"
+
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 )
 
 var (
@@ -124,11 +125,14 @@ func getWatchChan(c *clientv3.Client, args []string) (clientv3.WatchChan, error)
 	if watchPrevKey {
 		opts = append(opts, clientv3.WithPrevKV())
 	}
-	return c.Watch(context.TODO(), key, opts...), nil
+	return c.Watch(clientv3.WithRequireLeader(context.Background()), key, opts...), nil
 }
 
 func printWatchCh(ch clientv3.WatchChan) {
 	for resp := range ch {
+		if resp.Canceled {
+			fmt.Fprintf(os.Stderr, "watch was canceled (%v)\n", resp.Err())
+		}
 		display.Watch(resp)
 	}
 }

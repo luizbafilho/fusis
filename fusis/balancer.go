@@ -67,10 +67,10 @@ type FusisBalancer struct {
 // NewBalancer initializes a new balancer
 //TODO: Graceful shutdown on initialization errors
 func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
-	store, err := store.New(config)
-	if err != nil {
-		return nil, err
-	}
+	// store, err := store.New(config)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	state, err := state.New()
 	if err != nil {
@@ -101,8 +101,8 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 
 	changesCh := make(chan bool)
 	balancer := &FusisBalancer{
-		changesCh:    changesCh,
-		store:        store,
+		changesCh: changesCh,
+		// store:        store,
 		state:        state,
 		ipvsMngr:     ipvsMngr,
 		iptablesMngr: iptablesMngr,
@@ -112,11 +112,11 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 		metrics:      metrics,
 	}
 
-	if balancer.config.EnableHealthChecks {
-		monitor := health.NewMonitor(store, changesCh)
-		go monitor.Start()
-		balancer.healthMonitor = monitor
-	}
+	// if balancer.config.EnableHealthChecks {
+	// 	monitor := health.NewMonitor(store, changesCh)
+	// 	go monitor.Start()
+	// 	balancer.healthMonitor = monitor
+	// }
 
 	if balancer.isAnycast() {
 		bgpMngr, err := bgp.NewBgpService(config)
@@ -256,34 +256,34 @@ func (b *FusisBalancer) IsLeader() bool {
 }
 
 func (b *FusisBalancer) watchLeaderChanges() {
-	candidate := leadership.NewCandidate(b.store.GetKV(), b.config.StorePrefix+"/leader", b.config.Name, 20*time.Second)
-	b.Lock()
-	b.candidate = candidate
-	b.Unlock()
-
-	electedCh, _ := b.candidate.RunForElection()
-	if b.isAnycast() {
-		return
-	}
-
-	for isElected := range electedCh {
-		// This loop will run every time there is a change in our leadership
-		// status.
-
-		if isElected {
-			log.Println("I won the election! I'm now the leader")
-			if err := b.vipMngr.Sync(b.state); err != nil {
-				log.Fatal("Could not sync Vips", err)
-			}
-
-			if err := b.sendGratuitousARPReply(); err != nil {
-				log.Errorf(errors.Wrap(err, "Error sending Gratuitous ARP Reply").Error())
-			}
-		} else {
-			log.Println("Lost the election, let's try another time")
-			b.flushVips()
-		}
-	}
+	// candidate := leadership.NewCandidate(b.store.GetKV(), b.config.StorePrefix+"/leader", b.config.Name, 20*time.Second)
+	// b.Lock()
+	// b.candidate = candidate
+	// b.Unlock()
+	//
+	// electedCh, _ := b.candidate.RunForElection()
+	// if b.isAnycast() {
+	// 	return
+	// }
+	//
+	// for isElected := range electedCh {
+	// 	// This loop will run every time there is a change in our leadership
+	// 	// status.
+	//
+	// 	if isElected {
+	// 		log.Println("I won the election! I'm now the leader")
+	// 		if err := b.vipMngr.Sync(b.state); err != nil {
+	// 			log.Fatal("Could not sync Vips", err)
+	// 		}
+	//
+	// 		if err := b.sendGratuitousARPReply(); err != nil {
+	// 			log.Errorf(errors.Wrap(err, "Error sending Gratuitous ARP Reply").Error())
+	// 		}
+	// 	} else {
+	// 		log.Println("Lost the election, let's try another time")
+	// 		b.flushVips()
+	// 	}
+	// }
 }
 
 func (b *FusisBalancer) sendGratuitousARPReply() error {
@@ -306,8 +306,8 @@ func (b *FusisBalancer) cleanup() error {
 		}
 	}
 
-	kv := b.store.GetKV()
-	kv.DeleteTree(b.config.StorePrefix)
+	// kv := b.store.GetKV()
+	// kv.DeleteTree(b.config.StorePrefix)
 
 	b.flushVips()
 

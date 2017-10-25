@@ -31,7 +31,8 @@ services:
       - "/lib/modules:/lib/modules"
     depends_on:
       - consul
-    command: go test -race ./...
+    # command: go test -race ./...
+    command: go test github.com/luizbafilho/fusis/store
 
   fusis:
     build:
@@ -63,6 +64,25 @@ services:
     networks:
       default:
         ipv4_address: 172.100.0.30
+
+  etcd:
+    environment:
+      ETCDCTL_API: 3
+  etcd:
+    image: quay.io/coreos/etcd:v3.2.7
+    command:
+       /usr/local/bin/etcd
+        --name docker-compose
+        --listen-client-urls http://0.0.0.0:2379
+        --advertise-client-urls http://0.0.0.0:2379
+        --listen-peer-urls http://0.0.0.0:2380
+        --initial-advertise-peer-urls http://0.0.0.0:2380
+        --initial-cluster docker-compose=http://0.0.0.0:2380
+        --initial-cluster-token my-etcd-token
+        --initial-cluster-state new
+    networks:
+      default:
+        ipv4_address: 172.100.0.40
 
 networks:
   default:

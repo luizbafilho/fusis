@@ -69,18 +69,18 @@ import (
 // 	return nil
 // }
 //
-// func (s *FusisStore) validateDestination(dst *types.Destination) error {
-// 	if err := s.validate.Struct(dst); err != nil {
-// 		errValidation := types.ErrValidation{Type: "destination", Errors: make(map[string]string)}
-// 		for _, err := range err.(validator.ValidationErrors) {
-// 			errValidation.Errors[err.Field()] = getValidationMessage(err)
-// 		}
-// 		return errValidation
-// 	}
-//
-// 	return nil
-// }
-//
+func (s *FusisStore) validateDestination(dst *types.Destination) error {
+	if err := s.validate.Struct(dst); err != nil {
+		errValidation := types.ErrValidation{Type: "destination", Errors: make(map[string]string)}
+		for _, err := range err.(validator.ValidationErrors) {
+			errValidation.Errors[err.Field()] = getValidationMessage(err)
+		}
+		return errValidation
+	}
+
+	return nil
+}
+
 func (s *FusisStore) validateService(svc *types.Service) error {
 	if err := s.validate.Struct(svc); err != nil {
 		errValidation := types.ErrValidation{Type: "service", Errors: make(map[string]string)}

@@ -51,13 +51,13 @@ type DistributedLocker struct {
 type Store interface {
 	GetServices() ([]types.Service, error)
 	AddService(svc *types.Service) error
-	// DeleteService(svc *types.Service) error
+	DeleteService(svc *types.Service) error
 	// SubscribeServices(ch chan []types.Service)
 	// WatchServices()
 	//
-	// GetDestinations() ([]types.Destination, error)
-	// AddDestination(svc *types.Service, dst *types.Destination) error
-	// DeleteDestination(svc *types.Service, dst *types.Destination) error
+	GetDestinations(svc *types.Service) ([]types.Destination, error)
+	AddDestination(svc *types.Service, dst *types.Destination) error
+	DeleteDestination(svc *types.Service, dst *types.Destination) error
 	// SubscribeDestinations(ch chan []types.Destination)
 	// WatchDestinations()
 	//
@@ -132,91 +132,61 @@ func (s *FusisStore) GetServices() ([]types.Service, error) {
 	return svcs, nil
 }
 
-//
-// func (s *FusisStore) GetDestinations() ([]types.Destination, error) {
-// 	dsts := []types.Destination{}
-// 	entries, err := s.kv.List("fusis/destinations")
-// 	if err != nil {
-// 		if err == kv.ErrKeyNotFound {
-// 			return dsts, nil
-// 		}
-// 		return nil, err
-// 	}
-//
-// 	for _, pair := range entries {
-// 		dst := types.Destination{}
-// 		if err := json.Unmarshal(pair.Value, &dst); err != nil {
-// 			log.Error("[store] ", err)
-// 		}
-//
-// 		dsts = append(dsts, dst)
-// 	}
-//
-// 	return dsts, nil
-// }
+func (s *FusisStore) GetDestinations(svc *types.Service) ([]types.Destination, error) {
+	dsts := []types.Destination{}
+	resp, err := s.kv.Get(context.TODO(), s.key("destinations", svc.GetId(), ""), clientv3.WithPrefix())
+	if err != nil {
+		return dsts, errors.Wrap(err, "[store] Get destinations failed")
+	}
+
+	for _, pair := range resp.Kvs {
+		dst := types.Destination{}
+		if err := json.Unmarshal(pair.Value, &dst); err != nil {
+			return dsts, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
+		}
+
+		dsts = append(dsts, dst)
+	}
+
+	return dsts, nil
+}
+
 //
 // AddService adds a new services to store. It validates the name
 // uniqueness and the IPVS uniqueness by saving the IPVS key
 // in the store, which consists in a combination of address, port
 // and protocol.
 func (s *FusisStore) AddService(svc *types.Service) error {
-	_, err := s.kv.Put(context.TODO(), "fooo", "baaar")
-	if err != nil {
+	svcKey := s.key("services", svc.GetId(), "config")
+	ipvsKey := s.key("ipvs-ids", "services", svc.IpvsId())
+	// Validating service
+	if err := s.validateService(svc); err != nil {
 		return err
 	}
 
-	// svcKey := s.key("services", svc.GetId(), "config")
-	// ipvsKey := s.key("ipvs-ids", "services", svc.IpvsId())
-	// // Validating service
-	// if err := s.validateService(svc); err != nil {
-	// 	return err
-	// }
-	// // if err := s.validateServiceNameUniqueness(svcKey); err != nil {
-	// // 	return err
-	// // }
-	// // if err := s.validateServiceIpvsUniqueness(ipvsKey); err != nil {
-	// // 	return err
-	// // }
-	//
-	// // TODO: Make the persistence of service and ipvs id atomic.
-	// // Pesisting service
-	// value, err := json.Marshal(svc)
-	// if err != nil {
-	// 	return errors.Wrapf(err, "[store] Error marshaling service: %v", svc)
-	// }
-	//
-	// svcCmp := clientv3.Compare(clientv3.Value("key"), "!=", svcKey)
-	// ipvsCmp := clientv3.Compare(clientv3.Value("key"), "!=", ipvsKey)
-	//
-	// svcPut := clientv3.OpPut(svcKey, string(value))
-	// ipvsPut := clientv3.OpPut(ipvsKey, "true")
-	//
-	// resp, err := s.kv.Txn(context.TODO()).
-	// 	If(svcCmp, ipvsCmp).
-	// 	Then(svcPut, ipvsPut).
-	// 	Else().
-	// 	Commit()
-	// if err != nil {
-	// 	return errors.Wrapf(err, "[store] Error sending service to Etcd: %v", svc)
-	// }
-	//
-	// // resp.Succeeded means the compare clause was true
-	// if resp.Succeeded == false {
-	// 	for _, v := range resp.Responses {
-	// 		fmt.Println(v)
-	// 	}
-	// }
+	value, err := json.Marshal(svc)
+	if err != nil {
+		return errors.Wrapf(err, "[store] Error marshaling service: %v", svc)
+	}
 
-	// err = s.kv.Put(svcKey, value, nil)
-	// if err != nil {
-	// 	return errors.Wrapf(err, "error sending service to store: %v", svc)
-	// }
-	//
-	// // Persisting IPVS key. So it can be validated.
-	// err = s.kv.Put(ipvsKey, []byte("true"), nil)
-	// if err != nil {
-	// 	return errors.Wrapf(err, "error sending service ipvs id to store: %v", svc.IpvsId())
-	// }
+	svcCmp := clientv3.Compare(clientv3.Version(svcKey), "=", 0)
+	ipvsCmp := clientv3.Compare(clientv3.Version(ipvsKey), "=", 0)
+
+	svcPut := clientv3.OpPut(svcKey, string(value))
+	ipvsPut := clientv3.OpPut(ipvsKey, "true")
+
+	resp, err := s.kv.Txn(context.TODO()).
+		If(svcCmp, ipvsCmp).
+		Then(svcPut, ipvsPut).
+		Commit()
+	if err != nil {
+		return errors.Wrapf(err, "[store] Error sending service to Etcd: %v", svc)
+	}
+
+	// resp.Succeeded means the compare clause was true
+	if resp.Succeeded == false {
+		return errors.Errorf("[store] Service or IPVS Service ID are not unique")
+	}
 
 	return nil
 }
@@ -240,49 +210,29 @@ func (s *FusisStore) AddService(svc *types.Service) error {
 // 	return svc, nil
 // }
 //
-// func (s *FusisStore) DeleteService(svc *types.Service) error {
-// 	// TODO: Make all these actions atomic
-//
-// 	key := s.key("services", svc.GetId())
-// 	err := s.kv.DeleteTree(key)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error trying to delete service: %v", svc)
-// 	}
-//
-// 	ipvsKey := s.key("ipvs-ids", "services", svc.IpvsId())
-// 	err = s.kv.Delete(ipvsKey)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error trying to delete service ipvs id: %s", ipvsKey)
-// 	}
-//
-// 	// Deleting dependent destionations
-// 	dsts, err := s.GetDestinations()
-// 	if err != nil {
-// 		return errors.Wrapf(err, "get destinations from deleted service failed: %#v", svc)
-// 	}
-//
-// 	for _, dst := range dsts {
-// 		if dst.ServiceId == svc.GetId() {
-// 			if err := s.DeleteDestination(svc, &dst); err != nil {
-// 				return errors.Wrap(err, "deleting dependent destination failed")
-// 			}
-// 		}
-// 	}
-//
-// 	// Deleting checks
-// 	exists, err := s.kv.Exists(s.key("checks", svc.GetId()))
-// 	if err != nil {
-// 		return errors.Wrapf(err, "verifying health check to service: %s failed", svc.GetId())
-// 	}
-//
-// 	if exists {
-// 		if err := s.DeleteCheck(types.CheckSpec{ServiceID: svc.GetId()}); err != nil {
-// 			return errors.Wrap(err, "deleting dependent check failed")
-// 		}
-// 	}
-//
-// 	return nil
-// }
+func (s *FusisStore) DeleteService(svc *types.Service) error {
+	// Deleting service
+	svcKey := s.key("services", svc.GetId())
+	ipvsSvcKey := s.key("ipvs-ids", "services", svc.IpvsId())
+	svcDel := clientv3.OpDelete(svcKey, clientv3.WithPrefix())
+	ipvsSvcDel := clientv3.OpDelete(ipvsSvcKey, clientv3.WithPrefix())
+
+	// Deleting destinations
+	dstKey := s.key("destinations", svc.GetId(), "")
+	ipvsDstKey := s.key("ipvs-ids", "destinations", svc.GetId(), "")
+	dstDel := clientv3.OpDelete(dstKey, clientv3.WithPrefix())
+	ipvsDstDel := clientv3.OpDelete(ipvsDstKey, clientv3.WithPrefix())
+
+	_, err := s.kv.Txn(context.TODO()).
+		Then(svcDel, ipvsSvcDel, dstDel, ipvsDstDel).
+		Commit()
+	if err != nil {
+		return errors.Wrapf(err, "[store] Error deleting service from Etcd: %v", svc)
+	}
+
+	return nil
+}
+
 //
 // func (s *FusisStore) SubscribeServices(updateCh chan []types.Service) {
 // 	s.Lock()
@@ -327,58 +277,59 @@ func (s *FusisStore) AddService(svc *types.Service) error {
 // 	}
 // }
 //
-// func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) error {
-// 	dstKey := s.key("destinations", svc.GetId(), dst.GetId())
-// 	ipvsKey := s.key("ipvs-ids", "destinations", dst.IpvsId())
-//
-// 	// Validating destination
-// 	if err := s.validateDestination(dst); err != nil {
-// 		return err
-// 	}
-// 	if err := s.validateDestinationNameUniqueness(dstKey); err != nil {
-// 		return err
-// 	}
-// 	if err := s.validateDestinationIpvsUniqueness(ipvsKey); err != nil {
-// 		return err
-// 	}
-//
-// 	// Persisting destination
-// 	value, err := json.Marshal(dst)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error marshaling destination: %v", dst)
-// 	}
-// 	err = s.kv.Put(dstKey, value, nil)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error sending destination to store: %v", dst)
-// 	}
-// 	log.Debugf("[store] Added destination: %s with key: %s", value, dstKey)
-//
-// 	// Persisting IPVS key. So it can be validated.
-// 	err = s.kv.Put(ipvsKey, []byte("true"), nil)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error sending destination ipvs id to store: %v", dst.IpvsId())
-// 	}
-//
-// 	return nil
-// }
-//
-// func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destination) error {
-// 	key := s.key("destinations", svc.GetId(), dst.GetId())
-//
-// 	err := s.kv.DeleteTree(key)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error trying to delete destination: %v", dst)
-// 	}
-// 	log.Debugf("[store] Deleted destination: %s", key)
-//
-// 	ipvsKey := s.key("ipvs-ids", "destinations", dst.IpvsId())
-// 	err = s.kv.Delete(ipvsKey)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error trying to delete destination ipvs id: %s", ipvsKey)
-// 	}
-//
-// 	return nil
-// }
+func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) error {
+	dstKey := s.key("destinations", svc.GetId(), dst.GetId())
+	ipvsKey := s.key("ipvs-ids", "destinations", svc.GetId(), dst.IpvsId())
+	// Validating destination
+	if err := s.validateDestination(dst); err != nil {
+		return err
+	}
+
+	// Persisting destination
+	value, err := json.Marshal(dst)
+	if err != nil {
+		return errors.Wrapf(err, "[store] error marshaling destination: %v", dst)
+	}
+
+	dstCmp := clientv3.Compare(clientv3.Version(dstKey), "=", 0)
+	ipvsCmp := clientv3.Compare(clientv3.Version(ipvsKey), "=", 0)
+
+	dstPut := clientv3.OpPut(dstKey, string(value))
+	ipvsPut := clientv3.OpPut(ipvsKey, "true")
+
+	resp, err := s.kv.Txn(context.TODO()).
+		If(dstCmp, ipvsCmp).
+		Then(dstPut, ipvsPut).
+		Commit()
+	if err != nil {
+		return errors.Wrapf(err, "[store] Error sending destination to Etcd: %v", svc)
+	}
+
+	// resp.Succeeded means the compare clause was true
+	if resp.Succeeded == false {
+		return errors.Errorf("[store] Destination or IPVS Destionation ID are not unique")
+	}
+
+	return nil
+}
+
+func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destination) error {
+	dstKey := s.key("destinations", svc.GetId(), dst.GetId())
+	ipvsKey := s.key("ipvs-ids", "destinations", svc.GetId(), dst.IpvsId())
+
+	dstDel := clientv3.OpDelete(dstKey, clientv3.WithPrefix())
+	ipvsDel := clientv3.OpDelete(ipvsKey, clientv3.WithPrefix())
+
+	_, err := s.kv.Txn(context.TODO()).
+		Then(dstDel, ipvsDel).
+		Commit()
+	if err != nil {
+		return errors.Wrapf(err, "[store] Error deleting destination from Etcd: %v", svc)
+	}
+
+	return nil
+}
+
 //
 // func (s *FusisStore) SubscribeDestinations(updateCh chan []types.Destination) {
 // 	s.Lock()

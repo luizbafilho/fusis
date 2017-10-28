@@ -9,39 +9,12 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	validator "gopkg.in/go-playground/validator.v9"
 )
-
-// import (
-// 	"encoding/json"
-// 	"net"
-// 	"net/url"
-// 	"strings"
-// 	"sync"
-//
-// 	validator "gopkg.in/go-playground/validator.v9"
-//
-// 	log "github.com/sirupsen/logrus"
-// 	"github.com/docker/libkv"
-// 	kv "github.com/docker/libkv/store"
-// 	"github.com/docker/libkv/store/consul"
-// 	"github.com/docker/libkv/store/etcd"
-// 	"github.com/luizbafilho/fusis/config"
-// 	"github.com/luizbafilho/fusis/types"
-// 	"github.com/pkg/errors"
-// )
-//
-// func init() {
-// 	registryStores()
-// }
-//
-// func registryStores() {
-// 	libkv.AddStore(kv.CONSUL, consul.New)
-// 	libkv.AddStore(kv.ETCD, etcd.New)
-// }
-//
 
 type DistributedLocker struct {
 	sessionID string
@@ -49,6 +22,7 @@ type DistributedLocker struct {
 }
 
 type Store interface {
+	GetState() (state.State, error)
 	GetServices() ([]types.Service, error)
 	AddService(svc *types.Service) error
 	DeleteService(svc *types.Service) error
@@ -58,6 +32,9 @@ type Store interface {
 	GetDestinations(svc *types.Service) ([]types.Destination, error)
 	AddDestination(svc *types.Service, dst *types.Destination) error
 	DeleteDestination(svc *types.Service, dst *types.Destination) error
+
+	AddWatcher(ch chan state.State)
+	Watch()
 	// SubscribeDestinations(ch chan []types.Destination)
 	// WatchDestinations()
 	//
@@ -77,6 +54,7 @@ type FusisStore struct {
 	servicesChannels    []chan []types.Service
 	destinationChannels []chan []types.Destination
 	checksChannels      []chan []types.CheckSpec
+	watchChannels       []chan state.State
 }
 
 func New(config *config.BalancerConfig) (Store, error) {
@@ -91,6 +69,7 @@ func New(config *config.BalancerConfig) (Store, error) {
 	svcsChs := []chan []types.Service{}
 	dstsChs := []chan []types.Destination{}
 	checksChs := []chan []types.CheckSpec{}
+	watchChs := []chan state.State{}
 
 	validate := validator.New()
 	// Registering custom validations
@@ -104,6 +83,7 @@ func New(config *config.BalancerConfig) (Store, error) {
 		servicesChannels:    svcsChs,
 		destinationChannels: dstsChs,
 		checksChannels:      checksChs,
+		watchChannels:       watchChs,
 	}
 
 	// go fusisStore.WatchServices()
@@ -111,6 +91,71 @@ func New(config *config.BalancerConfig) (Store, error) {
 	// go fusisStore.WatchChecks()
 
 	return fusisStore, nil
+}
+
+func (s *FusisStore) AddWatcher(ch chan state.State) {
+	s.Lock()
+	s.watchChannels = append(s.watchChannels, ch)
+	s.Unlock()
+}
+
+func (s *FusisStore) Watch() {
+	ticker := time.Tick(1 * time.Second)
+	notify := false
+
+	rch := s.kv.Watch(context.TODO(), s.key(""), clientv3.WithPrefix())
+	for {
+		select {
+		case <-rch:
+			notify = true
+		case <-ticker:
+			if !notify {
+				continue
+			}
+
+			notify = false
+			fstate, err := s.GetState()
+			if err != nil {
+				logrus.Error(err)
+			}
+
+			for _, ch := range s.watchChannels {
+				ch <- fstate
+			}
+		}
+	}
+}
+
+func (s *FusisStore) GetState() (state.State, error) {
+	fstate, _ := state.New()
+
+	resp, err := s.kv.Get(context.TODO(), s.key(""), clientv3.WithPrefix())
+	if err != nil {
+		return nil, errors.Wrap(err, "[store] Get data from etcd failed")
+	}
+
+	for _, pair := range resp.Kvs {
+
+		key := string(pair.Key)
+		switch {
+		case strings.Contains(key, "ipvs-ids"):
+			continue
+		case strings.Contains(key, s.key("services")):
+			svc := types.Service{}
+			if err := json.Unmarshal(pair.Value, &svc); err != nil {
+				return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
+			}
+			fstate.AddService(svc)
+		case strings.Contains(key, s.key("destinations")):
+			dst := types.Destination{}
+			if err := json.Unmarshal(pair.Value, &dst); err != nil {
+				return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
+			}
+			fstate.AddDestination(dst)
+		}
+	}
+
+	return fstate, nil
 }
 
 func (s *FusisStore) GetServices() ([]types.Service, error) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -241,4 +242,73 @@ func TestDeleteDestination(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, []types.Destination{}, dsts)
+}
+
+func TestGetState(t *testing.T) {
+	cleanup(t)
+	config := config.BalancerConfig{
+		EtcdEndpoints: "172.100.0.40:2379",
+	}
+
+	kv, err := New(&config)
+	assert.Nil(t, err)
+
+	svc1 := &types.Service{
+		Name:      "test",
+		Address:   "10.0.1.1",
+		Port:      80,
+		Mode:      "nat",
+		Scheduler: "lc",
+		Protocol:  "tcp",
+	}
+
+	dst1 := &types.Destination{
+		Name:      "dst1",
+		Address:   "192.168.1.1",
+		Port:      80,
+		Mode:      "nat",
+		Weight:    1,
+		ServiceId: "test",
+	}
+
+	err = kv.AddService(svc1)
+	assert.Nil(t, err)
+
+	err = kv.AddDestination(svc1, dst1)
+	assert.Nil(t, err)
+
+	fstate, err := kv.GetState()
+	assert.Nil(t, err)
+
+	exState, _ := state.New()
+	exState.AddService(*svc1)
+	exState.AddDestination(*dst1)
+
+	assert.Equal(t, exState, fstate)
+
+	ch := make(chan state.State)
+
+	kv.AddWatcher(ch)
+	go kv.Watch()
+
+	// wait for the watch
+	time.Sleep(1 * time.Second)
+
+	svc2 := &types.Service{
+		Name:      "test2",
+		Address:   "10.0.1.2",
+		Port:      80,
+		Mode:      "nat",
+		Scheduler: "lc",
+		Protocol:  "tcp",
+	}
+
+	err = kv.AddService(svc2)
+	assert.Nil(t, err)
+
+	exState.AddService(*svc2)
+
+	newState := <-ch
+
+	assert.Equal(t, exState.GetServices(), newState.GetServices())
 }

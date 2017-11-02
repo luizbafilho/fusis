@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sirupsen/logrus"
-	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/store"
+	"github.com/luizbafilho/fusis/types"
+	"github.com/sirupsen/logrus"
 )
 
 type HealthMonitor interface {
@@ -71,20 +71,20 @@ func (m *FusisMonitor) getChecksToRemove(running map[string]Check, desired map[s
 }
 
 func (m *FusisMonitor) watchChanges() {
-	destinationsCh := make(chan []types.Destination)
-	m.store.SubscribeDestinations(destinationsCh)
-
-	specsCh := make(chan []types.CheckSpec)
-	m.store.SubscribeChecks(specsCh)
-
-	for {
-		select {
-		case m.currentDestinations = <-destinationsCh:
-		case m.currentSpecs = <-specsCh:
-		}
-
-		m.handleChanges()
-	}
+	// destinationsCh := make(chan []types.Destination)
+	// m.store.SubscribeDestinations(destinationsCh)
+	//
+	// specsCh := make(chan []types.CheckSpec)
+	// m.store.SubscribeChecks(specsCh)
+	//
+	// for {
+	// 	select {
+	// 	case m.currentDestinations = <-destinationsCh:
+	// 	case m.currentSpecs = <-specsCh:
+	// 	}
+	//
+	// 	m.handleChanges()
+	// }
 
 }
 

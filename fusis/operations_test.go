@@ -279,13 +279,13 @@ func (s *OperationsTestSuite) TestDeleteDestination() {
 }
 
 func defaultConfig() *config.BalancerConfig {
-	address := os.Getenv("STORE_ADDRESS")
+	address := os.Getenv("ETCD_ENDPOINTS")
 	if address == "" {
 		address = "consul://localhost:8500"
 	}
 	return &config.BalancerConfig{
-		StoreAddress: address,
-		StorePrefix:  "fusis-dev",
+		EtcdEndpoints: address,
+		StorePrefix:   "fusis-dev",
 		Interfaces: config.Interfaces{
 			Inbound:  "lo",
 			Outbound: "lo",

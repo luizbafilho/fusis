@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -38,8 +39,8 @@ type Store interface {
 	// SubscribeDestinations(ch chan []types.Destination)
 	// WatchDestinations()
 	//
-	// AddCheck(check types.CheckSpec) error
-	// DeleteCheck(check types.CheckSpec) error
+	AddCheck(check types.CheckSpec) error
+	DeleteCheck(check types.CheckSpec) error
 	// SubscribeChecks(ch chan []types.CheckSpec)
 	// WatchChecks()
 }
@@ -63,7 +64,7 @@ func New(config *config.BalancerConfig) (Store, error) {
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "connection to etcd failed")
+		return nil, errors.Wrap(err, "[store] connection to etcd failed")
 	}
 
 	svcsChs := []chan []types.Service{}
@@ -103,10 +104,13 @@ func (s *FusisStore) Watch() {
 	ticker := time.Tick(1 * time.Second)
 	notify := false
 
-	rch := s.kv.Watch(context.TODO(), s.key(""), clientv3.WithPrefix())
+	svcCh := s.kv.Watch(context.TODO(), s.key("services"), clientv3.WithPrefix())
+	dstCh := s.kv.Watch(context.TODO(), s.key("destinations"), clientv3.WithPrefix())
 	for {
 		select {
-		case <-rch:
+		case <-svcCh:
+			notify = true
+		case <-dstCh:
 			notify = true
 		case <-ticker:
 			if !notify {
@@ -116,7 +120,7 @@ func (s *FusisStore) Watch() {
 			notify = false
 			fstate, err := s.GetState()
 			if err != nil {
-				logrus.Error(err)
+				logrus.Error(errors.Wrap(err, "[store] couldn't get state"))
 			}
 
 			for _, ch := range s.watchChannels {
@@ -129,29 +133,31 @@ func (s *FusisStore) Watch() {
 func (s *FusisStore) GetState() (state.State, error) {
 	fstate, _ := state.New()
 
-	resp, err := s.kv.Get(context.TODO(), s.key(""), clientv3.WithPrefix())
+	svcGet := clientv3.OpGet(s.key("services"), clientv3.WithPrefix())
+	ipvsGet := clientv3.OpGet(s.key("destinations"), clientv3.WithPrefix())
+
+	resp, err := s.kv.Txn(context.TODO()).Then(svcGet, ipvsGet).Commit()
 	if err != nil {
 		return nil, errors.Wrap(err, "[store] Get data from etcd failed")
 	}
 
-	for _, pair := range resp.Kvs {
-
-		key := string(pair.Key)
-		switch {
-		case strings.Contains(key, "ipvs-ids"):
-			continue
-		case strings.Contains(key, s.key("services")):
-			svc := types.Service{}
-			if err := json.Unmarshal(pair.Value, &svc); err != nil {
-				return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
+	for _, r := range resp.Responses {
+		for _, pair := range r.GetResponseRange().Kvs {
+			key := string(pair.Key)
+			switch {
+			case strings.Contains(key, s.key("services")):
+				svc := types.Service{}
+				if err := json.Unmarshal(pair.Value, &svc); err != nil {
+					return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
+				}
+				fstate.AddService(svc)
+			case strings.Contains(key, s.key("destinations")):
+				dst := types.Destination{}
+				if err := json.Unmarshal(pair.Value, &dst); err != nil {
+					return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
+				}
+				fstate.AddDestination(dst)
 			}
-			fstate.AddService(svc)
-		case strings.Contains(key, s.key("destinations")):
-			dst := types.Destination{}
-			if err := json.Unmarshal(pair.Value, &dst); err != nil {
-				return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
-			}
-			fstate.AddDestination(dst)
 		}
 	}
 
@@ -159,6 +165,7 @@ func (s *FusisStore) GetState() (state.State, error) {
 }
 
 func (s *FusisStore) GetServices() ([]types.Service, error) {
+	fmt.Println("GetServices=>", s.key("services"))
 	svcs := []types.Service{}
 	resp, err := s.kv.Get(context.TODO(), s.key("services"), clientv3.WithPrefix())
 	if err != nil {
@@ -424,33 +431,37 @@ func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destinatio
 // 	s.checksChannels = append(s.checksChannels, updateCh)
 // }
 //
-// func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
-// 	key := s.key("checks", spec.ServiceID)
+func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
+	// TODO: do
+	// key := s.key("checks", spec.ServiceID)
+	//
+	// value, err := json.Marshal(spec)
+	// if err != nil {
+	// 	return errors.Wrapf(err, "error marshaling CheckSpec: %#v", spec)
+	// }
+	//
+	// err = s.kv.Put(key, value, nil)
+	// if err != nil {
+	// 	return errors.Wrapf(err, "error sending CheckSpec to store: %#v", spec)
+	// }
+
+	return nil
+}
+
 //
-// 	value, err := json.Marshal(spec)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error marshaling CheckSpec: %#v", spec)
-// 	}
-//
-// 	err = s.kv.Put(key, value, nil)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error sending CheckSpec to store: %#v", spec)
-// 	}
-//
-// 	return nil
-// }
-//
-// func (s *FusisStore) DeleteCheck(spec types.CheckSpec) error {
-// 	key := s.key("checks", spec.ServiceID)
-//
-// 	err := s.kv.DeleteTree(key)
-// 	if err != nil {
-// 		return errors.Wrapf(err, "error trying to delete check: %#v", spec)
-// 	}
-// 	log.Debugf("[store] Deleted check: %s", key)
-//
-// 	return nil
-// }
+func (s *FusisStore) DeleteCheck(spec types.CheckSpec) error {
+	//TODO: do
+	// key := s.key("checks", spec.ServiceID)
+	//
+	// err := s.kv.DeleteTree(key)
+	// if err != nil {
+	// 	return errors.Wrapf(err, "error trying to delete check: %#v", spec)
+	// }
+	// log.Debugf("[store] Deleted check: %s", key)
+	//
+	return nil
+}
+
 //
 // func (s *FusisStore) WatchChecks() {
 // 	specs := []types.CheckSpec{}

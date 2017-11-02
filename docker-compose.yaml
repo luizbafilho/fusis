@@ -6,18 +6,16 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     privileged: true
-    environment:
-      STORE_ADDRESS: consul://172.100.0.30:8500
     volumes:
       - ".:/go/src/github.com/luizbafilho/fusis/"
       - "/lib/modules:/lib/modules"
     depends_on:
-      - consul
+      - etcd
     working_dir: /go/src/github.com/luizbafilho/fusis/
     command: sh -c "go build -o bin/fusis && bin/fusis balancer"
     networks:
-      default:
-        ipv4_address: 172.100.0.5
+      - default
+        # ipv4_address: 172.100.0.5
 
   test:
     build:
@@ -39,7 +37,7 @@ services:
       context: .
     privileged: true
     depends_on:
-      - consul
+      - etcd
       - bird
     volumes:
       - "./fusis.toml:/etc/fusis.toml"

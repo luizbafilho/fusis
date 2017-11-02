@@ -9,6 +9,7 @@ import (
 
 	"github.com/luizbafilho/fusis/bgp"
 	"github.com/luizbafilho/fusis/config"
+	"github.com/luizbafilho/fusis/election"
 	"github.com/luizbafilho/fusis/health"
 	"github.com/luizbafilho/fusis/ipam"
 	"github.com/luizbafilho/fusis/iptables"
@@ -19,7 +20,6 @@ import (
 	"github.com/luizbafilho/fusis/store"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/vip"
-	"github.com/luizbafilho/leadership"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -56,9 +56,9 @@ type FusisBalancer struct {
 	metrics       metrics.Collector
 	healthMonitor health.HealthMonitor
 
-	store     store.Store
-	state     state.State
-	candidate *leadership.Candidate
+	store    store.Store
+	state    state.State
+	election *election.Election
 
 	changesCh  chan bool
 	shutdownCh chan bool
@@ -67,10 +67,10 @@ type FusisBalancer struct {
 // NewBalancer initializes a new balancer
 //TODO: Graceful shutdown on initialization errors
 func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
-	// store, err := store.New(config)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	store, err := store.New(config)
+	if err != nil {
+		return nil, err
+	}
 
 	state, err := state.New()
 	if err != nil {
@@ -99,16 +99,22 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 
 	metrics := metrics.NewMetrics(state, config)
 
+	el, err := election.New(config)
+	if err != nil {
+		return nil, err
+	}
+
 	changesCh := make(chan bool)
 	balancer := &FusisBalancer{
-		changesCh: changesCh,
-		// store:        store,
+		changesCh:    changesCh,
+		store:        store,
 		state:        state,
 		ipvsMngr:     ipvsMngr,
 		iptablesMngr: iptablesMngr,
 		vipMngr:      vipMngr,
 		config:       config,
 		ipam:         ipam,
+		election:     el,
 		metrics:      metrics,
 	}
 
@@ -136,14 +142,13 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 
 	go balancer.watchLeaderChanges()
 	go balancer.watchStore()
-	go balancer.watchState()
+	// go balancer.watchState()
 	go balancer.reconcile()
 
 	go metrics.Monitor()
 
-	err = balancer.loadInitialState()
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to load initial state")
+	if err := balancer.loadState(); err != nil {
+		return nil, errors.Wrap(err, "failed to load initial state")
 	}
 
 	return balancer, nil
@@ -152,27 +157,20 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 func (b *FusisBalancer) reconcile() {
 	ticker := time.NewTicker(30 * time.Second)
 	for _ = range ticker.C {
-		b.changesCh <- true
+		if err := b.loadState(); err != nil {
+			log.Errorf("failed to load state in reconcile loop: %s", err)
+		}
 	}
 }
 
-func (b *FusisBalancer) loadInitialState() error {
-	log.Info("[balancer] Loading initial state from Store")
-	initSvcs, err := b.store.GetServices()
+func (b *FusisBalancer) loadState() error {
+	s, err := b.store.GetState()
 	if err != nil {
-		return errors.Wrap(err, "[balancer] Fetching initial services failed")
+		return errors.Wrap(err, "[balancer] get initial state failed")
 	}
 
-	initDsts, err := b.store.GetDestinations()
-	if err != nil {
-		return errors.Wrap(err, "[balancer] Fetching initial destinations failed")
-	}
-
-	b.state.UpdateServices(initSvcs)
-	b.state.UpdateDestinations(initDsts)
-
-	if err, module := b.handleStateChange(); err != nil {
-		log.Errorf("[%s] Error syncing initial state: %s", module, err)
+	if err := b.handleStateChange(s); err != nil {
+		log.Errorf("[balancer] error handling initial state: %s", err)
 		return err
 	}
 
@@ -180,110 +178,82 @@ func (b *FusisBalancer) loadInitialState() error {
 }
 
 func (b *FusisBalancer) watchStore() {
-	updateSvcsCh := make(chan []types.Service)
-	b.store.SubscribeServices(updateSvcsCh)
+	stateCh := make(chan state.State)
+	b.store.AddWatcher(stateCh)
 
-	updateDstsCh := make(chan []types.Destination)
-	b.store.SubscribeDestinations(updateDstsCh)
+	go b.store.Watch()
 
-	for {
-		select {
-		case svcs := <-updateSvcsCh:
-			b.state.UpdateServices(svcs)
-		case dsts := <-updateDstsCh:
-			b.state.UpdateDestinations(dsts)
-		}
-
-		b.changesCh <- true
-	}
-}
-
-func (b *FusisBalancer) watchState() {
-	for {
-		<-b.changesCh
-		// TODO: this doesn't need to run all the time, we can implement
-		// some kind of throttling in the future waiting for a threashold of
-		// messages before applying the messages.
-		if err, module := b.handleStateChange(); err != nil {
-			log.Errorf("[%s] Error handling state change: %s", module, err)
+	for s := range stateCh {
+		if err := b.handleStateChange(s); err != nil {
+			log.Errorf("[balancer] Error handling state change: %s", err)
 		}
 	}
 }
 
-func (b *FusisBalancer) handleStateChange() (error, string) {
+func (b *FusisBalancer) handleStateChange(s state.State) error {
+	b.Lock()
+	b.state = s.Copy()
+	b.Unlock()
+
 	start := time.Now()
 	defer func() {
 		log.Debugf("handleStateChange() took %v", time.Since(start))
 	}()
 
-	state := b.state
+	// if b.config.EnableHealthChecks {
+	// 	s = b.healthMonitor.FilterHealthy(s)
+	// }
 
-	if b.config.EnableHealthChecks {
-		state = b.healthMonitor.FilterHealthy(b.state)
+	if err := b.ipvsMngr.Sync(s); err != nil {
+		return err
 	}
 
-	if err := b.ipvsMngr.Sync(state); err != nil {
-		return err, "ipvs"
-	}
-
-	if err := b.iptablesMngr.Sync(state); err != nil {
-		return err, "iptables"
+	if err := b.iptablesMngr.Sync(s); err != nil {
+		return err
 	}
 
 	if b.isAnycast() {
-		if err := b.bgpMngr.Sync(state); err != nil {
-			return err, "bgp"
+		if err := b.bgpMngr.Sync(s); err != nil {
+			return err
 		}
 	} else if !b.IsLeader() {
-		return nil, ""
+		return nil
 	}
 
-	if err := b.vipMngr.Sync(state); err != nil {
-		return err, "vip"
+	if err := b.vipMngr.Sync(s); err != nil {
+		return err
 	}
 
-	return nil, ""
+	return nil
 }
 
 func (b *FusisBalancer) IsLeader() bool {
-	b.RLock()
-	if b.candidate == nil {
-		return false
-	}
-	b.RUnlock()
-
-	return b.candidate.IsLeader()
+	return b.election.IsLeader()
 }
 
 func (b *FusisBalancer) watchLeaderChanges() {
-	// candidate := leadership.NewCandidate(b.store.GetKV(), b.config.StorePrefix+"/leader", b.config.Name, 20*time.Second)
-	// b.Lock()
-	// b.candidate = candidate
-	// b.Unlock()
-	//
-	// electedCh, _ := b.candidate.RunForElection()
-	// if b.isAnycast() {
-	// 	return
-	// }
-	//
-	// for isElected := range electedCh {
-	// 	// This loop will run every time there is a change in our leadership
-	// 	// status.
-	//
-	// 	if isElected {
-	// 		log.Println("I won the election! I'm now the leader")
-	// 		if err := b.vipMngr.Sync(b.state); err != nil {
-	// 			log.Fatal("Could not sync Vips", err)
-	// 		}
-	//
-	// 		if err := b.sendGratuitousARPReply(); err != nil {
-	// 			log.Errorf(errors.Wrap(err, "Error sending Gratuitous ARP Reply").Error())
-	// 		}
-	// 	} else {
-	// 		log.Println("Lost the election, let's try another time")
-	// 		b.flushVips()
-	// 	}
-	// }
+	// No need to elect a leader when using anycast mode
+	if b.isAnycast() {
+		return
+	}
+
+	log.Debug("[election] running for election")
+	for elected := range b.election.Run() {
+		// This loop will run every time there is a change in the leadership status.
+		if elected {
+			log.Info("[election] defined leader")
+			if err := b.loadState(); err != nil {
+				log.Errorf("failed to load state in reconcile loop: %s", err)
+			}
+
+			if err := b.sendGratuitousARPReply(); err != nil {
+				log.Errorf(errors.Wrap(err, "error sending gratuitous ARP reply").Error())
+			}
+		} else {
+			log.Info("lost leadership. Flushing VIPs")
+			b.flushVips()
+		}
+	}
 }
 
 func (b *FusisBalancer) sendGratuitousARPReply() error {

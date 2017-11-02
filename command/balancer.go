@@ -51,8 +51,7 @@ func setupDefaultOptions() {
 	viper.SetDefault("name", randStr())
 	viper.SetDefault("log-level", "warn")
 	viper.SetDefault("enable-health-checks", true)
-	viper.SetDefault("store-prefix", "fusis")
-	viper.SetDefault("store-address", "consul://localhost:8500")
+	viper.SetDefault("store-prefix", "/fusis")
 }
 
 func setupBalancerCmdFlags(cmd *cobra.Command) {
@@ -60,7 +59,7 @@ func setupBalancerCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&conf.LogLevel, "log-level", "", "specify a log level")
 	cmd.Flags().BoolVarP(&conf.EnableHealthChecks, "enable-health-checks", "", true, "enables health checking on destinations")
 	cmd.Flags().StringVarP(&conf.StorePrefix, "store-prefix", "", "fusis", "configures the prefix used by the store")
-	cmd.Flags().StringVarP(&conf.StoreAddress, "store-address", "", "consul://localhost:8500", "configures the store address")
+	// cmd.Flags().StringVarP(&conf.StoreAddress, "store-address", "", "consul://localhost:8500", "configures the store address")
 
 	err := viper.BindPFlags(cmd.Flags())
 	if err != nil {

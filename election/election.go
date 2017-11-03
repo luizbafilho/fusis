@@ -18,7 +18,7 @@ type Election struct {
 	electedCh chan bool
 }
 
-func New(config *config.BalancerConfig) (*Election, error) {
+func New(config *config.BalancerConfig, election string) (*Election, error) {
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   strings.Split(config.EtcdEndpoints, ","),
 		DialTimeout: 5 * time.Second,
@@ -32,7 +32,7 @@ func New(config *config.BalancerConfig) (*Election, error) {
 		return nil, errors.Wrap(err, "[election] new session failed")
 	}
 
-	e := concurrency.NewElection(s, "/fusis-election")
+	e := concurrency.NewElection(s, config.StorePrefix+"/"+election)
 
 	return &Election{
 		name:      config.Name,
@@ -41,10 +41,8 @@ func New(config *config.BalancerConfig) (*Election, error) {
 	}, nil
 }
 
-func (e *Election) Run() chan bool {
-	go e.observe()
-
-	return e.electedCh
+func (e *Election) Run(electedCh chan bool) {
+	go e.observe(electedCh)
 }
 
 func (e *Election) IsLeader() bool {
@@ -60,7 +58,7 @@ func (e *Election) Resign() error {
 	return e.election.Resign(context.TODO())
 }
 
-func (e *Election) observe() {
+func (e *Election) observe(electedCh chan bool) {
 	if err := e.election.Campaign(context.Background(), e.name); err != nil {
 		logrus.Error(errors.Wrap(err, "[election] campaign failed"))
 	}
@@ -69,9 +67,9 @@ func (e *Election) observe() {
 
 	for v := range e.election.Observe(context.TODO()) {
 		if string(v.Kvs[0].Value) == e.name {
-			e.electedCh <- true
+			electedCh <- true
 		} else {
-			e.electedCh <- false
+			electedCh <- false
 			if err := e.election.Campaign(context.Background(), e.name); err != nil {
 				logrus.Error(errors.Wrap(err, "[election] campaign failed"))
 			}

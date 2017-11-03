@@ -73,6 +73,8 @@ func TestPutAndGetServices(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Equal(t, types.ErrValidation{Type: "service", Errors: map[string]string{"ipvs": "service must be unique"}}, err)
 
+	err = kv.Close()
+	assert.Nil(t, err)
 }
 
 func TestDeleteService(t *testing.T) {
@@ -137,6 +139,9 @@ func TestDeleteService(t *testing.T) {
 
 	err = kv.DeleteService(&types.Service{Name: "foo"})
 	assert.Equal(t, types.ErrServiceNotFound, err)
+
+	err = kv.Close()
+	assert.Nil(t, err)
 }
 
 func TestPutAndGetDestinations(t *testing.T) {
@@ -212,6 +217,9 @@ func TestPutAndGetDestinations(t *testing.T) {
 	dsts, err = kv.GetDestinations(svc2)
 	assert.Nil(t, err)
 	assert.Equal(t, []types.Destination{*dst3}, dsts)
+
+	err = kv.Close()
+	assert.Nil(t, err)
 }
 
 func TestDeleteDestination(t *testing.T) {
@@ -256,6 +264,9 @@ func TestDeleteDestination(t *testing.T) {
 
 	err = kv.DeleteDestination(svc1, &types.Destination{Name: "foo"})
 	assert.Equal(t, types.ErrDestinationNotFound, err)
+
+	err = kv.Close()
+	assert.Nil(t, err)
 }
 
 func TestGetState(t *testing.T) {
@@ -268,7 +279,7 @@ func TestGetState(t *testing.T) {
 	assert.Nil(t, err)
 
 	svc1 := &types.Service{
-		Name:      "test",
+		Name:      "test1",
 		Address:   "10.0.1.1",
 		Port:      80,
 		Mode:      "nat",
@@ -291,11 +302,26 @@ func TestGetState(t *testing.T) {
 	err = kv.AddDestination(svc1, dst1)
 	assert.Nil(t, err)
 
+	svc2 := &types.Service{
+		Name:      "srv2",
+		Address:   "10.0.1.2",
+		Port:      80,
+		Mode:      "nat",
+		Scheduler: "lc",
+		Protocol:  "tcp",
+	}
+
+	err = kv.AddService(svc2)
+	assert.Nil(t, err)
+
 	fstate, err := kv.GetState()
 	assert.Nil(t, err)
 
-	assert.Equal(t, []types.Service{*svc1}, fstate.GetServices())
+	assert.Equal(t, []types.Service{*svc1, *svc2}, fstate.GetServices())
 	assert.Equal(t, []types.Destination{*dst1}, fstate.GetDestinations(svc1))
+
+	err = kv.Close()
+	assert.Nil(t, err)
 }
 
 func TestWatch(t *testing.T) {
@@ -331,16 +357,19 @@ func TestWatch(t *testing.T) {
 	err = kv.AddDestination(svc1, dst1)
 	assert.Nil(t, err)
 
+	sts, err := kv.GetState()
+	assert.Nil(t, err)
+
 	ch := make(chan state.State)
 
 	kv.AddWatcher(ch)
 	go kv.Watch()
 
 	// wait for the watch
-	time.Sleep(1 * time.Second)
+	time.Sleep(4 * time.Second)
 
 	svc2 := &types.Service{
-		Name:      "test2",
+		Name:      "srv2",
 		Address:   "10.0.1.2",
 		Port:      80,
 		Mode:      "nat",
@@ -354,4 +383,7 @@ func TestWatch(t *testing.T) {
 	newState := <-ch
 
 	assert.Equal(t, []types.Service{*svc1, *svc2}, newState.GetServices())
+
+	err = kv.Close()
+	assert.Nil(t, err)
 }

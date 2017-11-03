@@ -99,7 +99,7 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 
 	metrics := metrics.NewMetrics(state, config)
 
-	el, err := election.New(config)
+	el, err := election.New(config, "election")
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,9 @@ func (b *FusisBalancer) watchLeaderChanges() {
 	}
 
 	log.Debug("[election] running for election")
-	for elected := range b.election.Run() {
+	electedCh := make(chan bool)
+	b.election.Run(electedCh)
+	for elected := range electedCh {
 		// This loop will run every time there is a change in the leadership status.
 		if elected {
 			log.Info("[election] defined leader")

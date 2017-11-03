@@ -69,6 +69,7 @@ services:
   etcd:
     environment:
       ETCDCTL_API: 3
+      ETCD_DEBUG: "true"
     image: quay.io/coreos/etcd:v3.2.7
     command:
        /usr/local/bin/etcd

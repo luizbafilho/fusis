@@ -357,9 +357,6 @@ func TestWatch(t *testing.T) {
 	err = kv.AddDestination(svc1, dst1)
 	assert.Nil(t, err)
 
-	sts, err := kv.GetState()
-	assert.Nil(t, err)
-
 	ch := make(chan state.State)
 
 	kv.AddWatcher(ch)

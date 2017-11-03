@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +24,7 @@ type DistributedLocker struct {
 type Store interface {
 	GetState() (state.State, error)
 	GetServices() ([]types.Service, error)
+	GetService(name string) (*types.Service, error)
 	AddService(svc *types.Service) error
 	DeleteService(svc *types.Service) error
 	// SubscribeServices(ch chan []types.Service)
@@ -165,7 +165,6 @@ func (s *FusisStore) GetState() (state.State, error) {
 }
 
 func (s *FusisStore) GetServices() ([]types.Service, error) {
-	fmt.Println("GetServices=>", s.key("services"))
 	svcs := []types.Service{}
 	resp, err := s.kv.Get(context.TODO(), s.key("services"), clientv3.WithPrefix())
 	if err != nil {
@@ -184,9 +183,28 @@ func (s *FusisStore) GetServices() ([]types.Service, error) {
 	return svcs, nil
 }
 
+func (s *FusisStore) GetService(name string) (*types.Service, error) {
+	resp, err := s.kv.Get(context.TODO(), s.key("services", name), clientv3.WithPrefix())
+	if err != nil {
+		return nil, errors.Wrap(err, "[store] Get services failed")
+	}
+
+	if len(resp.Kvs) == 0 {
+		return nil, types.ErrServiceNotFound
+	}
+
+	kv := resp.Kvs[0]
+	svc := &types.Service{}
+	if err := json.Unmarshal(kv.Value, &svc); err != nil {
+		return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", kv.Value)
+	}
+
+	return svc, nil
+}
+
 func (s *FusisStore) GetDestinations(svc *types.Service) ([]types.Destination, error) {
 	dsts := []types.Destination{}
-	resp, err := s.kv.Get(context.TODO(), s.key("destinations", svc.GetId(), ""), clientv3.WithPrefix())
+	resp, err := s.kv.Get(context.TODO(), s.key("destinations", svc.GetId()), clientv3.WithPrefix())
 	if err != nil {
 		return dsts, errors.Wrap(err, "[store] Get destinations failed")
 	}
@@ -209,7 +227,7 @@ func (s *FusisStore) GetDestinations(svc *types.Service) ([]types.Destination, e
 // in the store, which consists in a combination of address, port
 // and protocol.
 func (s *FusisStore) AddService(svc *types.Service) error {
-	svcKey := s.key("services", svc.GetId(), "config")
+	svcKey := s.key("services", svc.GetId())
 	ipvsKey := s.key("ipvs-ids", "services", svc.IpvsId())
 	// Validating service
 	if err := s.validateService(svc); err != nil {
@@ -237,31 +255,12 @@ func (s *FusisStore) AddService(svc *types.Service) error {
 
 	// resp.Succeeded means the compare clause was true
 	if resp.Succeeded == false {
-		return errors.Errorf("[store] Service or IPVS Service ID are not unique")
+		return types.ErrValidation{Type: "service", Errors: map[string]string{"ipvs": "service must be unique"}}
 	}
 
 	return nil
 }
 
-//
-// func (s *FusisStore) GetService(serviceId string) (*types.Service, error) {
-// 	key := s.key("services", serviceId, "config")
-// 	kvPair, err := s.kv.Get(key)
-// 	if err != nil {
-// 		if err == kv.ErrKeyNotFound {
-// 			return nil, types.ErrServiceNotFound
-// 		}
-// 		return nil, errors.Wrap(err, "GetService from store failed")
-// 	}
-//
-// 	svc := &types.Service{}
-// 	if err := json.Unmarshal(kvPair.Value, svc); err != nil {
-// 		return nil, errors.Wrap(err, "Unmarshal service from store failed")
-// 	}
-//
-// 	return svc, nil
-// }
-//
 func (s *FusisStore) DeleteService(svc *types.Service) error {
 	// Deleting service
 	svcKey := s.key("services", svc.GetId())
@@ -269,66 +268,30 @@ func (s *FusisStore) DeleteService(svc *types.Service) error {
 	svcDel := clientv3.OpDelete(svcKey, clientv3.WithPrefix())
 	ipvsSvcDel := clientv3.OpDelete(ipvsSvcKey, clientv3.WithPrefix())
 
+	svcCmp := clientv3.Compare(clientv3.Version(svcKey), ">", 0)
+	ipvsSvcCmp := clientv3.Compare(clientv3.Version(ipvsSvcKey), ">", 0)
+
 	// Deleting destinations
-	dstKey := s.key("destinations", svc.GetId(), "")
-	ipvsDstKey := s.key("ipvs-ids", "destinations", svc.GetId(), "")
+	dstKey := s.key("destinations", svc.GetId())
+	ipvsDstKey := s.key("ipvs-ids", "destinations", svc.GetId())
 	dstDel := clientv3.OpDelete(dstKey, clientv3.WithPrefix())
 	ipvsDstDel := clientv3.OpDelete(ipvsDstKey, clientv3.WithPrefix())
 
-	_, err := s.kv.Txn(context.TODO()).
+	resp, err := s.kv.Txn(context.TODO()).
+		If(svcCmp, ipvsSvcCmp).
 		Then(svcDel, ipvsSvcDel, dstDel, ipvsDstDel).
 		Commit()
 	if err != nil {
 		return errors.Wrapf(err, "[store] Error deleting service from Etcd: %v", svc)
 	}
 
+	if resp.Succeeded == false {
+		return types.ErrServiceNotFound
+	}
+
 	return nil
 }
 
-//
-// func (s *FusisStore) SubscribeServices(updateCh chan []types.Service) {
-// 	s.Lock()
-// 	defer s.Unlock()
-// 	s.servicesChannels = append(s.servicesChannels, updateCh)
-// }
-//
-// func (s *FusisStore) WatchServices() {
-// 	svcs := []types.Service{}
-//
-// 	stopCh := make(<-chan struct{})
-// 	events, err := s.kv.WatchTree(s.key("services"), stopCh)
-// 	if err != nil {
-// 		log.Error("[store] ", err)
-// 	}
-//
-// 	for {
-// 		select {
-// 		case entries := <-events:
-// 			log.Debug("[store] Services received")
-//
-// 			for _, pair := range entries {
-// 				svc := types.Service{}
-// 				if err := json.Unmarshal(pair.Value, &svc); err != nil {
-// 					log.Error("[store] ", err)
-// 				}
-// 				log.Debugf("[store] Got sevice: %#v ", svc)
-//
-// 				svcs = append(svcs, svc)
-// 			}
-//
-// 			s.Lock()
-// 			for _, ch := range s.servicesChannels {
-// 				log.Debug("[store] Sending message to service ch")
-// 				ch <- svcs
-// 			}
-// 			s.Unlock()
-//
-// 			//Cleaning up services slice
-// 			svcs = []types.Service{}
-// 		}
-// 	}
-// }
-//
 func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) error {
 	dstKey := s.key("destinations", svc.GetId(), dst.GetId())
 	ipvsKey := s.key("ipvs-ids", "destinations", svc.GetId(), dst.IpvsId())
@@ -359,7 +322,7 @@ func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) 
 
 	// resp.Succeeded means the compare clause was true
 	if resp.Succeeded == false {
-		return errors.Errorf("[store] Destination or IPVS Destionation ID are not unique")
+		return types.ErrValidation{Type: "destination", Errors: map[string]string{"ipvs": "destination must be unique"}}
 	}
 
 	return nil
@@ -372,65 +335,25 @@ func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destinatio
 	dstDel := clientv3.OpDelete(dstKey, clientv3.WithPrefix())
 	ipvsDel := clientv3.OpDelete(ipvsKey, clientv3.WithPrefix())
 
-	_, err := s.kv.Txn(context.TODO()).
+	dstCmp := clientv3.Compare(clientv3.Version(dstKey), ">", 0)
+	ipvsCmp := clientv3.Compare(clientv3.Version(ipvsKey), ">", 0)
+
+	resp, err := s.kv.Txn(context.TODO()).
+		If(dstCmp, ipvsCmp).
 		Then(dstDel, ipvsDel).
 		Commit()
 	if err != nil {
 		return errors.Wrapf(err, "[store] Error deleting destination from Etcd: %v", svc)
 	}
 
+	// resp.Succeeded means the compare clause was true
+	if resp.Succeeded == false {
+		return types.ErrDestinationNotFound
+	}
+
 	return nil
 }
 
-//
-// func (s *FusisStore) SubscribeDestinations(updateCh chan []types.Destination) {
-// 	s.Lock()
-// 	defer s.Unlock()
-// 	s.destinationChannels = append(s.destinationChannels, updateCh)
-// }
-//
-// func (s *FusisStore) WatchDestinations() {
-// 	dsts := []types.Destination{}
-//
-// 	stopCh := make(<-chan struct{})
-// 	events, err := s.kv.WatchTree(s.key("destinations"), stopCh)
-// 	if err != nil {
-// 		errors.Wrap(err, "failed watching fusis/destinations")
-// 	}
-//
-// 	for {
-// 		select {
-// 		case entries := <-events:
-// 			log.Debug("[store] Destinations received")
-//
-// 			for _, pair := range entries {
-// 				dst := types.Destination{}
-// 				if err := json.Unmarshal(pair.Value, &dst); err != nil {
-// 					errors.Wrap(err, "failed unmarshall of destinations")
-// 				}
-// 				log.Debugf("[store] Got destination: %#v", dst)
-//
-// 				dsts = append(dsts, dst)
-// 			}
-//
-// 			s.Lock()
-// 			for _, ch := range s.destinationChannels {
-// 				ch <- dsts
-// 			}
-// 			s.Unlock()
-//
-// 			//Cleaning up destinations slice
-// 			dsts = []types.Destination{}
-// 		}
-// 	}
-// }
-//
-// func (s *FusisStore) SubscribeChecks(updateCh chan []types.CheckSpec) {
-// 	s.Lock()
-// 	defer s.Unlock()
-// 	s.checksChannels = append(s.checksChannels, updateCh)
-// }
-//
 func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
 	// TODO: do
 	// key := s.key("checks", spec.ServiceID)
@@ -500,5 +423,7 @@ func (s *FusisStore) DeleteCheck(spec types.CheckSpec) error {
 // }
 //
 func (s *FusisStore) key(keys ...string) string {
+	lastIndex := len(keys) - 1
+	keys[lastIndex] = keys[lastIndex] + "/"
 	return strings.Join(append([]string{s.prefix}, keys...), "/")
 }

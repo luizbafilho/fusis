@@ -56,14 +56,23 @@ func TestPutAndGetServices(t *testing.T) {
 	err = kv.AddService(&svc2)
 	assert.Nil(t, err)
 
+	// Testing GetServices()
 	svcs, err := kv.GetServices()
 	assert.Nil(t, err)
-
 	assert.Equal(t, []types.Service{svc1, svc2}, svcs)
+
+	// Testing GetService(name int)
+	svc, err := kv.GetService(svc1.Name)
+	assert.Nil(t, err)
+	assert.Equal(t, &svc1, svc)
+
+	svc, err = kv.GetService("foo")
+	assert.Equal(t, types.ErrServiceNotFound, err)
 
 	err = kv.AddService(&svc2)
 	assert.NotNil(t, err)
-	assert.Equal(t, "[store] Service or IPVS Service ID are not unique", err.Error())
+	assert.Equal(t, types.ErrValidation{Type: "service", Errors: map[string]string{"ipvs": "service must be unique"}}, err)
+
 }
 
 func TestDeleteService(t *testing.T) {
@@ -125,6 +134,9 @@ func TestDeleteService(t *testing.T) {
 	dsts, err := kv.GetDestinations(svc2)
 	assert.Nil(t, err)
 	assert.Equal(t, []types.Destination{}, dsts)
+
+	err = kv.DeleteService(&types.Service{Name: "foo"})
+	assert.Equal(t, types.ErrServiceNotFound, err)
 }
 
 func TestPutAndGetDestinations(t *testing.T) {
@@ -240,8 +252,10 @@ func TestDeleteDestination(t *testing.T) {
 
 	dsts, err := kv.GetDestinations(svc1)
 	assert.Nil(t, err)
-
 	assert.Equal(t, []types.Destination{}, dsts)
+
+	err = kv.DeleteDestination(svc1, &types.Destination{Name: "foo"})
+	assert.Equal(t, types.ErrDestinationNotFound, err)
 }
 
 func TestGetState(t *testing.T) {
@@ -280,11 +294,42 @@ func TestGetState(t *testing.T) {
 	fstate, err := kv.GetState()
 	assert.Nil(t, err)
 
-	exState, _ := state.New()
-	exState.AddService(*svc1)
-	exState.AddDestination(*dst1)
+	assert.Equal(t, []types.Service{*svc1}, fstate.GetServices())
+	assert.Equal(t, []types.Destination{*dst1}, fstate.GetDestinations(svc1))
+}
 
-	assert.Equal(t, exState, fstate)
+func TestWatch(t *testing.T) {
+	cleanup(t)
+	config := config.BalancerConfig{
+		EtcdEndpoints: "172.100.0.40:2379",
+	}
+
+	kv, err := New(&config)
+	assert.Nil(t, err)
+
+	svc1 := &types.Service{
+		Name:      "test",
+		Address:   "10.0.1.1",
+		Port:      80,
+		Mode:      "nat",
+		Scheduler: "lc",
+		Protocol:  "tcp",
+	}
+
+	dst1 := &types.Destination{
+		Name:      "dst1",
+		Address:   "192.168.1.1",
+		Port:      80,
+		Mode:      "nat",
+		Weight:    1,
+		ServiceId: "test",
+	}
+
+	err = kv.AddService(svc1)
+	assert.Nil(t, err)
+
+	err = kv.AddDestination(svc1, dst1)
+	assert.Nil(t, err)
 
 	ch := make(chan state.State)
 
@@ -306,9 +351,7 @@ func TestGetState(t *testing.T) {
 	err = kv.AddService(svc2)
 	assert.Nil(t, err)
 
-	exState.AddService(*svc2)
-
 	newState := <-ch
 
-	assert.Equal(t, exState.GetServices(), newState.GetServices())
+	assert.Equal(t, []types.Service{*svc1, *svc2}, newState.GetServices())
 }

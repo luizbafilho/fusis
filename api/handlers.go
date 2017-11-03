@@ -15,7 +15,12 @@ type ServiceResponse struct {
 }
 
 func (as ApiService) getServices(c echo.Context) error {
-	return c.JSON(http.StatusOK, as.balancer.GetServices())
+	svcs, err := as.balancer.GetServices()
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, svcs)
 }
 
 func (as ApiService) getService(c echo.Context) error {
@@ -69,12 +74,7 @@ func (as ApiService) addDestination(c echo.Context) error {
 }
 
 func (as ApiService) deleteDestination(c echo.Context) error {
-	dst, err := as.balancer.GetDestination(c.Param("destination_name"))
-	if err != nil {
-		return err
-	}
-
-	if err := as.balancer.DeleteDestination(dst); err != nil {
+	if err := as.balancer.DeleteDestination(&types.Destination{Name: c.Param("destination_name")}); err != nil {
 		return err
 	}
 

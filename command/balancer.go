@@ -15,7 +15,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var conf config.BalancerConfig
+var (
+	conf       config.BalancerConfig
+	configFile string
+)
 
 func init() {
 	FusisCmd.AddCommand(NewBalancerCommand())

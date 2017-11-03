@@ -25,14 +25,14 @@ import (
 )
 
 type Balancer interface {
-	GetServices() []types.Service
+	GetServices() ([]types.Service, error)
 	AddService(*types.Service) error
-	GetService(string) (*types.Service, error)
+	GetService(name string) (*types.Service, error)
 	DeleteService(string) error
 
 	AddDestination(*types.Service, *types.Destination) error
-	GetDestination(string) (*types.Destination, error)
-	GetDestinations(svc *types.Service) []types.Destination
+	// GetDestination(name string) (*types.Destination, error)
+	GetDestinations(svc *types.Service) ([]types.Destination, error)
 	DeleteDestination(*types.Destination) error
 
 	AddCheck(check types.CheckSpec) error
@@ -191,9 +191,9 @@ func (b *FusisBalancer) watchStore() {
 }
 
 func (b *FusisBalancer) handleStateChange(s state.State) error {
-	b.Lock()
-	b.state = s.Copy()
-	b.Unlock()
+	// b.Lock()
+	// b.state = s.Copy()
+	// b.Unlock()
 
 	start := time.Now()
 	defer func() {
@@ -257,7 +257,12 @@ func (b *FusisBalancer) watchLeaderChanges() {
 }
 
 func (b *FusisBalancer) sendGratuitousARPReply() error {
-	for _, s := range b.GetServices() {
+	svcs, err := b.GetServices()
+	if err != nil {
+		return err
+	}
+
+	for _, s := range svcs {
 		if err := fusis_net.SendGratuitousARPReply(s.Address, b.config.Interfaces.Inbound); err != nil {
 			return err
 		}
@@ -268,17 +273,6 @@ func (b *FusisBalancer) sendGratuitousARPReply() error {
 
 // Utility method to cleanup state for tests
 func (b *FusisBalancer) cleanup() error {
-	for _, svc := range b.GetServices() {
-		b.state.DeleteService(&svc)
-
-		for _, dst := range b.GetDestinations(&svc) {
-			b.state.DeleteDestination(&dst)
-		}
-	}
-
-	// kv := b.store.GetKV()
-	// kv.DeleteTree(b.config.StorePrefix)
-
 	b.flushVips()
 
 	if out, err := exec.Command("ipvsadm", "--clear").CombinedOutput(); err != nil {

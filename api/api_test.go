@@ -53,7 +53,7 @@ func (s *ApiTestSuite) SetupTest() {
 }
 
 func (s *ApiTestSuite) TestGetServices() {
-	s.balancer.On("GetServices").Return([]types.Service{})
+	s.balancer.On("GetServices").Return([]types.Service{}, nil)
 
 	expectedBody, err := json.Marshal([]types.Service{})
 	assert.Nil(s.T(), err)
@@ -216,8 +216,7 @@ func (s *ApiTestSuite) TestAddDestination() {
 }
 
 func (s *ApiTestSuite) TestDeleteDestination() {
-	s.balancer.On("GetDestination", s.destination.Name).Return(&s.destination, nil)
-	s.balancer.On("DeleteDestination", &s.destination).Return(nil)
+	s.balancer.On("DeleteDestination", &types.Destination{Name: s.destination.Name}).Return(nil)
 
 	path := fmt.Sprintf("/services/%s/destinations/%s", s.service.Name, s.destination.Name)
 	s.r.DELETE(path).

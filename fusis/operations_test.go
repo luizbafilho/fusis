@@ -1,12 +1,18 @@
 package fusis
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/coreos/etcd/clientv3"
 	"github.com/luizbafilho/fusis/config"
 	"github.com/luizbafilho/fusis/types"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -17,6 +23,8 @@ type OperationsTestSuite struct {
 	balancer    Balancer
 	service     types.Service
 	destination types.Destination
+
+	kv *clientv3.Client
 }
 
 func TestOperationsSuite(t *testing.T) {
@@ -36,6 +44,12 @@ func (s *OperationsTestSuite) SetupSuite() {
 		assert.Fail(s.T(), "balancer did not become leader")
 	})
 
+	kv, err := clientv3.New(clientv3.Config{
+		Endpoints:   []string{"172.100.0.40:2379"},
+		DialTimeout: 5 * time.Second,
+	})
+	assert.Nil(s.T(), err)
+	s.kv = kv
 }
 
 func (s *OperationsTestSuite) SetupTest() {
@@ -56,12 +70,17 @@ func (s *OperationsTestSuite) SetupTest() {
 		Weight:    1,
 		ServiceId: "test",
 	}
-
 }
 
 func (s *OperationsTestSuite) TearDownTest() {
-	b := s.balancer.(*FusisBalancer)
-	b.cleanup()
+	_, err := s.kv.Delete(context.TODO(), defaultConfig().StorePrefix, clientv3.WithPrefix())
+	assert.Nil(s.T(), err)
+
+	s.balancer.(*FusisBalancer).flushVips()
+
+	if out, err := exec.Command("ipvsadm", "--clear").CombinedOutput(); err != nil {
+		log.Fatal(fmt.Errorf(" with message: `%s`, error: %v", strings.TrimSpace(string(out)), err))
+	}
 }
 
 type testFn func() (bool, error)
@@ -90,7 +109,10 @@ func (s *OperationsTestSuite) TestAddService() {
 	assert.Nil(s.T(), err)
 	time.Sleep(2 * time.Second)
 
-	assert.Equal(s.T(), []types.Service{s.service}, s.balancer.GetServices())
+	svcs, err := s.balancer.GetServices()
+	assert.Nil(s.T(), err)
+
+	assert.Equal(s.T(), []types.Service{s.service}, svcs)
 }
 
 func (s *OperationsTestSuite) TestAddService_VipAllocation() {
@@ -133,7 +155,7 @@ func (s *OperationsTestSuite) TestAddService_Uniqueness() {
 	errValidation := types.ErrValidation{
 		Type: "service",
 		Errors: map[string]string{
-			"Name": "field must be unique",
+			"ipvs": "service must be unique",
 		},
 	}
 	assert.Equal(s.T(), errValidation, err)
@@ -144,7 +166,7 @@ func (s *OperationsTestSuite) TestAddService_Uniqueness() {
 	errValidation = types.ErrValidation{
 		Type: "service",
 		Errors: map[string]string{
-			"ipvs": "address, port and protocol belongs to another service. It must be unique.",
+			"ipvs": "service must be unique",
 		},
 	}
 	assert.Equal(s.T(), errValidation, err)
@@ -172,7 +194,11 @@ func (s *OperationsTestSuite) TestDeleteService() {
 	err = s.balancer.DeleteService(s.service.Name)
 	time.Sleep(1000 * time.Millisecond)
 	assert.Nil(s.T(), err)
-	assert.Len(s.T(), s.balancer.GetServices(), 0)
+
+	svcs, err := s.balancer.GetServices()
+	assert.Nil(s.T(), err)
+
+	assert.Len(s.T(), svcs, 0)
 
 	// Asserting service not found
 	err = s.balancer.DeleteService("anything")
@@ -187,7 +213,10 @@ func (s *OperationsTestSuite) TestAddDestination() {
 	assert.Nil(s.T(), err)
 	time.Sleep(2000 * time.Millisecond)
 
-	assert.Equal(s.T(), []types.Destination{s.destination}, s.balancer.GetDestinations(&s.service))
+	dsts, err := s.balancer.GetDestinations(&s.service)
+	assert.Nil(s.T(), err)
+
+	assert.Equal(s.T(), []types.Destination{s.destination}, dsts)
 
 	//Asserting default
 	dst := &types.Destination{}
@@ -239,7 +268,7 @@ func (s *OperationsTestSuite) TestAddDestination_Uniqueness() {
 	errValidation := types.ErrValidation{
 		Type: "destination",
 		Errors: map[string]string{
-			"Name": "field must be unique",
+			"ipvs": "destination must be unique",
 		},
 	}
 	assert.Equal(s.T(), errValidation, err)
@@ -250,7 +279,7 @@ func (s *OperationsTestSuite) TestAddDestination_Uniqueness() {
 	errValidation = types.ErrValidation{
 		Type: "destination",
 		Errors: map[string]string{
-			"ipvs": "address and port belongs to another destination. It must be unique.",
+			"ipvs": "destination must be unique",
 		},
 	}
 	assert.Equal(s.T(), errValidation, err)
@@ -268,7 +297,10 @@ func (s *OperationsTestSuite) TestDeleteDestination() {
 	err = s.balancer.DeleteDestination(&s.destination)
 	time.Sleep(1 * time.Second)
 	assert.Nil(s.T(), err)
-	assert.Len(s.T(), s.balancer.GetDestinations(&s.service), 0)
+
+	dsts, err := s.balancer.GetDestinations(&s.service)
+	assert.Nil(s.T(), err)
+	assert.Len(s.T(), dsts, 0)
 
 	// Asserting service not found
 	err = s.balancer.DeleteDestination(&types.Destination{})

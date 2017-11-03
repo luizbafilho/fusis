@@ -152,20 +152,23 @@ func (m *FusisMonitor) Start() {
 }
 
 func (m *FusisMonitor) FilterHealthy(s state.State) state.State {
-	filteredState := s.Copy()
-	for _, svc := range filteredState.GetServices() {
-		for _, dst := range filteredState.GetDestinations(&svc) {
+	filteredDsts := []types.Destination{}
+
+	for _, svc := range s.GetServices() {
+		for _, dst := range s.GetDestinations(&svc) {
 			checkId := fmt.Sprintf("%s:%s", svc.GetId(), dst.GetId())
 			m.RLock()
 			if check, ok := m.runningChecks[checkId]; ok {
-				if check.GetStatus() == BAD {
+				if check.GetStatus() == OK {
 					logrus.Debugf("[health-monitor] filtering %#v. Check %s", dst, check.GetId())
-					filteredState.DeleteDestination(&dst)
+					filteredDsts = append(filteredDsts, dst)
 				}
 			}
 			m.RUnlock()
 		}
 	}
 
-	return filteredState
+	s.SetDestinations(filteredDsts)
+
+	return s
 }

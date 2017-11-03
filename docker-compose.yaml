@@ -16,7 +16,7 @@ services:
     networks:
       - default
 
-  test:
+  test: &test
     build:
       context: .
       dockerfile: Dockerfile.dev
@@ -26,9 +26,14 @@ services:
     volumes:
       - ".:/go/src/github.com/luizbafilho/fusis/"
       - "/lib/modules:/lib/modules"
+    working_dir: /go/src/github.com/luizbafilho/fusis/
     depends_on:
       - etcd
     command: go test -race ./...
+
+  ci:
+    <<: *test
+    command: ./covertests.sh
 
   fusis:
     build:

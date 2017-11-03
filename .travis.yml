@@ -1,17 +1,12 @@
+sudo: required
+
 language: go
-sudo: true
-go:
-  - 1.7.3
-before_install:
-  - sudo apt-get -qq update
-  - sudo apt-get install -y libnl-3-dev libnl-genl-3-dev build-essential ipvsadm iptables
-  - sudo ln -s $(which go) /usr/bin/go
-  - wget https://releases.hashicorp.com/consul/0.7.1/consul_0.7.1_linux_amd64.zip
-  - unzip consul_0.7.1_linux_amd64.zip
-before_script:
-  - sudo modprobe ip_vs
+
+services:
+  - docker
+
 script:
-  - ./consul agent -dev --log-level err &
-  - make ci
+  - docker-compose run ci
+
 after_success:
   - bash <(curl -s https://codecov.io/bash)

@@ -21,7 +21,8 @@ type BalancerConfig struct {
 	Ipam
 	Metrics
 
-	StoreAddress string `mapstructure:"store-address"`
+	// StoreAddress string `mapstructure:"store-address"`
+	EtcdEndpoints string `mapstructure:"etcd-endpoints"`
 }
 
 type AgentConfig struct {

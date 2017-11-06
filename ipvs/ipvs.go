@@ -164,20 +164,9 @@ func (i *Ipvs) getCurrentServicesSet() (mapset.Set, error) {
 }
 
 func (ipvs *Ipvs) getStateDestinationsSet(state state.State, svc types.Service) mapset.Set {
-	// checks := state.GetChecks()
 	stateSet := mapset.NewSet()
 
-	// Filter healthy destinations
 	for _, d := range state.GetDestinations(&svc) {
-		// if check, ok := checks[d.GetId()]; ok {
-		// 	if check.Status == health.BAD {
-		// 		continue
-		// 	}
-		// } else { // no healthcheck found
-		// 	continue
-		// }
-
-		// Clean up to match services from kernel
 		d.Name = ""
 		d.ServiceId = ""
 		stateSet.Add(d)
@@ -188,10 +177,6 @@ func (ipvs *Ipvs) getStateDestinationsSet(state state.State, svc types.Service) 
 
 func (ipvs *Ipvs) getCurrentDestinationsSet(svc types.Service) (mapset.Set, error) {
 	currentSet := mapset.NewSet()
-	// ipvsSvc, err := ipvs.handler.ListServices(ToIpvsService(&svc))
-	// if err != nil {
-	// 	return nil, err
-	// }
 	dsts, err := ipvs.handler.GetDestinations(ToIpvsService(&svc))
 	if err != nil {
 		return nil, err

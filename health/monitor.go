@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sirupsen/logrus"
-	"github.com/luizbafilho/fusis/types"
 	"github.com/luizbafilho/fusis/state"
 	"github.com/luizbafilho/fusis/store"
+	"github.com/luizbafilho/fusis/types"
+	"github.com/sirupsen/logrus"
 )
 
 type HealthMonitor interface {
-	Start()
+	Start(changesCh chan bool)
+	UpdateChecks(s state.State)
 	FilterHealthy(state state.State) state.State
 }
 
@@ -35,10 +36,9 @@ type FusisMonitor struct {
 	currentSpecs        []types.CheckSpec
 }
 
-func NewMonitor(store store.Store, changesCh chan bool) HealthMonitor {
+func NewMonitor(store store.Store) HealthMonitor {
 	return &FusisMonitor{
 		store:               store,
-		changesCh:           changesCh,
 		runningChecks:       make(map[string]Check),
 		desiredChecks:       make(map[string]Check),
 		currentDestinations: []types.Destination{},
@@ -70,33 +70,16 @@ func (m *FusisMonitor) getChecksToRemove(running map[string]Check, desired map[s
 	return toRemove
 }
 
-func (m *FusisMonitor) watchChanges() {
-	destinationsCh := make(chan []types.Destination)
-	m.store.SubscribeDestinations(destinationsCh)
+func (m *FusisMonitor) UpdateChecks(s state.State) {
+	m.Lock()
+	m.currentDestinations = s.GetDestinations(nil)
+	m.currentSpecs = s.GetChecks()
+	m.Unlock()
 
-	specsCh := make(chan []types.CheckSpec)
-	m.store.SubscribeChecks(specsCh)
-
-	for {
-		select {
-		case m.currentDestinations = <-destinationsCh:
-		case m.currentSpecs = <-specsCh:
-		}
-
-		m.handleChanges()
-	}
-
+	m.handleStateChange()
 }
 
-func (m *FusisMonitor) handleChanges() {
-	// currentSpec := types.CheckSpec{
-	// 	Interval:  5 * time.Second,
-	// 	TCP:       "10.2.2.2",
-	// 	ServiceID: "filmes",
-	// }
-
-	// m.currentSpecs = []types.CheckSpec{currentSpec}
-
+func (m *FusisMonitor) handleStateChange() {
 	m.populateDesiredChecks()
 
 	toAdd := m.getChecksToAdd(m.runningChecks, m.desiredChecks)
@@ -115,7 +98,6 @@ func (m *FusisMonitor) handleChanges() {
 		m.runningChecks[check.GetId()] = check
 		m.Unlock()
 	}
-
 }
 
 func (m *FusisMonitor) populateDesiredChecks() {
@@ -147,25 +129,25 @@ func (m *FusisMonitor) newCheck(spec types.CheckSpec, dst types.Destination) Che
 	}
 }
 
-func (m *FusisMonitor) Start() {
-	m.watchChanges()
+func (m *FusisMonitor) Start(changesCh chan bool) {
+	m.changesCh = changesCh
 }
 
 func (m *FusisMonitor) FilterHealthy(s state.State) state.State {
-	filteredState := s.Copy()
-	for _, svc := range filteredState.GetServices() {
-		for _, dst := range filteredState.GetDestinations(&svc) {
+
+	for _, svc := range s.GetServices() {
+		for _, dst := range s.GetDestinations(&svc) {
 			checkId := fmt.Sprintf("%s:%s", svc.GetId(), dst.GetId())
 			m.RLock()
 			if check, ok := m.runningChecks[checkId]; ok {
 				if check.GetStatus() == BAD {
 					logrus.Debugf("[health-monitor] filtering %#v. Check %s", dst, check.GetId())
-					filteredState.DeleteDestination(&dst)
+					s.DeleteDestination(dst)
 				}
 			}
 			m.RUnlock()
 		}
 	}
 
-	return filteredState
+	return s
 }

@@ -15,6 +15,7 @@
 package auth
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -23,7 +24,6 @@ import (
 	"github.com/coreos/etcd/etcdserver"
 	"github.com/coreos/etcd/etcdserver/etcdserverpb"
 	etcdstore "github.com/coreos/etcd/store"
-	"golang.org/x/net/context"
 )
 
 type fakeDoer struct{}
@@ -173,7 +173,7 @@ func (td *testDoer) Do(_ context.Context, req etcdserverpb.Request) (etcdserver.
 			},
 		}, nil
 	}
-	if req.Method == "GET" && td.get != nil {
+	if (req.Method == "GET" || req.Method == "QGET") && td.get != nil {
 		res := td.get[td.getindex]
 		if res.Event == nil {
 			td.getindex++

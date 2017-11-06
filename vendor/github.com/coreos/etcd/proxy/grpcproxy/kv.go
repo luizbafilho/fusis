@@ -15,11 +15,11 @@
 package grpcproxy
 
 import (
+	"context"
+
 	"github.com/coreos/etcd/clientv3"
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
 	"github.com/coreos/etcd/proxy/grpcproxy/cache"
-
-	"golang.org/x/net/context"
 )
 
 type kvProxy struct {
@@ -27,11 +27,14 @@ type kvProxy struct {
 	cache cache.Cache
 }
 
-func NewKvProxy(c *clientv3.Client) pb.KVServer {
-	return &kvProxy{
+func NewKvProxy(c *clientv3.Client) (pb.KVServer, <-chan struct{}) {
+	kv := &kvProxy{
 		kv:    c.KV,
 		cache: cache.NewCache(cache.DefaultMaxEntries),
 	}
+	donec := make(chan struct{})
+	close(donec)
+	return kv, donec
 }
 
 func (p *kvProxy) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeResponse, error) {
@@ -45,8 +48,9 @@ func (p *kvProxy) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeRespo
 			cacheHits.Inc()
 			return nil, err
 		}
+
+		cachedMisses.Inc()
 	}
-	cachedMisses.Inc()
 
 	resp, err := p.kv.Do(ctx, RangeRequestToOp(r))
 	if err != nil {
@@ -96,31 +100,16 @@ func (p *kvProxy) txnToCache(reqs []*pb.RequestOp, resps []*pb.ResponseOp) {
 }
 
 func (p *kvProxy) Txn(ctx context.Context, r *pb.TxnRequest) (*pb.TxnResponse, error) {
-	txn := p.kv.Txn(ctx)
-	cmps := make([]clientv3.Cmp, len(r.Compare))
-	thenops := make([]clientv3.Op, len(r.Success))
-	elseops := make([]clientv3.Op, len(r.Failure))
-
-	for i := range r.Compare {
-		cmps[i] = (clientv3.Cmp)(*r.Compare[i])
-	}
-
-	for i := range r.Success {
-		thenops[i] = requestOpToOp(r.Success[i])
-	}
-
-	for i := range r.Failure {
-		elseops[i] = requestOpToOp(r.Failure[i])
-	}
-
-	resp, err := txn.If(cmps...).Then(thenops...).Else(elseops...).Commit()
-
+	op := TxnRequestToOp(r)
+	opResp, err := p.kv.Do(ctx, op)
 	if err != nil {
 		return nil, err
 	}
+	resp := opResp.Txn()
+
 	// txn may claim an outdated key is updated; be safe and invalidate
 	for _, cmp := range r.Compare {
-		p.cache.Invalidate(cmp.Key, nil)
+		p.cache.Invalidate(cmp.Key, cmp.RangeEnd)
 	}
 	// update any fetched keys
 	if resp.Succeeded {
@@ -164,6 +153,10 @@ func requestOpToOp(union *pb.RequestOp) clientv3.Op {
 		if tv.RequestDeleteRange != nil {
 			return DelRequestToOp(tv.RequestDeleteRange)
 		}
+	case *pb.RequestOp_RequestTxn:
+		if tv.RequestTxn != nil {
+			return TxnRequestToOp(tv.RequestTxn)
+		}
 	}
 	panic("unknown request")
 }
@@ -183,7 +176,12 @@ func RangeRequestToOp(r *pb.RangeRequest) clientv3.Op {
 	opts = append(opts, clientv3.WithMinCreateRev(r.MinCreateRevision))
 	opts = append(opts, clientv3.WithMaxModRev(r.MaxModRevision))
 	opts = append(opts, clientv3.WithMinModRev(r.MinModRevision))
-
+	if r.CountOnly {
+		opts = append(opts, clientv3.WithCountOnly())
+	}
+	if r.KeysOnly {
+		opts = append(opts, clientv3.WithKeysOnly())
+	}
 	if r.Serializable {
 		opts = append(opts, clientv3.WithSerializable())
 	}
@@ -194,7 +192,15 @@ func RangeRequestToOp(r *pb.RangeRequest) clientv3.Op {
 func PutRequestToOp(r *pb.PutRequest) clientv3.Op {
 	opts := []clientv3.OpOption{}
 	opts = append(opts, clientv3.WithLease(clientv3.LeaseID(r.Lease)))
-
+	if r.IgnoreValue {
+		opts = append(opts, clientv3.WithIgnoreValue())
+	}
+	if r.IgnoreLease {
+		opts = append(opts, clientv3.WithIgnoreLease())
+	}
+	if r.PrevKv {
+		opts = append(opts, clientv3.WithPrevKV())
+	}
 	return clientv3.OpPut(string(r.Key), string(r.Value), opts...)
 }
 
@@ -207,4 +213,20 @@ func DelRequestToOp(r *pb.DeleteRangeRequest) clientv3.Op {
 		opts = append(opts, clientv3.WithPrevKV())
 	}
 	return clientv3.OpDelete(string(r.Key), opts...)
+}
+
+func TxnRequestToOp(r *pb.TxnRequest) clientv3.Op {
+	cmps := make([]clientv3.Cmp, len(r.Compare))
+	thenops := make([]clientv3.Op, len(r.Success))
+	elseops := make([]clientv3.Op, len(r.Failure))
+	for i := range r.Compare {
+		cmps[i] = (clientv3.Cmp)(*r.Compare[i])
+	}
+	for i := range r.Success {
+		thenops[i] = requestOpToOp(r.Success[i])
+	}
+	for i := range r.Failure {
+		elseops[i] = requestOpToOp(r.Failure[i])
+	}
+	return clientv3.OpTxn(cmps, thenops, elseops)
 }

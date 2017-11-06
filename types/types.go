@@ -19,6 +19,7 @@ var (
 var (
 	ErrServiceNotFound     = ErrNotFound("service not found")
 	ErrDestinationNotFound = ErrNotFound("destination not found")
+	ErrCheckNotFound       = ErrNotFound("check not found")
 	ErrServiceConflict     = ErrConflict("service already exists")
 	ErrDestinationConflict = ErrConflict("destination already exists")
 )

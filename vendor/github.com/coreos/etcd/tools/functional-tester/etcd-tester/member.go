@@ -15,17 +15,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/url"
 	"time"
 
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-
 	"github.com/coreos/etcd/clientv3"
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
 	"github.com/coreos/etcd/tools/functional-tester/etcd-agent/client"
+
+	"google.golang.org/grpc"
 )
 
 type member struct {
@@ -79,7 +79,10 @@ func (m *member) Defrag() error {
 		return err
 	}
 	defer cli.Close()
-	if _, err = cli.Defragment(context.Background(), m.ClientURL); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	_, err = cli.Defragment(ctx, m.ClientURL)
+	cancel()
+	if err != nil {
 		return err
 	}
 	plog.Printf("defragmented %s\n", m.ClientURL)

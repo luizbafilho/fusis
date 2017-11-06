@@ -1,0 +1,23 @@
+# Sample Fusis configuration file
+
+# name = "example"
+#
+etcd-endpoints = "172.100.0.40:2379"
+
+# cluster-mode = "anycast"
+enable-health-checks = "true"
+
+[interfaces]
+inbound = "eth0"
+outbound = "eth0"
+
+[ipam]
+ranges = ["10.100.0.0/24"]
+
+[bgp]
+as = 65001
+router-id = "172.100.0.10"
+
+  [[bgp.neighbors]]
+  address = "172.100.0.20"
+  peer-as = 64512

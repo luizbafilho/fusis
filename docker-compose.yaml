@@ -6,39 +6,42 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     privileged: true
-    environment:
-      STORE_ADDRESS: consul://172.100.0.30:8500
     volumes:
       - ".:/go/src/github.com/luizbafilho/fusis/"
       - "/lib/modules:/lib/modules"
     depends_on:
-      - consul
+      - etcd
     working_dir: /go/src/github.com/luizbafilho/fusis/
     command: sh -c "go build -o bin/fusis && bin/fusis balancer"
     networks:
-      default:
-        ipv4_address: 172.100.0.5
+      - default
+      - vips
 
-  test:
+  test: &test
     build:
       context: .
       dockerfile: Dockerfile.dev
     privileged: true
     environment:
-      STORE_ADDRESS: consul://172.100.0.30:8500
+      ETCD_ENDPOINTS: 172.100.0.40:2379
     volumes:
       - ".:/go/src/github.com/luizbafilho/fusis/"
       - "/lib/modules:/lib/modules"
+    working_dir: /go/src/github.com/luizbafilho/fusis/
     depends_on:
-      - consul
+      - etcd
     command: go test -race ./...
+
+  ci:
+    <<: *test
+    command: ./covertests.sh
 
   fusis:
     build:
       context: .
     privileged: true
     depends_on:
-      - consul
+      - etcd
       - bird
     volumes:
       - "./fusis.toml:/etc/fusis.toml"
@@ -58,13 +61,40 @@ services:
       default:
         ipv4_address: 172.100.0.20
 
-  consul:
-    image: consul:0.7.1
+  etcd:
+    environment:
+      ETCDCTL_API: 3
+      ETCD_DEBUG: "true"
+    image: quay.io/coreos/etcd:v3.2.7
+    command:
+       /usr/local/bin/etcd
+        --name docker-compose
+        --listen-client-urls http://0.0.0.0:2379
+        --advertise-client-urls http://0.0.0.0:2379
+        --listen-peer-urls http://0.0.0.0:2380
+        --initial-advertise-peer-urls http://0.0.0.0:2380
+        --initial-cluster docker-compose=http://0.0.0.0:2380
+        --initial-cluster-token my-etcd-token
+        --initial-cluster-state new
     networks:
       default:
-        ipv4_address: 172.100.0.30
+        ipv4_address: 172.100.0.40
+
+  real:
+    image: nginx:1.13
+    networks:
+      default:
+        ipv4_address: 172.100.0.50
+
 
 networks:
+  vips:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.100.0.0/24
+
   default:
     driver: bridge
     ipam:

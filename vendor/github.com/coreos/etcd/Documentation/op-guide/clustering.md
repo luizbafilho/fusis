@@ -83,7 +83,7 @@ A cluster using self-signed certificates both encrypts traffic and authenticates
 On each machine, etcd would be started with these flags:
 
 ```
-$ etcd --name infra0 --initial-advertise-peer-urls http://10.0.1.10:2380 \
+$ etcd --name infra0 --initial-advertise-peer-urls https://10.0.1.10:2380 \
   --listen-peer-urls https://10.0.1.10:2380 \
   --listen-client-urls https://10.0.1.10:2379,https://127.0.0.1:2379 \
   --advertise-client-urls https://10.0.1.10:2379 \
@@ -281,7 +281,7 @@ ETCD_DISCOVERY=https://discovery.etcd.io/3e86b59982e49066c5d813af1c2e2579cbf573d
 --discovery https://discovery.etcd.io/3e86b59982e49066c5d813af1c2e2579cbf573de
 ```
 
-**Each member must have a different name flag specified or else discovery will fail due to duplicated names. `Hostname` or `machine-id` can be a good choice. **
+**Each member must have a different name flag specified or else discovery will fail due to duplicated names. `Hostname` or `machine-id` can be a good choice.**
 
 Now we start etcd with those relevant flags for each member:
 
@@ -458,7 +458,7 @@ $ etcd --name infra2 \
 
 ### Gateway
 
-etcd gateway is a simple TCP proxy that forwards network data to the etcd cluster. Please read [gateway guide] for more information.
+etcd gateway is a simple TCP proxy that forwards network data to the etcd cluster. Please read [gateway guide][gateway] for more information.
 
 ### Proxy
 
@@ -475,5 +475,5 @@ To setup an etcd cluster with proxies of v2 API, please read the the [clustering
 [proxy]: https://github.com/coreos/etcd/blob/release-2.3/Documentation/proxy.md
 [clustering_etcd2]: https://github.com/coreos/etcd/blob/release-2.3/Documentation/clustering.md
 [security-guide]: security.md
-[tls-setup]: /hack/tls-setup
+[tls-setup]: ../../hack/tls-setup
 [gateway]: gateway.md

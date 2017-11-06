@@ -15,6 +15,7 @@ services:
     command: sh -c "go build -o bin/fusis && bin/fusis balancer"
     networks:
       - default
+      - vips
 
   test: &test
     build:
@@ -60,12 +61,6 @@ services:
       default:
         ipv4_address: 172.100.0.20
 
-  consul:
-    image: consul:0.7.1
-    networks:
-      default:
-        ipv4_address: 172.100.0.30
-
   etcd:
     environment:
       ETCDCTL_API: 3
@@ -85,7 +80,21 @@ services:
       default:
         ipv4_address: 172.100.0.40
 
+  real:
+    image: nginx:1.13
+    networks:
+      default:
+        ipv4_address: 172.100.0.50
+
+
 networks:
+  vips:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.100.0.0/24
+
   default:
     driver: bridge
     ipam:

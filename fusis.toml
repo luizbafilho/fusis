@@ -5,13 +5,14 @@
 etcd-endpoints = "172.100.0.40:2379"
 
 # cluster-mode = "anycast"
+enable-health-checks = "true"
 
 [interfaces]
 inbound = "eth0"
 outbound = "eth0"
 
 [ipam]
-ranges = ["192.168.0.0/28"]
+ranges = ["10.100.0.0/24"]
 
 [bgp]
 as = 65001

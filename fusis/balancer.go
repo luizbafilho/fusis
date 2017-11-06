@@ -118,11 +118,10 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 		metrics:      metrics,
 	}
 
-	// if balancer.config.EnableHealthChecks {
-	// 	monitor := health.NewMonitor(store, changesCh)
-	// 	go monitor.Start()
-	// 	balancer.healthMonitor = monitor
-	// }
+	if balancer.config.EnableHealthChecks {
+		balancer.healthMonitor = health.NewMonitor(store)
+		go balancer.watchDestinationsHealth()
+	}
 
 	if balancer.isAnycast() {
 		bgpMngr, err := bgp.NewBgpService(config)
@@ -142,7 +141,6 @@ func NewBalancer(config *config.BalancerConfig) (Balancer, error) {
 
 	go balancer.watchLeaderChanges()
 	go balancer.watchStore()
-	// go balancer.watchState()
 	go balancer.reconcile()
 
 	go metrics.Monitor()
@@ -190,19 +188,34 @@ func (b *FusisBalancer) watchStore() {
 	}
 }
 
-func (b *FusisBalancer) handleStateChange(s state.State) error {
-	// b.Lock()
-	// b.state = s.Copy()
-	// b.Unlock()
+func (b *FusisBalancer) watchDestinationsHealth() {
+	changesCh := make(chan bool)
 
+	b.healthMonitor.Start(changesCh)
+
+	for _ = range changesCh {
+		s, err := b.store.GetState()
+		if err != nil {
+			log.Errorf("[balancer] Error get state %s", err)
+		}
+
+		if err := b.handleStateChange(s); err != nil {
+			log.Errorf("[balancer] Error handling state change: %s", err)
+		}
+	}
+
+}
+
+func (b *FusisBalancer) handleStateChange(s state.State) error {
 	start := time.Now()
 	defer func() {
 		log.Debugf("handleStateChange() took %v", time.Since(start))
 	}()
 
-	// if b.config.EnableHealthChecks {
-	// 	s = b.healthMonitor.FilterHealthy(s)
-	// }
+	if b.config.EnableHealthChecks {
+		b.healthMonitor.UpdateChecks(s)
+		s = b.healthMonitor.FilterHealthy(s)
+	}
 
 	if err := b.ipvsMngr.Sync(s); err != nil {
 		return err

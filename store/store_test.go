@@ -293,13 +293,22 @@ func TestGetState(t *testing.T) {
 		Port:      80,
 		Mode:      "nat",
 		Weight:    1,
-		ServiceId: "test",
+		ServiceId: svc1.GetId(),
+	}
+
+	check := types.CheckSpec{
+		Type:     "tcp",
+		Interval: 5 * time.Second,
+		Timeout:  2 * time.Second,
 	}
 
 	err = kv.AddService(svc1)
 	assert.Nil(t, err)
 
 	err = kv.AddDestination(svc1, dst1)
+	assert.Nil(t, err)
+
+	err = kv.AddCheck(check)
 	assert.Nil(t, err)
 
 	svc2 := &types.Service{
@@ -319,6 +328,7 @@ func TestGetState(t *testing.T) {
 
 	assert.Equal(t, []types.Service{*svc1, *svc2}, fstate.GetServices())
 	assert.Equal(t, []types.Destination{*dst1}, fstate.GetDestinations(svc1))
+	assert.Equal(t, []types.CheckSpec{check}, fstate.GetChecks())
 
 	err = kv.Close()
 	assert.Nil(t, err)
@@ -383,4 +393,33 @@ func TestWatch(t *testing.T) {
 
 	err = kv.Close()
 	assert.Nil(t, err)
+}
+
+func TestCheck(t *testing.T) {
+	cleanup(t)
+	config := config.BalancerConfig{
+		EtcdEndpoints: "172.100.0.40:2379",
+	}
+
+	kv, err := New(&config)
+	assert.Nil(t, err)
+
+	spec := types.CheckSpec{
+		ServiceID: "service-1",
+		Interval:  5 * time.Second,
+		Timeout:   5 * time.Second,
+	}
+
+	err = kv.AddCheck(spec)
+	assert.Nil(t, err)
+
+	check, err := kv.GetCheck("service-1")
+	assert.Nil(t, err)
+	assert.Equal(t, &spec, check)
+
+	err = kv.DeleteCheck(spec)
+	assert.Nil(t, err)
+
+	_, err = kv.GetCheck("service-1")
+	assert.Equal(t, types.ErrCheckNotFound, err)
 }

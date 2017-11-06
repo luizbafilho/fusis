@@ -9,16 +9,21 @@ import (
 //go:generate mockery -name=State
 
 type Services []types.Service
-type Destinations []types.Destination
+type Destinations map[string]types.Destination
+type Checks []types.CheckSpec
 
 type State interface {
 	GetServices() []types.Service
 	AddService(svc types.Service)
 
-	SetDestinations(dsts Destinations)
+	// SetDestinations(dsts Destinations)
 	GetDestinations(svc *types.Service) []types.Destination
 	AddDestination(dst types.Destination)
+	DeleteDestination(dst types.Destination)
 
+	AddCheck(c types.CheckSpec)
+	GetChecks() []types.CheckSpec
+	SetChecks(checks Checks)
 	Copy() State
 }
 
@@ -28,6 +33,7 @@ type FusisState struct {
 
 	services     Services
 	destinations Destinations
+	checks       Checks
 }
 
 // New creates a new Engine
@@ -44,17 +50,36 @@ func (s *FusisState) Copy() State {
 	s.RLock()
 	defer s.RUnlock()
 
-	svcs := Services{}
-	dsts := Destinations{}
-
-	copy(svcs, s.services)
-	copy(dsts, s.destinations)
-	copy := &FusisState{
-		services:     svcs,
-		destinations: dsts,
+	new := &FusisState{
+		services:     Services{},
+		destinations: Destinations{},
 	}
 
-	return copy
+	copy(new.services, s.services)
+
+	for _, dst := range s.destinations {
+		new.AddDestination(dst)
+	}
+
+	return new
+}
+
+func (s *FusisState) AddCheck(check types.CheckSpec) {
+	s.Lock()
+	defer s.Unlock()
+	s.checks = append(s.checks, check)
+}
+
+func (s *FusisState) GetChecks() []types.CheckSpec {
+	s.RLock()
+	defer s.RUnlock()
+	return s.checks
+}
+
+func (s *FusisState) SetChecks(checks Checks) {
+	s.Lock()
+	defer s.Unlock()
+	s.checks = checks
 }
 
 func (s *FusisState) GetServices() []types.Service {
@@ -69,18 +94,35 @@ func (s *FusisState) AddService(svc types.Service) {
 	s.services = append(s.services, svc)
 }
 
-func (s *FusisState) SetDestinations(dsts Destinations) {
-	s.destinations = dsts
-}
-
 func (s *FusisState) GetDestinations(svc *types.Service) []types.Destination {
 	s.RLock()
 	defer s.RUnlock()
-	return s.destinations
+
+	dsts := []types.Destination{}
+	if svc == nil {
+		for _, d := range s.destinations {
+			dsts = append(dsts, d)
+		}
+
+		return dsts
+	}
+
+	for _, d := range s.destinations {
+		if d.ServiceId == svc.GetId() {
+			dsts = append(dsts, d)
+		}
+	}
+
+	return dsts
 }
 
 func (s *FusisState) AddDestination(dst types.Destination) {
 	s.Lock()
 	defer s.Unlock()
-	s.destinations = append(s.destinations, dst)
+
+	s.destinations[dst.GetId()] = dst
+}
+
+func (s *FusisState) DeleteDestination(dst types.Destination) {
+	delete(s.destinations, dst.GetId())
 }

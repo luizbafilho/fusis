@@ -10,6 +10,11 @@ type State struct {
 	mock.Mock
 }
 
+// AddCheck provides a mock function with given fields: c
+func (_m *State) AddCheck(c types.CheckSpec) {
+	_m.Called(c)
+}
+
 // AddDestination provides a mock function with given fields: dst
 func (_m *State) AddDestination(dst types.Destination) {
 	_m.Called(dst)
@@ -30,6 +35,27 @@ func (_m *State) Copy() state.State {
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(state.State)
+		}
+	}
+
+	return r0
+}
+
+// DeleteDestination provides a mock function with given fields: dst
+func (_m *State) DeleteDestination(dst types.Destination) {
+	_m.Called(dst)
+}
+
+// GetChecks provides a mock function with given fields:
+func (_m *State) GetChecks() []types.CheckSpec {
+	ret := _m.Called()
+
+	var r0 []types.CheckSpec
+	if rf, ok := ret.Get(0).(func() []types.CheckSpec); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]types.CheckSpec)
 		}
 	}
 
@@ -68,7 +94,7 @@ func (_m *State) GetServices() []types.Service {
 	return r0
 }
 
-// SetDestinations provides a mock function with given fields: dsts
-func (_m *State) SetDestinations(dsts state.Destinations) {
-	_m.Called(dsts)
+// SetChecks provides a mock function with given fields: checks
+func (_m *State) SetChecks(checks state.Checks) {
+	_m.Called(checks)
 }

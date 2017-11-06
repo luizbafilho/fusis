@@ -33,6 +33,7 @@ type Store interface {
 	DeleteDestination(svc *types.Service, dst *types.Destination) error
 
 	AddCheck(check types.CheckSpec) error
+	GetCheck(serviceID string) (*types.CheckSpec, error)
 	DeleteCheck(check types.CheckSpec) error
 
 	AddWatcher(ch chan state.State)
@@ -122,10 +123,11 @@ func (s *FusisStore) GetState() (state.State, error) {
 
 	opts := append([]clientv3.OpOption{}, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortDescend))
 	svcGet := clientv3.OpGet(s.key("services"), opts...)
-	ipvsGet := clientv3.OpGet(s.key("destinations"), opts...)
+	dstGet := clientv3.OpGet(s.key("destinations"), opts...)
+	checkGet := clientv3.OpGet(s.key("checks"), opts...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	resp, err := s.kv.Txn(ctx).Then(svcGet, ipvsGet).Commit()
+	resp, err := s.kv.Txn(ctx).Then(svcGet, dstGet, checkGet).Commit()
 	cancel()
 	if err != nil {
 		return nil, errors.Wrap(err, "[store] Get data from etcd failed")
@@ -147,6 +149,12 @@ func (s *FusisStore) GetState() (state.State, error) {
 					return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
 				}
 				fstate.AddDestination(dst)
+			case strings.Contains(key, s.key("checks")):
+				spec := types.CheckSpec{}
+				if err := json.Unmarshal(pair.Value, &spec); err != nil {
+					return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", pair.Value)
+				}
+				fstate.AddCheck(spec)
 			}
 		}
 	}
@@ -186,7 +194,7 @@ func (s *FusisStore) GetService(name string) (*types.Service, error) {
 	kv := resp.Kvs[0]
 	svc := &types.Service{}
 	if err := json.Unmarshal(kv.Value, &svc); err != nil {
-		return nil, errors.Wrapf(err, "[store] Unmarshal %s failed", kv.Value)
+		return nil, errors.Wrapf(err, "[store] unmarshal %s failed", kv.Value)
 	}
 
 	return svc, nil
@@ -345,73 +353,54 @@ func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destinatio
 }
 
 func (s *FusisStore) AddCheck(spec types.CheckSpec) error {
-	// TODO: do
-	// key := s.key("checks", spec.ServiceID)
-	//
-	// value, err := json.Marshal(spec)
-	// if err != nil {
-	// 	return errors.Wrapf(err, "error marshaling CheckSpec: %#v", spec)
-	// }
-	//
-	// err = s.kv.Put(key, value, nil)
-	// if err != nil {
-	// 	return errors.Wrapf(err, "error sending CheckSpec to store: %#v", spec)
-	// }
+	checkKey := s.key("checks", spec.ServiceID)
+
+	// Persisting destination
+	value, err := json.Marshal(spec)
+	if err != nil {
+		return errors.Wrapf(err, "[store] error marshaling spec: %#v", spec)
+	}
+
+	_, err = s.kv.Put(context.TODO(), checkKey, string(value))
+	if err != nil {
+		return errors.Wrapf(err, "[store] Error sending check to Etcd: %#v", spec)
+	}
 
 	return nil
 }
 
-//
+func (s *FusisStore) GetCheck(serviceID string) (*types.CheckSpec, error) {
+	checkKey := s.key("checks", serviceID)
+
+	resp, err := s.kv.Get(context.TODO(), checkKey, clientv3.WithPrefix())
+	if err != nil {
+		return nil, errors.Wrapf(err, "[store] Error getting check from Etcd: %#v", checkKey)
+	}
+
+	if len(resp.Kvs) == 0 {
+		return nil, types.ErrCheckNotFound
+	}
+
+	kv := resp.Kvs[0]
+	check := &types.CheckSpec{}
+	if err := json.Unmarshal(kv.Value, &check); err != nil {
+		return nil, errors.Wrapf(err, "[store] unmarshal %s failed", kv.Value)
+	}
+
+	return check, nil
+}
+
 func (s *FusisStore) DeleteCheck(spec types.CheckSpec) error {
-	//TODO: do
-	// key := s.key("checks", spec.ServiceID)
-	//
-	// err := s.kv.DeleteTree(key)
-	// if err != nil {
-	// 	return errors.Wrapf(err, "error trying to delete check: %#v", spec)
-	// }
-	// log.Debugf("[store] Deleted check: %s", key)
-	//
+	checkKey := s.key("checks", spec.ServiceID)
+
+	_, err := s.kv.Delete(context.TODO(), checkKey)
+	if err != nil {
+		return errors.Wrapf(err, "[store] Error deleting check from Etcd: %#v", spec)
+	}
+
 	return nil
 }
 
-//
-// func (s *FusisStore) WatchChecks() {
-// 	specs := []types.CheckSpec{}
-//
-// 	stopCh := make(<-chan struct{})
-// 	events, err := s.kv.WatchTree(s.key("checks"), stopCh)
-// 	if err != nil {
-// 		log.Error(errors.Wrap(err, "failed watching fusis/checks"))
-// 	}
-//
-// 	for {
-// 		select {
-// 		case entries := <-events:
-// 			log.Debug("[store] Checks received")
-//
-// 			for _, pair := range entries {
-// 				spec := types.CheckSpec{}
-// 				if err := json.Unmarshal(pair.Value, &spec); err != nil {
-// 					log.Error(errors.Wrap(err, "failed unmarshall of checks"))
-// 				}
-// 				log.Debugf("[store] Got Check: %#v", spec)
-//
-// 				specs = append(specs, spec)
-// 			}
-//
-// 			s.Lock()
-// 			for _, ch := range s.checksChannels {
-// 				ch <- specs
-// 			}
-// 			s.Unlock()
-//
-// 			//Cleaning up destinations slice
-// 			specs = []types.CheckSpec{}
-// 		}
-// 	}
-// }
-//
 func (s *FusisStore) key(keys ...string) string {
 	lastIndex := len(keys) - 1
 	keys[lastIndex] = keys[lastIndex] + "/"

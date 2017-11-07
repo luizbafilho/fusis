@@ -86,6 +86,11 @@ services:
       default:
         ipv4_address: 172.100.0.50
 
+  e2e:
+    image: docker
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    command: docker ps
 
 networks:
   vips:

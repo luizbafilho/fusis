@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/fatih/structs"
 	"github.com/labstack/echo"
 	"github.com/luizbafilho/fusis/types"
 )
@@ -24,12 +25,20 @@ func (as ApiService) getServices(c echo.Context) error {
 }
 
 func (as ApiService) getService(c echo.Context) error {
-	service, err := as.balancer.GetService(c.Param("service_name"))
+	svcName := c.Param("service_name")
+	service, err := as.balancer.GetService(svcName)
 	if err != nil {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, service)
+	dsts, err := as.balancer.GetDestinations(service)
+	if err != nil {
+		return err
+	}
+	resp := structs.Map(service)
+	resp["Destinations"] = dsts
+
+	return c.JSON(http.StatusOK, resp)
 }
 
 func (as ApiService) addService(c echo.Context) error {

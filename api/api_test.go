@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/appleboy/gofight"
+	"github.com/fatih/structs"
 	"github.com/luizbafilho/fusis/fusis/mocks"
 	"github.com/luizbafilho/fusis/types"
 	"github.com/stretchr/testify/assert"
@@ -67,8 +68,12 @@ func (s *ApiTestSuite) TestGetServices() {
 
 func (s *ApiTestSuite) TestGetService() {
 	s.balancer.On("GetService", "testing").Return(&s.service, nil)
+	s.balancer.On("GetDestinations", &s.service).Return([]types.Destination{s.destination}, nil)
 
-	expectedBody, err := json.Marshal(s.service)
+	resp := structs.Map(s.service)
+	resp["Destinations"] = []types.Destination{s.destination}
+	expectedBody, err := json.Marshal(resp)
+
 	assert.Nil(s.T(), err)
 
 	s.r.GET("/services/testing").

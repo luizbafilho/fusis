@@ -8,11 +8,6 @@
   version = "v2.0.0"
 
 [[projects]]
-  name = "github.com/armon/go-metrics"
-  packages = ["."]
-  revision = "97c69685293dce4c0a2d0b19535179bbc976e4d2"
-
-[[projects]]
   branch = "master"
   name = "github.com/armon/go-radix"
   packages = ["."]
@@ -21,7 +16,7 @@
 [[projects]]
   branch = "master"
   name = "github.com/coreos/etcd"
-  packages = ["auth/authpb","clientv3","etcdserver/api/v3rpc/rpctypes","etcdserver/etcdserverpb","mvcc/mvccpb"]
+  packages = ["auth/authpb","clientv3","clientv3/concurrency","etcdserver/api/v3rpc/rpctypes","etcdserver/etcdserverpb","mvcc/mvccpb"]
   revision = "f42534cb210615d3fa4dc4de10474625b199bff6"
 
 [[projects]]
@@ -42,12 +37,6 @@
   version = "v3.0.0"
 
 [[projects]]
-  name = "github.com/docker/libkv"
-  packages = ["store"]
-  revision = "aabc039ad04deb721e234f99cd1b4aa28ac71a40"
-  version = "v0.2.1"
-
-[[projects]]
   branch = "master"
   name = "github.com/docker/libnetwork"
   packages = ["ipvs"]
@@ -64,6 +53,12 @@
   name = "github.com/eapache/queue"
   packages = ["."]
   revision = "44cc805cf13205b55f69e14bcb69867d1ae92f98"
+
+[[projects]]
+  name = "github.com/fatih/structs"
+  packages = ["."]
+  revision = "a720dfa8df582c51dee1b36feabb906bde1588bd"
+  version = "v1.0"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -88,23 +83,6 @@
   revision = "1643683e1b54a9e88ad26d98f81400c8c9d9f4f9"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/hashicorp/errwrap"
-  packages = ["."]
-  revision = "7554cd9344cec97297fa6649b055a8c98c2a1e55"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/hashicorp/go-msgpack"
-  packages = ["codec"]
-  revision = "fa3f63826f7c23912c15263591e65d54d080b458"
-
-[[projects]]
-  name = "github.com/hashicorp/go-multierror"
-  packages = ["."]
-  revision = "8484912a3b9987857bac52e0c5fec2b95f419628"
-
-[[projects]]
   name = "github.com/hashicorp/hcl"
   packages = [".","hcl/ast","hcl/parser","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
   revision = "37ab263305aaeb501a60eb16863e808d426e37f2"
@@ -114,17 +92,6 @@
   name = "github.com/hashicorp/logutils"
   packages = ["."]
   revision = "0dc08b1671f34c4250ce212759ebd880f743d883"
-
-[[projects]]
-  name = "github.com/hashicorp/memberlist"
-  packages = ["."]
-  revision = "56f5fd70afa73f13bbe529192aeb3dc7bc4bc960"
-
-[[projects]]
-  name = "github.com/hashicorp/serf"
-  packages = ["coordinate","serf"]
-  revision = "d6574a5bb1226678d7010325fb6c985db20ee458"
-  version = "v0.8.1"
 
 [[projects]]
   branch = "master"
@@ -157,11 +124,6 @@
   version = "0.2.2"
 
 [[projects]]
-  name = "github.com/luizbafilho/leadership"
-  packages = ["."]
-  revision = "d62f2888864f584c2f4f6e7a7887945c75d277e7"
-
-[[projects]]
   name = "github.com/magiconair/properties"
   packages = ["."]
   revision = "9c47895dc1ce54302908ab8a43385d1f5df2c11c"
@@ -191,11 +153,6 @@
   name = "github.com/mdlayher/raw"
   packages = ["."]
   revision = "472104a05395b20ff1df7d8abe3efb400d68c3cc"
-
-[[projects]]
-  name = "github.com/miekg/dns"
-  packages = ["."]
-  revision = "4744e915eb51a9defb5fb13c24ce2c8408d2fd98"
 
 [[projects]]
   name = "github.com/mikioh/ipaddr"
@@ -378,6 +335,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1515f09143ea6bb6f9f2c1e26fa6155616659834d3f1b864dd686af4b9bcaa30"
+  inputs-digest = "f5a10514b95a61fe403408df3c76a7fe33b7af64de320af995e155888fb116a7"
   solver-name = "gps-cdcl"
   solver-version = 1

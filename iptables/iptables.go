@@ -215,7 +215,7 @@ func (i IptablesMngr) execIptablesCommand(action string, r SnatRule) error {
 func (i IptablesMngr) getSnatRules() ([]SnatRule, error) {
 	i.Lock()
 	defer i.Unlock()
-	out, err := exec.Command(i.path, "--list", "FUSIS", "-t", "nat").Output()
+	out, err := exec.Command(i.path, "--list", "FUSIS", "-t", "nat", "-n").Output()
 	if err != nil {
 		log.Fatal("[iptables] Error executing iptables ", err)
 	}

@@ -13,6 +13,8 @@ services:
       - etcd
     working_dir: /go/src/github.com/luizbafilho/fusis/
     command: sh -c "go build -o bin/fusis && bin/fusis balancer"
+    ports:
+      - 8000:8000
     networks:
       - default
       - vips
@@ -85,6 +87,14 @@ services:
     networks:
       default:
         ipv4_address: 172.100.0.50
+
+  client:
+    image: tutum/curl
+    networks:
+    networks:
+      default:
+        ipv4_address: 172.100.0.100
+      vips: {}
 
   e2e:
     image: docker

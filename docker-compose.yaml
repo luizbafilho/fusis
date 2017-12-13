@@ -1,7 +1,7 @@
 version: '2'
 
 services:
-  dev:
+  dev: &dev
     build:
       context: .
       dockerfile: Dockerfile.dev
@@ -19,38 +19,13 @@ services:
       - default
       - vips
 
-  test: &test
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    privileged: true
-    environment:
-      ETCD_ENDPOINTS: 172.100.0.40:2379
-    volumes:
-      - ".:/go/src/github.com/luizbafilho/fusis/"
-      - "/lib/modules:/lib/modules"
-    working_dir: /go/src/github.com/luizbafilho/fusis/
-    depends_on:
-      - etcd
-    command: go test -race ./...
-
-  ci:
-    <<: *test
-    command: ./covertests.sh
-
-  fusis:
-    build:
-      context: .
-    privileged: true
+  full:
+    <<: *dev
     depends_on:
       - etcd
       - bird
-    volumes:
-      - "./fusis.toml:/etc/fusis.toml"
-      - "/lib/modules:/lib/modules"
-    networks:
-      default:
-        ipv4_address: 172.100.0.10
+      - real
+      - real2
 
   bird:
     build:
@@ -88,6 +63,12 @@ services:
       default:
         ipv4_address: 172.100.0.50
 
+  real2:
+    image: nginx:1.13
+    networks:
+      default:
+        ipv4_address: 172.100.0.60
+
   client:
     image: tutum/curl
     networks:
@@ -96,11 +77,38 @@ services:
         ipv4_address: 172.100.0.100
       vips: {}
 
-  e2e:
-    image: docker
+  test: &test
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    privileged: true
+    environment:
+      ETCD_ENDPOINTS: 172.100.0.40:2379
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-    command: docker ps
+      - ".:/go/src/github.com/luizbafilho/fusis/"
+      - "/lib/modules:/lib/modules"
+    working_dir: /go/src/github.com/luizbafilho/fusis/
+    depends_on:
+      - etcd
+    command: go test -race ./...
+
+  ci:
+    <<: *test
+    command: ./covertests.sh
+
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    command: /app/e2e/run.sh
+    volumes:
+      - ".:/app"
+    depends_on:
+      - full
+    networks:
+      - default
+      - vips
+
 
 networks:
   vips:

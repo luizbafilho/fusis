@@ -8,7 +8,7 @@ etcd-endpoints = "172.100.0.40:2379"
 enable-health-checks = "true"
 
 [interfaces]
-inbound = "eth0"
+inbound = "eth1"
 outbound = "eth0"
 
 [ipam]

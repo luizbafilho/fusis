@@ -5,8 +5,12 @@ language: go
 services:
   - docker
 
-script:
-  - docker-compose run ci
+jobs:
+  include:
+    - stage: test
+      script: docker-compose run ci
+    - stage: test
+      script: docker-compose run e2e
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)

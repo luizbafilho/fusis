@@ -101,3 +101,7 @@
 [[constraint]]
   name = "google.golang.org/grpc"
   version = "1.6.x"
+
+[[constraint]]
+  name = "github.com/k0kubun/pp"
+  version = "2.3.0"

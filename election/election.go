@@ -48,6 +48,7 @@ func (e *Election) Run(electedCh chan bool) {
 func (e *Election) IsLeader() bool {
 	resp, err := e.election.Leader(context.TODO())
 	if err != nil {
+		logrus.Error("[election] error getting leader")
 		return false
 	}
 

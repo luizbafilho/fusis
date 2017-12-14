@@ -83,7 +83,7 @@ func (as ApiService) addDestination(c echo.Context) error {
 }
 
 func (as ApiService) deleteDestination(c echo.Context) error {
-	if err := as.balancer.DeleteDestination(&types.Destination{Name: c.Param("destination_name")}); err != nil {
+	if err := as.balancer.DeleteDestination(&types.Destination{Name: c.Param("destination_name"), ServiceId: c.Param("service_name")}); err != nil {
 		return err
 	}
 

@@ -237,8 +237,8 @@ func (s *FusisStore) AddService(svc *types.Service) error {
 		return errors.Wrapf(err, "[store] Error marshaling service: %v", svc)
 	}
 
-	svcCmp := clientv3.Compare(clientv3.Version(svcKey), "=", 0)
-	ipvsCmp := clientv3.Compare(clientv3.Version(ipvsKey), "=", 0)
+	svcCmp := notFound(svcKey)
+	ipvsCmp := notFound(ipvsKey)
 
 	svcPut := clientv3.OpPut(svcKey, string(value))
 	ipvsPut := clientv3.OpPut(ipvsKey, "true")
@@ -266,8 +266,8 @@ func (s *FusisStore) DeleteService(svc *types.Service) error {
 	svcDel := clientv3.OpDelete(svcKey, clientv3.WithPrefix())
 	ipvsSvcDel := clientv3.OpDelete(ipvsSvcKey, clientv3.WithPrefix())
 
-	svcCmp := clientv3.Compare(clientv3.Version(svcKey), ">", 0)
-	ipvsSvcCmp := clientv3.Compare(clientv3.Version(ipvsSvcKey), ">", 0)
+	svcCmp := clientv3.Compare(clientv3.ModRevision(svcKey), ">", 0)
+	ipvsSvcCmp := clientv3.Compare(clientv3.ModRevision(ipvsSvcKey), ">", 0)
 
 	// Deleting destinations
 	dstKey := s.key("destinations", svc.GetId())
@@ -304,8 +304,8 @@ func (s *FusisStore) AddDestination(svc *types.Service, dst *types.Destination) 
 		return errors.Wrapf(err, "[store] error marshaling destination: %v", dst)
 	}
 
-	dstCmp := clientv3.Compare(clientv3.Version(dstKey), "=", 0)
-	ipvsCmp := clientv3.Compare(clientv3.Version(ipvsKey), "=", 0)
+	dstCmp := notFound(dstKey)
+	ipvsCmp := notFound(ipvsKey)
 
 	dstPut := clientv3.OpPut(dstKey, string(value))
 	ipvsPut := clientv3.OpPut(ipvsKey, "true")
@@ -333,19 +333,19 @@ func (s *FusisStore) DeleteDestination(svc *types.Service, dst *types.Destinatio
 	dstDel := clientv3.OpDelete(dstKey, clientv3.WithPrefix())
 	ipvsDel := clientv3.OpDelete(ipvsKey, clientv3.WithPrefix())
 
-	dstCmp := clientv3.Compare(clientv3.Version(dstKey), ">", 0)
-	ipvsCmp := clientv3.Compare(clientv3.Version(ipvsKey), ">", 0)
+	dstCmp := notFound(dstKey)
+	ipvsCmp := notFound(ipvsKey)
 
 	resp, err := s.kv.Txn(context.TODO()).
 		If(dstCmp, ipvsCmp).
-		Then(dstDel, ipvsDel).
+		Else(dstDel, ipvsDel).
 		Commit()
 	if err != nil {
 		return errors.Wrapf(err, "[store] Error deleting destination from Etcd: %v", svc)
 	}
 
 	// resp.Succeeded means the compare clause was true
-	if resp.Succeeded == false {
+	if resp.Succeeded {
 		return types.ErrDestinationNotFound
 	}
 
@@ -405,4 +405,8 @@ func (s *FusisStore) key(keys ...string) string {
 	lastIndex := len(keys) - 1
 	keys[lastIndex] = keys[lastIndex] + "/"
 	return strings.Join(append([]string{s.prefix}, keys...), "/")
+}
+
+func notFound(key string) clientv3.Cmp {
+	return clientv3.Compare(clientv3.ModRevision(key), "=", 0)
 }

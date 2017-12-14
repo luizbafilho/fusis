@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -85,7 +86,7 @@ func (dst Destination) GetId() string {
 }
 
 func (dst Destination) IpvsId() string {
-	return fmt.Sprintf("%s-%d", dst.Address, dst.Port)
+	return fmt.Sprintf("%s-%d", strings.Replace(dst.Address, ".", "_", 4), dst.Port)
 }
 
 func (d Destination) Equal(dst Destination) bool {

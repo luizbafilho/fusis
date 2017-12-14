@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/k0kubun/pp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -36,7 +37,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	customFormatter := new(log.TextFormatter)
-  customFormatter.FullTimestamp = true
+	customFormatter.FullTimestamp = true
 	log.SetFormatter(customFormatter)
 }
 
@@ -68,6 +69,7 @@ type Node interface {
 }
 
 func waitSignals(node Node) {
+	pp.Println("Waiting signals")
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs

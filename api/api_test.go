@@ -221,7 +221,7 @@ func (s *ApiTestSuite) TestAddDestination() {
 }
 
 func (s *ApiTestSuite) TestDeleteDestination() {
-	s.balancer.On("DeleteDestination", &types.Destination{Name: s.destination.Name}).Return(nil)
+	s.balancer.On("DeleteDestination", &types.Destination{Name: s.destination.Name, ServiceId: s.service.GetId()}).Return(nil)
 
 	path := fmt.Sprintf("/services/%s/destinations/%s", s.service.Name, s.destination.Name)
 	s.r.DELETE(path).

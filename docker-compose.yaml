@@ -34,6 +34,7 @@ services:
     privileged: true
     volumes:
       - "./bird.conf:/etc/bird/bird.conf"
+      - bird-volume:/var/run/bird.ctl
     networks:
       default:
         ipv4_address: 172.100.0.20
@@ -103,12 +104,15 @@ services:
     command: /app/e2e/run.sh
     volumes:
       - ".:/app"
+      - bird-volume:/var/run/bird.ctl
     depends_on:
       - full
     networks:
       - default
       - vips
 
+volumes:
+  bird-volume:
 
 networks:
   vips:

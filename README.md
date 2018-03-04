@@ -59,7 +59,7 @@ vagrant ssh
 ```
 
 ### Linux setup
-1. Install **Go 1.6** or later
+1. Install **Go 1.9** or later
 
 2. Install libnl-3 (Debian based: `apt-get install libnl-3-dev libnl-genl-3-dev`)
 

@@ -74,7 +74,7 @@ Now that you have IPVS and fusis installed, run the project:
 
 ``` bash
 # Remember, fusis binary is at $GOPATH/bin/fusis, add it to your $PATH
-sudo fusis balancer --bootstrap
+sudo fusis balancer
 ```
 You should see something like:
 `[GIN-debug] Listening and serving HTTP on :8000`

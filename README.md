@@ -1,4 +1,5 @@
 Fusis Balancer  [![Build Status](https://travis-ci.org/luizbafilho/fusis.svg?branch=master)](https://travis-ci.org/luizbafilho/fusis) [![Go Report Card](https://goreportcard.com/badge/github.com/luizbafilho/fusis)](https://goreportcard.com/report/github.com/luizbafilho/fusis) [![codecov](https://codecov.io/gh/luizbafilho/fusis/branch/master/graph/badge.svg)](https://codecov.io/gh/luizbafilho/fusis)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fluizbafilho%2Ffusis.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fluizbafilho%2Ffusis?ref=badge_shield)
 ======
 
 Fusis Balancer is a software [Layer 4](https://en.wikipedia.org/wiki/Transport_layer) Load Balancer powered by Linux's [IPVS](http://www.linuxvirtualserver.org/). It is a control plane for IPVS and adds distribution, fault tolerance, self-configuration and a nice JSON API to it.
@@ -114,3 +115,7 @@ Content-Length: 94
 
 [{"Name":"","Host":"10.0.0.1","Port":80,"Protocol":"tcp","Scheduler":"rr","Destinations":[]}]
 ```
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fluizbafilho%2Ffusis.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fluizbafilho%2Ffusis?ref=badge_large)
